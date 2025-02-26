@@ -159,7 +159,6 @@
     .menu {
       grid-area: m;
       gap: 10px;
-      overflow-y: auto;
       max-height: 90vh;
       padding-right: 10px;
       

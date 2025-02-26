@@ -1,10 +1,23 @@
-<!-- src/components/ModesSideBar.vue -->
 <template>
   <div class="modes-sidebar">
     <div class="modes-categories">
-      <div v-for="(modes, culture) in modesByCategory" :key="culture" class="culture-category">
-        <h3 class="culture-title">{{ culture }}</h3>
-        <div class="modes-grid">
+      <div v-for="(modes, category) in modesByCategory" :key="category" class="category-group">
+        <div 
+          class="category-header" 
+          @click="toggleCategory(category as string)"
+        >
+          <small class="category-title">
+            {{ category }}
+            <span class="toggle-icon">
+              {{ categoryCollapsed[category] ? '▼' : '▲' }}
+            </span>
+          </small>
+        </div>
+        
+        <div 
+          class="modes-grid" 
+          v-if="!categoryCollapsed[category]"
+        >
           <div 
             v-for="mode in modes" 
             :key="mode.name"
@@ -16,7 +29,9 @@
             <div class="mode-indicator"></div>
             <div class="mode-tooltip">
               <div class="tooltip-title">{{ mode.name }}</div>
-              <div class="tooltip-culture" v-if="mode.culture">Culture: {{ mode.culture }}</div>
+              <div class="tooltip-culture" v-if="mode.culture">
+                Culture: {{ mode.culture }}
+              </div>
               <div class="tooltip-content">{{ mode.description }}</div>
             </div>
           </div>
@@ -29,7 +44,6 @@
 <script lang="ts">
 import { defineComponent, computed, ref } from 'vue';
 import { useMainStore } from '../stores';
-import { Note, Interval } from 'tonal';
 import { EXTRA_MODES } from '../composables/extraModes';
 import type { ModeGuitar } from '../types';
 
@@ -37,61 +51,39 @@ export default defineComponent({
   name: 'ModesSideBar',
   setup() {
     const store = useMainStore();
-  
+    const categoryCollapsed = ref<{[key: string]: boolean}>({});
 
-    // Obtenir la liste complète des modes
-    const modesList = computed(() => {
-      return [...EXTRA_MODES];
-    });
-
-    // Regrouper les modes par culture
     const modesByCategory = computed(() => {
-      const result: { [culture: string]: ModeGuitar[] } = {};
+      const result: { [category: string]: ModeGuitar[] } = {};
       
-      // Traiter tous les modes
-      modesList.value.forEach(mode => {
-        // Définir la culture, utiliser "Autres traditions" pour les modes sans culture spécifiée
-        const culture = mode.culture || "Autres traditions";
+      EXTRA_MODES.forEach(mode => {
+        const category = mode.category || "Autres traditions";
         
-        // Créer la catégorie si elle n'existe pas encore
-        if (!result[culture]) {
-          result[culture] = [];
+        if (!result[category]) {
+          result[category] = [];
+          categoryCollapsed.value[category] = true;
         }
         
-        // Ajouter le mode à sa catégorie
-        result[culture].push(mode);
+        result[category].push(mode);
       });
       
       return result;
     });
 
-    // Mode actuellement sélectionné
-    const currentModeInfo = computed(() => {
-      return modesList.value.find(mode => mode.name === store.selectedMode);
-    });
-
-    // Notes du mode actuel générées à partir des intervalles
-    const currentNotes = computed(() => {
-      const mode = currentModeInfo.value;
-      if (!mode) return [];
-
-      return mode.intervals.map(interval => 
-        Note.transpose(store.userScale, interval)
-      );
-    });
+    function toggleCategory(category: string) {
+      categoryCollapsed.value[category] = !categoryCollapsed.value[category];
+    }
 
     function selectMode(mode: ModeGuitar) {
-      // Mettre à jour le mode dans le store
       store.setSelectedMode(mode);
     }
 
     return {
       store,
-      modesList,
       modesByCategory,
-      selectMode,
-      currentModeInfo,
-      currentNotes
+      categoryCollapsed,
+      toggleCategory,
+      selectMode
     };
   }
 });
