@@ -47,7 +47,7 @@
     position: fixed;
     top: 0;
     right: 0;
-    width: 80vw;
+    width: 85vw;
     height: 100%;
     background-color: #121212;
     color: #636363;

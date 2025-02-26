@@ -2,11 +2,15 @@
 <template>
   <div class="scale">
     
-    <h2>Scale Container</h2>
-    <ModeDisplay />
-    
-    <!-- Affichage du mode sélectionné -->
-    <CurrentModeDisplay />
+    <div class="left">
+      <ModeDisplay />
+      
+      <!-- Affichage du mode sélectionné -->
+      <CurrentModeDisplay />  
+    </div>
+    <div class="right">
+      <ChordsTabsDisplay />
+    </div>
   </div>
 </template>
 
@@ -15,11 +19,12 @@ import { defineComponent, computed, ref, onMounted } from 'vue';
 import { useMainStore } from '../stores';
 import ModeDisplay from './ModeDisplay.vue';
 import CurrentModeDisplay from './CurrentModeDisplay.vue';
+import ChordsTabsDisplay from './ChordsTabsDisplay.vue';
 import { Note } from 'tonal';
 
 export default defineComponent({
   name: 'ScaleContainer',
-  components: { ModeDisplay, CurrentModeDisplay },
+  components: { ChordsTabsDisplay, ModeDisplay, CurrentModeDisplay },
   setup() {
     const store = useMainStore();
     const availableScales = ref<string[]>([]);
@@ -80,5 +85,17 @@ export default defineComponent({
   position: fixed;
   top: 0px;
   left: 14vw;
+  display: grid;
+  grid-template-areas:
+  "l l l l"
+  "r r r r";
+
+  .right {
+    grid-area: r;
+  }
+  .left {
+    grid-area: l;
+    display: flex;
+  }
 }
 </style>

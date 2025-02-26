@@ -1,4 +1,4 @@
-// Mise à jour du store pour inclure le mode sélectionné
+// Mise à jour du store pour inclure chordRootNote
 import { defineStore } from 'pinia';
 import type { ModeGuitar } from '../types';
 import { Note } from 'tonal';
@@ -12,7 +12,8 @@ const defaultMode: ModeGuitar = {
   intervals: ["1P", "2M", "3M", "4P", "5P", "6M", "7M"],
   alt: [],
   triad: "major",
-  seventh: "maj7"
+  seventh: "maj7",
+  category: '',
 };
 
 export const useMainStore = defineStore('main', {
@@ -20,7 +21,8 @@ export const useMainStore = defineStore('main', {
     userScale: 'C4',
     selectedMidi: null as number | null,
     selectedMode: defaultMode.name,
-    modeObject: defaultMode
+    modeObject: defaultMode,
+    chordRootNote: 'C4' // Nouvelle propriété pour la fondamentale des accords
   }),
   
   actions: {
@@ -30,6 +32,14 @@ export const useMainStore = defineStore('main', {
     
     setSelectedMidi(midi: number | null) {
       this.selectedMidi = midi;
+      
+      // Si un MIDI est sélectionné, mettre également à jour la note fondamentale pour les accords
+      if (midi !== null) {
+        const noteStr = Note.fromMidi(midi);
+        if (noteStr) {
+          this.setChordRootNote(noteStr);
+        }
+      }
     },
     
     clearSelectedMidi() {
@@ -50,6 +60,11 @@ export const useMainStore = defineStore('main', {
     setModeObject(modeObj: ModeGuitar) {
       this.modeObject = modeObj;
       this.selectedMode = modeObj.name;
+    },
+    
+    // Nouvelle action pour définir la fondamentale des accords
+    setChordRootNote(note: string) {
+      this.chordRootNote = note;
     }
   },
   

@@ -1,4 +1,4 @@
-<!-- GuitarNote.vue avec tooltips sur les intervalles -->
+<!-- Mise à jour de GuitarNote.vue pour mettre à jour chordRootNote lors du clic -->
 <template>
   <li :note="displayName" class="noteItem" :class="{ playing }" :style="{ backgroundColor: background }" @click="handleClick">
 
@@ -94,6 +94,9 @@ export default defineComponent({
       playNote(props.displayName);
       if (midi != null) {
         eventBus.emit('noteSelected', midi);
+        
+        // Mettre à jour également la note fondamentale pour les accords
+        store.setChordRootNote(props.displayName);
       }
     }
 

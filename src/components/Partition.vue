@@ -133,7 +133,7 @@ import Notes from './Notes.vue';
 import GuitarNote from './GuitarNote.vue';
 import { getNoteName, getNoteColor, getNoteDegreeLabel } from '../composables/useNoteHelpers';
 import { Note } from 'tonal';
-import { getFretPositions } from '../composables/guitar-chords.ts';
+import { getFretPositions } from '../composables/useGuitarChords.ts';
 import { getReadableChordName } from '../composables/tonalChordsMapping';
   
 interface TabItem {
