@@ -1,4 +1,4 @@
-<!-- Tab.vue amélioré -->
+<!-- Partition.vue avec interface MIDI -->
 <template>
   <div class="tab-container">
     <div class="tab-header">
@@ -42,35 +42,14 @@
       
       <!-- Vue fretboard -->
       <div v-if="currentView === 'fretboard'" class="fretboard-container">
-        <div v-for="(cord, cIdx) in cords" :key="'cord-' + cIdx" class="fret-row">
-          <div class="string-name">{{ cord }}</div>
-          <GuitarNote
-            class="open-string"
-            :mode="item.name"
-            :position="0"
-            :displayName="getNoteName(cord, 0)"
-            :background="getNoteColor(cord, 0, item.notes)"
-            :degreeLabel="getNoteDegreeLabel(cord, 0, item.notes)"
-          />
-          <GuitarNote
-            v-for="fret in visibleFretRange"
-            :key="'fret-' + fret + 1"
-            :mode="item.name"
-            :position="fret + 1"
-            :displayName="getNoteName(cord, fret + 1)"
-            :background="getNoteColor(cord, fret + 1, item.notes)"
-            :degreeLabel="getNoteDegreeLabel(cord, fret + 1, item.notes)"
-          />
-          <div class="fret-markers">
-            <div 
-              v-for="fret in visibleFretRange" 
-              :key="'marker-' + fret"
-              class="fret-marker"
-              :class="{ 'has-marker': [2, 4, 6, 8, 11, 14, 16, 18, 21, 23].includes(fret) }">
-              {{ fret + 1 }}
-            </div>
-          </div>
-        </div>
+        <Tab
+          :midiList="itemMidiList"
+          matchType="multiple"
+          :tabLength="tabLength"
+          :visibleStart="localVisibleStart"
+          :visibleEnd="localVisibleEnd"
+          :cords="cords"
+        />
       </div>
       
       <!-- Vue partition (si disponible) -->
@@ -130,11 +109,11 @@
 <script lang="ts" setup>
 import { ref, computed, defineProps, watch } from 'vue';
 import Notes from './Notes.vue';
-import GuitarNote from './GuitarNote.vue';
-import { getNoteName, getNoteColor, getNoteDegreeLabel } from '../composables/useNoteHelpers';
+import Tab from './Tab.vue';
 import { Note } from 'tonal';
 import { getFretPositions } from '../composables/useGuitarChords.ts';
 import { getReadableChordName } from '../composables/tonalChordsMapping';
+import { useMidiUtils } from '../composables/useMidiUtils';
   
 interface TabItem {
   name: string;
@@ -150,6 +129,13 @@ const props = defineProps<{
   visibleEnd: number;
   cords?: string[];
 }>();
+
+const { notesToMidi } = useMidiUtils();
+
+// Convertir les notes en MIDI pour l'affichage
+const itemMidiList = computed(() => {
+  return notesToMidi(props.item.notes);
+});
 
 const localVisibleStart = ref(props.visibleStart);
 const localVisibleEnd = ref(props.visibleEnd);
@@ -190,7 +176,7 @@ const cords = computed(() => {
   return props.cords ?? "E2 A2 D3 G3 B3 E4".split(" ").reverse();
 });
 
-      // Positions des doigts pour le diagramme d'accord
+// Positions des doigts pour le diagramme d'accord
 const chordPositions = computed(() => {
   try {
     // Extraire la note racine et le type d'accord
@@ -199,13 +185,9 @@ const chordPositions = computed(() => {
       const rootNote = chordNameParts[1];
       const chordType = chordNameParts[2] || 'major';
       
-      // Log pour debug
-      console.log("Accord à afficher:", rootNote, chordType);
-      
       try {
         // Essayer d'obtenir les positions pour cet accord
         const positions = getFretPositions(chordType, rootNote, cords.value.reverse(), positionNumber.value);
-        console.log("Positions obtenues:", positions);
         
         // Ajuster les positions relatives au début visible
         return positions.map(pos => pos === -1 ? -1 : pos);
@@ -228,14 +210,6 @@ const chordPositions = computed(() => {
 const fingerPositions = computed(() => {
   // Positions par défaut (0 = pas de doigt, 1-4 = index à auriculaire)
   return [0, 1, 0, 2, 3, 0];
-});
-
-const visibleFretRange = computed(() => {
-  const range: number[] = [];
-  for (let i = localVisibleStart.value; i <= localVisibleEnd.value; i++) {
-    range.push(i);
-  }
-  return range;
 });
 
 function moveLeft() {
@@ -262,9 +236,6 @@ function getDotStyle(position: number, stringIdx: number) {
   const topPosition = fretPosition === 0 ? 5 : (fretPosition - 0.5) * 20 + 10;
   const leftPosition = (5 - stringIdx) * 16 + 10;
   
-  // Log pour debug
-  console.log(`Dot position for string ${stringIdx}, fret ${position}: top=${topPosition}px, left=${leftPosition}px`);
-  
   return {
     top: `${topPosition}px`,
     left: `${leftPosition}px`,
@@ -274,9 +245,6 @@ function getDotStyle(position: number, stringIdx: number) {
 
 function getStringMarkStyle(stringIdx: number, position: number) {
   const leftPosition = (5 - stringIdx) * 16 + 10;
-  
-  // Log pour debug
-  console.log(`String mark for string ${stringIdx}, position ${position}: left=${leftPosition}px`);
   
   return {
     top: '-15px',
@@ -401,64 +369,6 @@ watch(() => props.visibleEnd, (newVal) => {
     
     .fretboard-container {
       margin-top: 20px;
-      
-      .fret-row {
-        display: flex;
-        flex-wrap: nowrap;
-        gap: 4px;
-        margin-bottom: 10px;
-        position: relative;
-        align-items: center;
-        
-        .string-name {
-          width: 24px;
-          text-align: right;
-          font-size: 0.75rem;
-          color: #999;
-          margin-right: 6px;
-        }
-        
-        .open-string {
-          border-right: 2px solid #444 !important;
-          margin-right: 6px;
-          position: relative;
-          
-          &::after {
-            content: '';
-            position: absolute;
-            right: -2px;
-            top: 0;
-            height: 100%;
-            width: 2px;
-            background-color: #444;
-          }
-        }
-        
-        .fret-markers {
-          display: flex;
-          margin-left: 10px;
-          gap: 4px;
-          
-          .fret-marker {
-            width: 65px;
-            height: 20px;
-            text-align: center;
-            font-size: 0.7rem;
-            color: #777;
-            position: relative;
-            
-            &.has-marker::before {
-              content: '•';
-              position: absolute;
-              bottom: -15px;
-              left: 50%;
-              transform: translateX(-50%);
-              font-size: 12px;
-              color: #666;
-            }
-          }
-        }
-      }
     }
     
     .staff-container {
@@ -471,59 +381,10 @@ watch(() => props.visibleEnd, (newVal) => {
       border-radius: 4px;
       padding: 20px;
       
-      .staff-placeholder {
-        width: 100%;
-        position: relative;
-        min-height: 120px;
-        
-        .staff-lines {
-          position: relative;
-          height: 40px;
-          width: 100%;
-          
-          .staff-line {
-            position: absolute;
-            height: 1px;
-            width: 100%;
-            background-color: #777;
-            
-            &:nth-child(1) { top: 0px; }
-            &:nth-child(2) { top: 10px; }
-            &:nth-child(3) { top: 20px; }
-            &:nth-child(4) { top: 30px; }
-            &:nth-child(5) { top: 40px; }
-          }
-        }
-        
-        .clef {
-          position: absolute;
-          top: -10px;
-          left: 10px;
-          font-size: 2.5rem;
-          color: #999;
-        }
-        
-        .notes-placeholder {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 40px;
-          
-          .note-placeholder {
-            position: absolute;
-            top: 15px;
-            font-size: 1.3rem;
-            color: #777;
-          }
-        }
-        
-        .coming-soon {
-          color: #888;
-          font-style: italic;
-          text-align: center;
-          margin-top: 60px;
-        }
+      .coming-soon {
+        color: #888;
+        font-style: italic;
+        text-align: center;
       }
     }
     

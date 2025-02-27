@@ -31,12 +31,11 @@
         <!-- Utilisation de Tab.vue pour afficher l'accord sur le manche -->
         <div class="tab-wrapper">
           <Tab 
-            :item="chordItem" 
-            :notes="chordNotes" 
+            :midiList="chordMidiList"
+            matchType="one"
             :tabLength="tabLength" 
             :visibleStart="visibleStart" 
-            :visibleEnd="visibleEnd" 
-            :withNotes="false" 
+            :visibleEnd="visibleEnd"
           />
         </div>
         
@@ -87,12 +86,13 @@
   </template>
   
   <script lang="ts" setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, watch } from 'vue';
   import { Note } from 'tonal';
   import { useMainStore } from '../stores';
   import { getReadableChordName } from '../composables/tonalChordsMapping';
   import Tab from './Tab.vue';
   import Notes from './Notes.vue';
+  import { useMidiUtils } from '../composables/useMidiUtils';
   
   interface ChordTabProps {
     chordType: string;
@@ -108,6 +108,7 @@
   
   const store = useMainStore();
   const showFullDescription = ref(false);
+  const { notesToMidi } = useMidiUtils();
   
   // Paramètres pour Tab.vue
   const tabLength = 24;
@@ -115,7 +116,15 @@
   const visibleEnd = 10;
   
   // Récupérer la note fondamentale (soit celle fournie, soit celle du store)
-  const rootNote = computed(() => props.rootNote || store.chordRootNote || store.userScale);
+  const rootNote = computed(() => {
+    // Si un MIDI est sélectionné, l'utiliser comme note fondamentale
+    if (store.selectedMidi !== null) {
+      return Note.fromMidi(store.selectedMidi);
+    }
+    
+    // Sinon, utiliser la note fournie en prop ou celle du store
+    return props.rootNote || store.chordRootNote || store.userScale;
+  });
   
   // Notes du mode actuel pour la comparaison
   const modeNotes = computed(() => store.modeNotes);
@@ -128,12 +137,10 @@
     );
   });
   
-  // Données formatées pour Tab.vue
-  const chordItem = computed(() => ({
-    name: props.chordType,
-    aliases: props.chordData.aliases || [],
-    notes: chordNotes.value
-  }));
+  // Convertir les notes de l'accord en MIDI pour Tab.vue
+  const chordMidiList = computed(() => {
+    return notesToMidi(chordNotes.value);
+  });
   
   // Nom formaté de l'accord
   const formattedChordName = computed(() => {
@@ -172,6 +179,12 @@
       return '?';
     }
   }
+  
+  // Réagir aux changements de note sélectionnée
+  watch(() => store.selectedMidi, () => {
+    // Cela déclenchera la réévaluation de chordMidiList
+    // et mettra à jour automatiquement le Tab
+  });
   </script>
   
   <style scoped lang="scss">

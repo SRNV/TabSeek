@@ -36,10 +36,12 @@
   import { CHORDS } from '../composables/chords';
   import { useMainStore } from '../stores';
   import ChordTab from './ChordTab.vue';
+  import { useMidiUtils } from '../composables/useMidiUtils';
   
   const store = useMainStore();
   const selectedChordType = ref('');
   const selectedChordData = ref(null);
+  const { notesToMidi } = useMidiUtils();
   
   // Récupération des catégories uniques
   const uniqueCategories = computed(() => {
