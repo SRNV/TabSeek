@@ -1,16 +1,10 @@
 <!-- ScaleContainer.vue avec affichage du mode actuel -->
 <template>
   <div class="scale">
+    <ModeDisplay />
     
-    <div class="left">
-      <ModeDisplay />
-      
-      <!-- Affichage du mode sélectionné -->
-      <CurrentModeDisplay />  
-    </div>
-    <div class="right">
-      <ChordsTabsDisplay />
-    </div>
+    <!-- Affichage du mode sélectionné -->
+    <CurrentModeDisplay />  
   </div>
 </template>
 
@@ -84,18 +78,6 @@ export default defineComponent({
 .scale {
   position: fixed;
   top: 0px;
-  left: 14vw;
-  display: grid;
-  grid-template-areas:
-  "l l l l"
-  "r r r r";
-
-  .right {
-    grid-area: r;
-  }
-  .left {
-    grid-area: l;
-    display: flex;
-  }
+  left: 28vw;
 }
 </style>

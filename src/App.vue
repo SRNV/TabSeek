@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ChordPopUp from './components/ChordPopUp.vue';
+import ChordsSideBar from './components/ChordsSideBar.vue';
 import ModesSideBar from './components/ModesSideBar.vue';
 import NotesSideBar from './components/NotesSideBar.vue';
 import ScaleContainer from './components/ScaleContainer.vue'
@@ -8,7 +9,8 @@ import ScaleContainer from './components/ScaleContainer.vue'
 <template>
   <NotesSideBar />
   <ModesSideBar></ModesSideBar>
-  <ScaleContainer />
+  <ChordsSideBar />
+  <RouterView></RouterView>
   <ChordPopUp />
 </template>
 

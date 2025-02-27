@@ -22,7 +22,8 @@ export const useMainStore = defineStore('main', {
     selectedMidi: null as number | null,
     selectedMode: defaultMode.name,
     modeObject: defaultMode,
-    chordRootNote: 'C4' // Nouvelle propriété pour la fondamentale des accords
+    chordRootNote: 'C4', // Nouvelle propriété pour la fondamentale des accords
+    chordRootNoteType: '',
   }),
   
   actions: {
@@ -63,8 +64,9 @@ export const useMainStore = defineStore('main', {
     },
     
     // Nouvelle action pour définir la fondamentale des accords
-    setChordRootNote(note: string) {
+    setChordRootNote(note: string, type = '') {
       this.chordRootNote = note;
+      this.chordRootNoteType = type;
     }
   },
   
