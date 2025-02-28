@@ -76,8 +76,10 @@ export default defineComponent({
   border-color: #3a7ca5;
 }
 .scale {
-  position: fixed;
+  position: static;
   top: 0px;
-  left: 28vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 </style>

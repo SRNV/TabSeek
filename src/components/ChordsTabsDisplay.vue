@@ -1,12 +1,10 @@
 <!-- ChordsTabDisplay.vue - Composant parent pour sélectionner et afficher un seul accord -->
 <template>
 <div class="chords-display-container">
-    <div class="chord-display" v-if="selectedChordType">
+    <div class="chord-display">
     <ChordTab 
         :chordType="selectedChordType" 
-        :chordData="selectedChordData" 
-        :scale="0.6"
-    />
+        :chordData="selectedChordData" />
     </div>
 </div>
 </template>

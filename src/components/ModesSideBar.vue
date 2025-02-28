@@ -92,9 +92,6 @@ export default defineComponent({
 <style scoped lang="scss">
 .modes-sidebar {
   z-index: 99999;
-  position: absolute;
-  left: 110px;
-  top: 0;
   /* overflow-y: auto; */
   /* overflow-x: hidden; */
   bottom: 0;
@@ -229,8 +226,6 @@ export default defineComponent({
 // Styles pour les utilisateurs mobiles ou écrans réduits
 @media (max-width: 1200px) {
   .modes-sidebar {
-    position: static;
-    width: 100%;
     border-right: none;
     border-bottom: 1px solid #3a3a3a;
     height: auto;

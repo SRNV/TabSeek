@@ -1,75 +1,44 @@
-<script setup lang="ts">
-import ChordPopUp from './components/ChordPopUp.vue';
-import ChordsSideBar from './components/ChordsSideBar.vue';
-import ModesSideBar from './components/ModesSideBar.vue';
-import NotesSideBar from './components/NotesSideBar.vue';
-import ScaleContainer from './components/ScaleContainer.vue'
-</script>
-
 <template>
-  <NotesSideBar />
-  <ModesSideBar></ModesSideBar>
-  <ChordsSideBar />
-  <RouterView></RouterView>
-  <ChordPopUp />
+  <div class="app">
+    <div class="title">
+      <h1>{{ $route.name }}</h1>
+    </div>
+    <div class="menu">
+      <RouterView name="side1"></RouterView>
+    </div>
+    <div class="sidebar">
+      <RouterView name="side2"></RouterView>
+      <RouterView name="side3"></RouterView>
+    </div>
+    <div class="main">
+      <RouterView></RouterView>
+      <RouterView name="details"></RouterView>
+    </div>
+  </div>
 </template>
 
-<style scoped>
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
-}
-
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
+<style scoped lang="scss">
+.app {
+  display: grid;
+  grid-template-areas: 
+    "me s t t"
+    "me s m m";
+  grid-template-columns: 1fr 5fr 9fr 1fr;
+  grid-template-rows: 1fr 51fr;
+  gap: 10px;
+  .sidebar {
+    grid-area: s;
+    gap: 0px;
     display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
   }
-
-  .logo {
-    margin: 0 2rem 0 0;
+  .menu {
+    grid-area: me;
   }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
+  .main {
+    grid-area: m;
   }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
+  .title {
+    grid-area: t;
   }
 }
 </style>

@@ -1,8 +1,7 @@
 <!-- ChordPopUp -->
 <template>
-    <div v-if="visible" class="popup">
+    <div class="popup">
       <div class="popup-header">
-        <button class="close-btn" @click="closePopup">X</button>
         <h4 class="selected-note">{{ selectedNoteDisplay }}</h4>
       </div>
       <div class="popup-body">
@@ -19,15 +18,13 @@
   
   const store = useMainStore();
   
-  const visible = computed(() => store.selectedMidi !== null);
-  
   const baseNote = computed(() => {
-    return store.selectedMidi !== null ? Note.fromMidi(store.selectedMidi) : '';
+    return store.chordRootNote !== null ? Note.fromMidi(Note.midi(store.chordRootNote)!!) : '';
   });
   
   const selectedNoteDisplay = computed(() => {
-    if (store.selectedMidi !== null) {
-      const noteStr = Note.fromMidi(store.selectedMidi);
+    if (store.chordRootNote !== null) {
+      const noteStr = Note.fromMidi(Note.midi(store.chordRootNote)!!);
       const noteInfo = Note.get(noteStr);
       if (noteInfo.acc && noteInfo.acc.length > 0) {
         return `${noteStr} ${Note.enharmonic(noteStr)}`;
@@ -37,17 +34,10 @@
     return '';
   });
   
-  function closePopup() {
-    store.clearSelectedMidi();
-  }
   </script>
   
   <style scoped>
   .popup {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 85vw;
     height: 100%;
     background-color: #121212;
     color: #636363;

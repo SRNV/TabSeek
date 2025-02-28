@@ -1,7 +1,6 @@
 <!-- ModeDisplay.vue avec la sélection de mode -->
 <template>
     <div>
-      <h2>Modes</h2>
       <div>
         <Tab
           v-if="currentMode"

@@ -9,7 +9,7 @@
           :disabled="localVisibleStart === 0"
           :class="{ disabled: localVisibleStart === 0 }"
         >
-          <span class="arrow-icon">←</span>
+          <span class="arrow-icon">◀</span>
         </button>
         
         <!-- Contenu de la tablature -->
@@ -40,7 +40,7 @@
           :disabled="localVisibleEnd >= tabLength"
           :class="{ disabled: localVisibleEnd >= tabLength }"
         >
-          <span class="arrow-icon">→</span>
+          <span class="arrow-icon">▶</span>
         </button>
       </div>
       
@@ -77,7 +77,7 @@
   
   // Accordage standard
   const cords = computed(() => {
-    return props.cords ?? ["E2", "A2", "D3", "G3", "B3", "E4"].reverse();
+    return props.cords ?? ["E2", "A2", "D3", "G3", "C3", "E4"].reverse();
   });
   
   const visibleFretRange = computed(() => {

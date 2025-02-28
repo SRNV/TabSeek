@@ -1,23 +1,6 @@
 <!-- ChordDisplay.vue -->
 <template>
   <div class="container">
-    <h1 class="title">Chords</h1>
-    <div class="menu">
-      <!-- Chaque catégorie d'accords dans un container séparé -->
-      <div v-for="(categoryData, category) in categorizedChords" :key="category" class="chord-category">
-        <h2 class="category-title">{{ category }}</h2>
-        <p class="category-description" v-if="categoryData.description">{{ categoryData.description }}</p>
-        <div class="chord-buttons">
-          <button 
-            v-for="chord in categoryData.chords" 
-            :key="chord.name"
-            @click.stop="selectChord(chord)"
-            :class="chordClass(chord)">
-            {{ chord.name }} ({{ chord.notes.length }})
-          </button>
-        </div>
-      </div>
-    </div>
     <div class="liste">
       <div v-if="selectedChord" :key="selectedChord.name">
         <Tab
@@ -168,83 +151,19 @@ watch(() => store.selectedMidi, () => {
 .container {
   display: grid;
   grid-template-areas: 
-    "t t m"  
-    "l l m"
-    "l l m"
-    "l l m";
+    "t t t"  
+    "l l l"
+    "l l l"
+    "l l l";
   grid-template-columns: auto auto 420px;
   gap: 10px;
   
-  .menu {
-    grid-area: m;
-    gap: 10px;
-    max-height: 90vh;
-    padding-right: 10px;
-    
-    .chord-category {
-      margin-bottom: 15px;
-      background-color: rgba(30, 30, 30, 0.7);
-      border-radius: 8px;
-      padding: 10px;
-      
-      .category-title {
-        font-size: 1.2rem;
-        margin: 0 0 5px 0;
-        color: #f0f0f0;
-        padding-bottom: 5px;
-        border-bottom: 1px solid #555;
-      }
-      
-      .category-description {
-        font-size: 0.8rem;
-        color: #bbb;
-        margin: 0 0 10px 0;
-        font-style: italic;
-        line-height: 1.3;
-      }
-      
-      .chord-buttons {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-        gap: 5px;
-        
-        button.item {
-          height: 47px;
-          width: 100%;
-          font-size: x-small;
-          background-color: #444;
-          color: #999;
-          cursor: pointer;
-          border: 1px solid #555;
-          border-radius: 4px;
-          transition: background-color 0.2s, transform 0.1s;
-          
-          &:hover {
-            background-color: #555;
-          }
-          
-          &:active {
-            transform: scale(0.95);
-          }
-          
-          &.current {
-            background-color: orange;
-            color: white;
-            border-color: darkorange;
-          }
-        }
-      }
-    }
-  }
-  
   .liste {
     grid-area: l;
-    position: fixed;
     top: 124px;
   }
   
   .title {
-    position: fixed;
     grid-area: t;
   }
 }
