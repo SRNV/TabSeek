@@ -25,7 +25,7 @@
   import { EXTRA_MODES } from '../composables/extraModes';
   import type { ModeGuitar } from '../types';
   import { useMidiUtils } from '../composables/useMidiUtils';
-    
+  import Notes from './Notes.vue';
   const store = useMainStore();
   const { notesToMidi } = useMidiUtils();
     

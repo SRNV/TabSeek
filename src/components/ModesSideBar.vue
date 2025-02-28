@@ -1,41 +1,17 @@
 <template>
-  <div class="modes-sidebar">
-    <div class="modes-categories">
-      <div v-for="(modes, category) in modesByCategory" :key="category" class="category-group">
-        <div 
-          class="category-header" 
-          @click="toggleCategory(category as string)"
-        >
-          <small class="category-title">
-            {{ category }}
-            <span class="toggle-icon">
-              {{ categoryCollapsed[category] ? '▼' : '▲' }}
-            </span>
-          </small>
-        </div>
-        
-        <div 
-          class="modes-grid" 
-          v-if="!categoryCollapsed[category]"
-        >
-          <div 
-            v-for="mode in modes" 
-            :key="mode.name"
-            class="mode-button"
-            :class="{ active: store.selectedMode === mode.name }"
-            @click="selectMode(mode)"
-          >
-            <div class="mode-name">{{ mode.name }}</div>
-            <div class="mode-indicator"></div>
-            <div class="mode-tooltip">
-              <div class="tooltip-title">{{ mode.name }}</div>
-              <div class="tooltip-culture" v-if="mode.culture">
-                Culture: {{ mode.culture }}
-              </div>
-              <div class="tooltip-content">{{ mode.description }}</div>
-            </div>
-          </div>
-        </div>
+  <div class="menu">
+    <!-- Chaque catégorie de modes dans un container séparé -->
+    <div v-for="(modes, category) in modesByCategory" :key="category" class="chord-category">
+      <h2 class="category-title">{{ category }}</h2>
+      <p class="category-description" v-if="categoryDescriptions[category]">{{ categoryDescriptions[category] }}</p>
+      <div class="chord-buttons">
+        <button 
+          v-for="mode in modes" 
+          :key="mode.name"
+          @click.stop="selectMode(mode)"
+          :class="{ item: true, current: store.selectedMode === mode.name }">
+          {{ mode.name }}
+        </button>
       </div>
     </div>
   </div>
@@ -51,7 +27,20 @@ export default defineComponent({
   name: 'ModesSideBar',
   setup() {
     const store = useMainStore();
-    const categoryCollapsed = ref<{[key: string]: boolean}>({});
+
+    // Descriptions pour les catégories
+    const categoryDescriptions = {
+      "Modes Principaux": "Les sept modes de la gamme majeure, chacun avec sa propre couleur sonore et son caractère expressif.",
+      "Modes mineurs mélodiques et harmoniques": "Modes dérivés des gammes mineures mélodiques et harmoniques, offrant des tensions harmoniques riches.",
+      "Gammes pentatoniques": "Gammes à cinq notes, simples mais expressives, utilisées dans diverses traditions musicales.",
+      "Gammes hexatoniques": "Gammes à six notes créant des couleurs sonores spécifiques et atmosphériques.",
+      "Gammes octatoniques et symétriques": "Gammes à structure symétrique offrant des possibilités harmoniques modernes.",
+      "Modes japonais": "Gammes traditionnelles japonaises avec leur sonorité distinctive et méditative.",
+      "Gammes ethniques et folkloriques": "Gammes issues de diverses traditions musicales du monde entier.",
+      "Gammes de jazz et contemporaines": "Gammes utilisées dans le jazz moderne et les musiques contemporaines.",
+      "Gammes supplémentaires": "Gammes additionnelles avec des caractéristiques sonores uniques.",
+      "Modes additionnels": "Autres modes intéressants qui enrichissent le vocabulaire modal."
+    };
 
     const modesByCategory = computed(() => {
       const result: { [category: string]: ModeGuitar[] } = {};
@@ -61,7 +50,6 @@ export default defineComponent({
         
         if (!result[category]) {
           result[category] = [];
-          categoryCollapsed.value[category] = true;
         }
         
         result[category].push(mode);
@@ -70,10 +58,6 @@ export default defineComponent({
       return result;
     });
 
-    function toggleCategory(category: string) {
-      categoryCollapsed.value[category] = !categoryCollapsed.value[category];
-    }
-
     function selectMode(mode: ModeGuitar) {
       store.setSelectedMode(mode);
     }
@@ -81,8 +65,7 @@ export default defineComponent({
     return {
       store,
       modesByCategory,
-      categoryCollapsed,
-      toggleCategory,
+      categoryDescriptions,
       selectMode
     };
   }
@@ -90,172 +73,62 @@ export default defineComponent({
 </script>
 
 <style scoped lang="scss">
-.modes-sidebar {
-  z-index: 99999;
-  /* overflow-y: auto; */
-  /* overflow-x: hidden; */
-  bottom: 0;
-  width: 120px;
-  height: fit-content;
-  background-color: #272727;
-  padding: 10px;
-  border-right: 1px solid #3a3a3a;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  .modes-categories {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    
-    .culture-category {
-      border-bottom: 1px solid #444;
-      padding-bottom: 10px;
-      margin-bottom: 5px;
-      
-      .culture-title {
-        font-size: 0.9rem;
-        color: #ff9;
-        margin: 0 0 10px 0;
-        padding: 5px;
-        background-color: #333;
-        border-radius: 4px;
-        text-align: center;
-      }
-    }
-  }
+.menu {
+  grid-area: m;
+  gap: 10px;
+  max-height: 90vh;
+  padding-right: 10px;
   
-  .modes-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+  .chord-category {
+    margin-bottom: 15px;
+    background-color: rgba(30, 30, 30, 0.7);
+    border-radius: 8px;
+    padding: 10px;
     
-    .mode-button {
-      height: 60px;
-      width: 100%;
-      background-color: #2d2d2d;
-      border-radius: 6px;
-      padding: 8px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-      transition: all 0.2s ease;
-      border: 1px solid #333;
-      
-      &:hover {
-        background-color: #353535;
-        transform: translateY(-2px);
-        
-        .mode-tooltip {
-          opacity: 1;
-          transform: translateX(15px) scale(1);
-          pointer-events: auto;
-        }
-      }
-      
-      &.active {
-        background-color: #3a4a5a;
-        border-color: #5a6a7a;
-        
-        .mode-indicator {
-          background-color: rgb(239, 135, 17);
-        }
-        
-        .mode-name {
-          color: white;
-        }
-      }
-      
-      .mode-name {
-        font-size: 0.85rem;
-        text-align: center;
-        color: #ddd;
-        font-weight: 500;
-      }
-      
-      .mode-indicator {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: #555;
-        margin-top: 8px;
-      }
-      
-      .mode-tooltip {
-        position: absolute;
-        left: 100%;
-        top: 50%;
-        transform: translateX(0) translateY(-50%) scale(0.9);
-        background-color: #333;
-        border-radius: 6px;
-        padding: 12px;
-        width: 300px;
-        z-index: 100;
-        opacity: 0;
-        pointer-events: none;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        
-        .tooltip-title {
-          font-weight: bold;
-          margin-bottom: 8px;
-          color: #fff;
-          font-size: 0.9rem;
-        }
-        
-        .tooltip-culture {
-          font-size: 0.8rem;
-          color: #ff9;
-          margin-bottom: 8px;
-          font-style: italic;
-        }
-        
-        .tooltip-content {
-          color: #ccc;
-          font-size: 0.8rem;
-          line-height: 1.4;
-        }
-      }
-    }
-  }
-}
-
-// Styles pour les utilisateurs mobiles ou écrans réduits
-@media (max-width: 1200px) {
-  .modes-sidebar {
-    border-right: none;
-    border-bottom: 1px solid #3a3a3a;
-    height: auto;
-    padding-bottom: 20px;
-    max-height: none;
-    
-    .modes-categories {
-      .culture-category {
-        border-bottom: none;
-        
-        .culture-title {
-          margin-top: 10px;
-        }
-      }
+    .category-title {
+      font-size: 1.2rem;
+      margin: 0 0 5px 0;
+      color: #f0f0f0;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #555;
     }
     
-    .modes-grid {
-      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    .category-description {
+      font-size: 0.8rem;
+      color: #bbb;
+      margin: 0 0 10px 0;
+      font-style: italic;
+      line-height: 1.3;
     }
     
-    .mode-button {
-      .mode-tooltip {
-        position: fixed;
-        left: 50%;
-        top: auto;
-        bottom: 10px;
-        transform: translateX(-50%) translateY(0) scale(0.9);
+    .chord-buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      gap: 5px;
+      
+      button.item {
+        height: 47px;
+        width: 100%;
+        font-size: x-small;
+        background-color: #444;
+        color: #999;
+        cursor: pointer;
+        border: 1px solid #555;
+        border-radius: 4px;
+        transition: background-color 0.2s, transform 0.1s;
         
         &:hover {
-          transform: translateX(-50%) translateY(0) scale(1);
+          background-color: #555;
+        }
+        
+        &:active {
+          transform: scale(0.95);
+        }
+        
+        &.current {
+          background-color: orange;
+          color: white;
+          border-color: darkorange;
         }
       }
     }

@@ -1,4 +1,10 @@
+<script setup lang="ts">
+import TabSVGOverlay from './components/TabSVGOverlay.vue';
+
+</script>
+
 <template>
+  <TabSVGOverlay />
   <div class="app">
     <div class="title">
       <h1>{{ $route.name }}</h1>

@@ -128,6 +128,7 @@ setup(props) {
 
   function selectChord(chord: any) {
     selectedChord.value = chord;
+    console.log(chord);
   }
 
   onMounted(() => {
