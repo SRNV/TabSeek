@@ -4,9 +4,10 @@ import ChordsTabsDisplay from '../components/ChordsTabsDisplay.vue'
 import ScaleContainer from '../components/ScaleContainer.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import ModesSideBar from '../components/ModesSideBar.vue'
-import ChordsSideBar from '../components/ChordsSideBar.vue'
 import ChordPopUp from '../components/ChordPopUp.vue'
 import ChordsDetailsSideBar from '../components/ChordsDetailsSideBar.vue'
+import ModeChordRecommendations from '../components/ModeChordRecommendations.vue'
+import ChordModeRecommendations from '../components/ChordModeRecommendations.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,9 +28,9 @@ const router = createRouter({
       components: {
         default: ChordsTabsDisplay,
         side1: NotesSideBar,
-        side2: ChordsSideBar,
-        side3: ChordsDetailsSideBar,
-        details: ChordPopUp,
+        side2: ChordsDetailsSideBar,
+        side3: ChordModeRecommendations,
+        details: ModeChordRecommendations,
       }
     },
   ],

@@ -1,8 +1,9 @@
 <!-- ScaleContainer.vue avec affichage du mode actuel -->
 <template>
+  <!-- <ChordModeRecommendations :chord-id="'maj13'" />
+  <ModeChordRecommendations :mode-id="store.selectedMode" /> -->
   <div class="scale">
     <ModeDisplay />
-    
     <!-- Affichage du mode sélectionné -->
     <CurrentModeDisplay />  
   </div>
@@ -15,10 +16,12 @@ import ModeDisplay from './ModeDisplay.vue';
 import CurrentModeDisplay from './CurrentModeDisplay.vue';
 import ChordsTabsDisplay from './ChordsTabsDisplay.vue';
 import { Note } from 'tonal';
+import ChordModeRecommendations from './ChordModeRecommendations.vue';
+import ModeChordRecommendations from './ModeChordRecommendations.vue';
 
 export default defineComponent({
   name: 'ScaleContainer',
-  components: { ChordsTabsDisplay, ModeDisplay, CurrentModeDisplay },
+  components: { ModeChordRecommendations, ChordsTabsDisplay, ModeDisplay, CurrentModeDisplay, ChordModeRecommendations },
   setup() {
     const store = useMainStore();
     const availableScales = ref<string[]>([]);
@@ -47,7 +50,8 @@ export default defineComponent({
     return {
       userScale,
       refresh,
-      availableScales
+      availableScales,
+      store
     };
   }
 });
