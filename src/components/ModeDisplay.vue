@@ -12,6 +12,7 @@
           :visibleStart="visibleStart"
           :visibleEnd="visibleEnd"
           @click="selectMode(currentMode)"
+          :forChordsDisplay="true"
         />
       </div>
     </div>

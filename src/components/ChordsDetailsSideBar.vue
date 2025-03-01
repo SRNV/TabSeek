@@ -11,7 +11,7 @@
           :key="chord.name"
           @click.stop="selectChord(chord)"
           :class="chordClass(chord)">
-          {{ chord.name }} ({{ chord.notes.length }})
+          {{ chord.id }} ({{ chord.intervals.length }})
         </button>
       </div>
     </div>
@@ -19,7 +19,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, watch, computed, PropType } from 'vue';
+import { defineComponent, ref, onMounted, watch, computed } from 'vue';
+import type { PropType } from 'vue';
 import { useMainStore } from '../stores';
 import { useGuitarNotes } from '../composables/useGuitarNotes';
 import { CHORD_TYPES_BY_CATEGORY } from '../composables/tonalChordsMapping';
@@ -39,34 +40,11 @@ setup(props) {
   const userScale = computed(() => store.userScale);
   const { ChordType } = useGuitarNotes();
   const { notesToMidi } = useMidiUtils();
-  const selectedChord = ref(null as any);
 
+  console.log(store);
   function chordClass(chord: any) {
-    return { item: true, current: selectedChord.value?.name === chord.name };
+    return { item: true, current: store.chordRootNoteType === chord.id };
   }
-
-  // Convertir les notes de l'accord sélectionné en MIDI
-  const selectedChordMidiList = computed(() => {
-    if (!selectedChord.value) return [];
-    return notesToMidi(selectedChord.value.notes);
-  });
-
-  // Récupérer tous les accords depuis Tonal.js
-  const allChords = computed(() => {
-    // Si un MIDI est sélectionné, utiliser cette note comme base
-    const base = store.selectedMidi !== null 
-      ? Note.fromMidi(store.selectedMidi) 
-      : (props.baseNote || userScale.value);
-      
-    return ChordType.all().map((chordDesc: any) => {
-      const name = chordDesc.name || (chordDesc.aliases ? chordDesc.aliases[0] : 'Unknown');
-      chordDesc.name = name;
-      chordDesc.notes = chordDesc.intervals.map((interval: any) =>
-        Note.transpose(base, interval)
-      );
-      return chordDesc;
-    }).sort((a, b) => a.notes.length - b.notes.length);
-  });
 
 
   // Organiser les accords par catégories
@@ -78,7 +56,7 @@ setup(props) {
       const categoryData = CHORD_TYPES_BY_CATEGORY[category];
       result[category] = {
         description: categoryData.description,
-        chords: []
+        chords: categoryData.chords
       };
     });
     
@@ -87,7 +65,7 @@ setup(props) {
       description: "Accords spéciaux ou moins courants qui ne rentrent pas dans les catégories standard.",
       chords: []
     };
-    
+    /*
     // Parcourir tous les accords et les classer par catégorie
     allChords.value.forEach(chord => {
       let assigned = false;
@@ -115,6 +93,7 @@ setup(props) {
         result['Autres'].chords.push(chord);
       }
     });
+    */
     
     // Supprimer les catégories vides
     Object.keys(result).forEach(category => {
@@ -127,28 +106,17 @@ setup(props) {
   });
 
   function selectChord(chord: any) {
-    selectedChord.value = chord;
-    console.log(chord);
+    store.setChordObject(chord)
+    store.setChordRootNoteType(chord.id)
   }
-
-  onMounted(() => {
-    // Sélectionner le premier accord disponible
-    for (const category in categorizedChords.value) {
-      if (categorizedChords.value[category].chords.length > 0) {
-        selectedChord.value = categorizedChords.value[category].chords[0];
-        break;
-      }
-    }
-  });
 
   // Réagir aux changements de note sélectionnée
   watch(() => store.selectedMidi, () => {
-    // Cela déclenchera la réévaluation de selectedChordMidiList
+    // Cela déclenchera la réévaluation de selectedChordTypeMidiList
     // et mettra à jour automatiquement le Tab
   });
 
   return {
-    selectedChord,
     categorizedChords,
     chordClass,
     selectChord

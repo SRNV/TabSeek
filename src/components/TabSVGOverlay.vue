@@ -2,47 +2,52 @@
 <template>
     <div class="overlay-container">
       <svg class="overlay-svg" :width="windowWidth" :height="windowHeight" xmlns="http://www.w3.org/2000/svg">
-        <!-- Lignes entre notes -->
-        <line 
-          v-for="(connection, index) in connections" 
-          :key="`line-${index}`" 
-          :x1="connection.from.x" 
-          :y1="connection.from.y" 
-          :x2="connection.to.x" 
-          :y2="connection.to.y"
-          stroke="orange" 
-          stroke-width="4" 
-          stroke-opacity="0.7"
-        />
-        
-        <!-- Cercles sur les notes -->
-        <circle 
-          v-for="(position, index) in notePositions" 
-          :key="`circle-${index}`" 
-          :cx="position.x" 
-          :cy="position.y" 
-          r="15" 
-          fill="orange" 
-          fill-opacity="0.5" 
-          stroke="orange" 
-          stroke-width="2"
-        />
+            <!-- Lignes entre notes -->
+            <line 
+                v-for="(connection, index) in connections" 
+                :key="`line-${index}-${connection.note}`" 
+                :x1="connection.from.x" 
+                :y1="connection.from.y" 
+                :x2="connection.to.x" 
+                :y2="connection.to.y"
+                stroke="orange" 
+                stroke-width="4" 
+                stroke-opacity="0.7"
+                />
+            <g v-for="(positions, index) in notePositions" >
+                
+                <!-- Cercles sur les notes -->
+                <circle 
+                    v-for="(p, index2) in positions"
+                    :key="`circle-${index2}-${p.note}`" 
+                    :cx="p.x" 
+                    :cy="p.y" 
+                    r="15" 
+                    :fill="p.isFirst ? 'blue' : 'orange'" 
+                    fill-opacity="0.5" 
+                    stroke="orange" 
+                    stroke-width="2"
+                    />
+            </g>
       </svg>
     </div>
   </template>
   
   <script lang="ts">
-  import { defineComponent, ref, onMounted, onUnmounted, computed } from 'vue';
-  
+  import { defineComponent, ref, onMounted, onUnmounted, computed, watch } from 'vue';
+  import { useMainStore } from '../stores';
+  import { Note } from 'tonal';
   interface Position {
     x: number;
     y: number;
     note: string;
+    isFirst: boolean;
   }
   
   interface Connection {
     from: Position;
     to: Position;
+    note: string;
   }
   
   export default defineComponent({
@@ -50,8 +55,18 @@
     setup() {
       const windowWidth = ref(window.innerWidth);
       const windowHeight = ref(window.innerHeight);
-      const notePositions = ref<Position[]>([]);
-      const highlightedNotes = ref<string[]>(['C4', 'E4', 'G5']); // Liste des notes à mettre en évidence
+      const store = useMainStore();
+      const notePositions = ref<Position[][]>([]);
+      const highlightedNotes = computed(() => {
+        const result: number[] = [];
+        if (!store.chordRootObject) return result;
+        store.chordRootObject.intervals.forEach((i) => {
+          console.log(i);
+          const r = Note.transpose((store.chordRootNote), i);
+          result.push(Note.midi(r)!! % 12);
+        });
+        return result;
+      }); // Liste des notes à mettre en évidence
       
       // Mise à jour des dimensions lors du redimensionnement de la fenêtre
       const handleResize = () => {
@@ -63,47 +78,97 @@
       // Calculer les connexions entre les notes
       const connections = computed<Connection[]>(() => {
         const result: Connection[] = [];
-        
-        // Créer des connexions entre les notes adjacentes dans la liste
-        for (let i = 0; i < notePositions.value.length - 1; i++) {
-          result.push({
-            from: notePositions.value[i],
-            to: notePositions.value[i + 1]
-          });
-        }
+        notePositions.value.forEach((positions) => {
+            // Créer des connexions entre les notes adjacentes dans la liste
+            for (let i = 0; i < positions.length - 1; i++) {
+                if (positions[i] && positions[i + 1]) {
+                    result.push({
+                        from: positions[i],
+                        to: positions[i + 1],
+                        note: positions[i].note,
+                    });
+                }
+            }
+        });
         
         return result;
       });
       
       // Mise à jour des positions des notes
       const updateNotePositions = () => {
-        const positions: Position[] = [];
-        
-        // Récupérer tous les éléments .noteItem
-        const noteItems = document.querySelectorAll('.noteItem[note]');
-        
-        // Parcourir chaque élément et vérifier s'il correspond à une note à mettre en évidence
-        noteItems.forEach((element) => {
+        // Vider notePositions.value
+        notePositions.value.forEach((p) => p.splice(0));
+        notePositions.value.splice(0);
+        notePositions.value = [];
+
+        const cords = new Set();
+        let positions: Position[] = [];
+
+        // Récupérer tous les éléments .forChordsDisplay
+        // (Assurez-vous que .forChordsDisplay est un élément HTML)
+        const forChordsDisplays = Array.from(document.querySelectorAll('.forChordsDisplay[note]')).reverse() as HTMLElement[];
+
+        // Tant qu'il y a des éléments dans forChordsDisplays, on les traite
+        while (forChordsDisplays.length > 0) {
+          // Retire le dernier élément (pop) pour avancer dans le tableau
+          const element = forChordsDisplays.pop();
+          if (!element) {
+            continue; // Passe au prochain tour si jamais element est undefined
+          }
+
           const note = element.getAttribute('note');
-          
-          if (note && highlightedNotes.value.includes(note)) {
+          const cord = element.getAttribute('cord');
+
+          // Si pas de note, on ignore l'élément
+          if (!note) {
+            continue;
+          }
+
+          // Si le cord existe déjà, on ignore l'élément pour éviter les doublons
+          if (cord && cords.has(cord)) {
+            continue;
+          }
+
+          const midi = Note.midi(note)!! % 12; // Assure que Note.midi(note) n'est pas nul
+          if (highlightedNotes.value.includes(midi)) {
+            const index = highlightedNotes.value.indexOf(midi);
+
+            // Si on tombe sur la première note (index === 0),
+            // on considère que c'est un nouveau "chord" qui commence
+            if (index === 0) {
+              // Si positions contient déjà quelque chose, on le pousse dans notePositions.value
+              // avant de repartir sur un nouvel accord
+              if (positions.length > 0) {
+                notePositions.value.push(positions);
+                positions = [];
+                cords.clear();
+              }
+            }
+
             const rect = element.getBoundingClientRect();
-            
-            // Calculer la position centrale de l'élément
             const position: Position = {
               x: rect.left + rect.width / 2,
               y: rect.top + rect.height / 2,
-              note: note
+              note: midi.toString(),
+              isFirst: index === 0,
             };
-            
-            // Filtrer les positions des notes dans l'ordre de la liste highlightedNotes
-            const index = highlightedNotes.value.indexOf(note);
+
+            // On place la position au bon index, puis on filtre pour supprimer d’éventuels "trous"
             positions[index] = position;
+            positions = positions.filter((p) => p);
+
+            // On mémorise le cord si existant
+            if (cord) {
+              cords.add(cord);
+            }
           }
-        });
-        
-        // Éliminer les positions nulles (notes non trouvées dans le DOM)
-        notePositions.value = positions.filter(p => p !== undefined);
+        }
+
+        // Après la boucle, si le dernier groupe (positions) n’a pas encore été poussé, on le fait
+        if (positions.length > 0) {
+          notePositions.value.push(positions);
+        }
+
       };
       
       // Observer les mutations du DOM pour mettre à jour les positions quand les notes sont rendues
@@ -116,7 +181,7 @@
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: ['note', 'class']
+          attributeFilter: ['class']
         });
         
         return observer;
@@ -142,6 +207,9 @@
           clearInterval(intervalId);
         });
       });
+      watch(() => store.chordRootObject, () => {
+        updateNotePositions();
+      });
       
       return {
         windowWidth,
@@ -157,6 +225,7 @@
   <style scoped>
   .overlay-container {
     position: fixed;
+    mix-blend-mode: difference;
     top: 0;
     left: 0;
     width: 100%;

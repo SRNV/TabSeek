@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia';
 import type { ModeGuitar } from '../types';
 import { Note } from 'tonal';
+import type { ChordsCompleteDef } from '@/composables/chords';
 
 // Définition de mode par défaut
 const defaultMode: ModeGuitar = {
@@ -22,7 +23,8 @@ export const useMainStore = defineStore('main', {
     selectedMidi: null as number | null,
     selectedMode: defaultMode.name,
     modeObject: defaultMode,
-    chordRootNote: 'C4', // Nouvelle propriété pour la fondamentale des accords
+    chordRootNote: 'C4',
+    chordRootObject: null as ChordsCompleteDef | null,
     chordRootNoteType: 'major',
   }),
   
@@ -64,8 +66,13 @@ export const useMainStore = defineStore('main', {
     },
     
     // Nouvelle action pour définir la fondamentale des accords
+    setChordObject(obj: any) {
+      this.chordRootObject = obj;
+    },
     setChordRootNote(note: string, type = '') {
       this.chordRootNote = note;
+    },
+    setChordRootNoteType(type: string) {
       this.chordRootNoteType = type;
     }
   },

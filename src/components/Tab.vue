@@ -18,17 +18,21 @@
             <GuitarNote
               class="open-string"
               :position="0"
+              :cord="cIdx"
               :displayName="getNoteName(cord, 0)"
               :background="getNoteBackground(cord, 0)"
               :degreeLabel="getDegreeLabel(cord, 0)"
+              :forChordsDisplay="localVisibleStart === 0"
             />
             <GuitarNote
               v-for="fret in visibleFretRange"
               :key="'fret-' + fret + 1"
               :position="fret + 1"
+              :cord="cIdx"
               :displayName="getNoteName(cord, fret + 1)"
               :background="getNoteBackground(cord, fret + 1)"
               :degreeLabel="getDegreeLabel(cord, fret + 1)"
+              :forChordsDisplay="true"
             />
           </div>
         </div>
@@ -64,6 +68,7 @@
     tabLength: number;
     visibleStart: number;
     visibleEnd: number;
+    forChordsDisplay?: boolean;
     cords?: string[];
   }>();
   
@@ -98,7 +103,7 @@
     // Vérifier si la note correspond à une des notes de la liste
     if (props.matchType === 'one') {
       // Matching exact du MIDI - colorer en orange si exact, sinon couleur par défaut
-      return props.midiList.includes(noteMidi) ? HIGHLIGHT_COLOR : DEFAULT_COLOR;
+      return props.midiList.map((m) => m % 12).includes(noteMidi % 12) ? HIGHLIGHT_COLOR : DEFAULT_COLOR;
     } else {
       // Matching modulo 12 (classe de hauteur) - toujours colorer selon le degré dans la gamme
       return getScaleColor(noteName);

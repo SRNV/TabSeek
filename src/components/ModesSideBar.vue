@@ -60,6 +60,7 @@ export default defineComponent({
 
     function selectMode(mode: ModeGuitar) {
       store.setSelectedMode(mode);
+      store.setModeObject(mode);
     }
 
     return {

@@ -9,6 +9,7 @@ import { getReadableChordName } from '../composables/tonalChordsMapping';
 import { useMainStore } from '../stores';
 
 const props = defineProps<{
+  rootNote: string;
   notes: string[];
   collection: string[];
   duration?: number;
@@ -34,7 +35,7 @@ const waveforms = [
 ];
 
 // Mettre en surbrillance la fondamentale
-const rootNote = computed(() => props.notes.length > 0 ? props.notes[0] : '');
+const rootNote = computed(() => props.rootNote);
 
 // Formater l'affichage du type d'accord s'il est fourni
 const formattedChordType = computed(() => {

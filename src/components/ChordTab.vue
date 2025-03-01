@@ -22,10 +22,12 @@
       
       <div class="chord-content">
         <!-- Utilisation de Notes.vue pour afficher et jouer les notes -->
-        <Notes 
+        <Notes
+          :key="store.chordRootNoteType + store.chordRootNote"
+          :rootNote="store.chordRootNote"
           :notes="chordNotes" 
           :collection="modeNotes" 
-          :chordType="chordType" 
+          :chordType="store.chordRootNoteType" 
         />
         
         <!-- Utilisation de Tab.vue pour afficher l'accord sur le manche -->
@@ -117,13 +119,8 @@
   
   // Récupérer la note fondamentale (soit celle fournie, soit celle du store)
   const rootNote = computed(() => {
-    // Si un MIDI est sélectionné, l'utiliser comme note fondamentale
-    if (store.selectedMidi !== null) {
-      return Note.fromMidi(store.selectedMidi);
-    }
-    
     // Sinon, utiliser la note fournie en prop ou celle du store
-    return props.rootNote || store.chordRootNote || store.userScale;
+    return store.chordRootNote;
   });
   
   // Notes du mode actuel pour la comparaison
@@ -131,8 +128,9 @@
   
   // Notes de l'accord
   const chordNotes = computed(() => {
-    if (!props.chordData.intervals) return [];
-    return props.chordData.intervals.map((interval: string) => 
+    console.log(store.chordRootObject?.intervals);
+    if (!store.chordRootObject?.intervals) return [];
+    return store.chordRootObject?.intervals.map((interval: string) => 
       Note.transpose(rootNote.value, interval)
     );
   });
@@ -149,7 +147,7 @@
   });
   
   // Alias de l'accord
-  const aliases = computed(() => props.chordData.aliases || []);
+  const aliases = computed(() => []);
   
   // Gestion de la description (tronquée ou complète)
   const MAX_DESCRIPTION_LENGTH = 100;

@@ -18,7 +18,6 @@ import TabSVGOverlay from './components/TabSVGOverlay.vue';
     </div>
     <div class="main">
       <RouterView></RouterView>
-      <RouterView name="details"></RouterView>
     </div>
   </div>
 </template>

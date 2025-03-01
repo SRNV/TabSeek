@@ -8,6 +8,7 @@ import ChordPopUp from '../components/ChordPopUp.vue'
 import ChordsDetailsSideBar from '../components/ChordsDetailsSideBar.vue'
 import ModeChordRecommendations from '../components/ModeChordRecommendations.vue'
 import ChordModeRecommendations from '../components/ChordModeRecommendations.vue'
+import ProgressionCompiler from '../components/progression/ProgressionCompiler.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,8 +30,17 @@ const router = createRouter({
         default: ChordsTabsDisplay,
         side1: NotesSideBar,
         side2: ChordsDetailsSideBar,
-        side3: ChordModeRecommendations,
-        details: ModeChordRecommendations,
+        details1: ChordModeRecommendations,
+        details2: ModeChordRecommendations,
+      }
+    },
+    {
+      path: '/progressions',
+      name: 'Compilation de progressions connues',
+      components: {
+        default: ProgressionCompiler,
+        side1: NotesSideBar,
+        side2: ModesSideBar,
       }
     },
   ],

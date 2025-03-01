@@ -1,6 +1,12 @@
 <!-- Mise à jour de GuitarNote.vue pour mettre à jour chordRootNote lors du clic -->
 <template>
-  <li :note="displayName" class="noteItem" :class="{ playing }" :style="{ backgroundColor: background }" @click="handleClick">
+  <li 
+    :note="displayName"
+    :cord="cord"
+    class="noteItem"
+    :class="{ playing, forChordsDisplay }"
+    :style="{ backgroundColor: background }"
+    @click="handleClick">
 
     <div class="description">
       <div class="position">{{ position }}</div>
@@ -37,6 +43,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    forChordsDisplay: {
+      type: Boolean,
+      default: false,
+    },
     mode: {
       required: false, // Maintenant optionnel, car nous utiliserons le mode global par défaut
       type: String,
@@ -44,6 +54,10 @@ export default defineComponent({
     position: {
       type: Number,
       default: 0,
+    },
+    cord: {
+      type: Number,
+      default: '',
     },
     displayName: {
       type: String,

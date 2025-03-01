@@ -16,7 +16,17 @@ export interface ChordPosition {
   export interface Chords {
     [key: string]: ChordTypeDef;
   }
-  
+export interface ChordsCompleteDef {
+    id: string;
+    name: string;
+    symbol: string;
+    alt: string[];
+    description: string;
+    lickDescription: string;
+    arpegeDescription: string;
+    riffDescription: string;
+    intervals: string[];
+}
   
 export const CHORDS: Chords = {
     // Triades de base

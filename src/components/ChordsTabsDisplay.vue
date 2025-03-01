@@ -2,9 +2,15 @@
 <template>
 <div class="chords-display-container">
     <div class="chord-display">
-    <ChordTab 
-        :chordType="selectedChordType" 
-        :chordData="selectedChordData" />
+        <ChordTab
+          v-if="store.chordRootObject"
+          :chordData="store.chordRootObject"
+          :chordType="store.chordRootNoteType"
+          />
+    </div>
+    <div>
+        <RouterView name="details1"></RouterView>
+        <RouterView name="details2"></RouterView>
     </div>
 </div>
 </template>
@@ -23,23 +29,6 @@
   const selectedChordData = ref(null);
   const { notesToMidi } = useMidiUtils();
   
-  
-  // Observer les changements de la note fondamentale dans le store
-  watch(() => store.chordRootNote, (newRootNote) => {
-    // Réactualiser l'accord sélectionné si nécessaire pour mettre à jour les notes
-    if (selectedChordType.value && selectedChordData.value) {
-      // Force une réactualisation du composant enfant
-      const currentType = store.chordRootNoteType;
-      const currentData = store.chordRootNote;
-      selectedChordType.value = '';
-      selectedChordData.value = null;
-      
-      setTimeout(() => {
-        selectedChordType.value = currentType;
-        selectedChordData.value = currentData;
-      }, 0);
-    }
-  });
 </script>
   
 <style scoped lang="scss">
@@ -115,10 +104,7 @@
     }
     
     .chord-display {
-      padding: 12px;
-      overflow-y: auto;
       flex: 1;
-      max-height: 50vh;
     }
   }
 </style>
