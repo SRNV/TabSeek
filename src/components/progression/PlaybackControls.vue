@@ -27,12 +27,23 @@
           step="4" 
           class="tempo-slider" 
         />
+        <div class="tempo-presets">
+          <button 
+            v-for="presetTempo in tempoPresets" 
+            :key="presetTempo"
+            class="tempo-preset-btn"
+            :class="{ 'active': tempo === presetTempo }"
+            @click="$emit('tempoChange', presetTempo)"
+          >
+            {{ presetTempo }}
+          </button>
+        </div>
       </div>
     </div>
   </template>
   
   <script lang="ts">
-  import { defineComponent } from 'vue';
+  import { defineComponent, ref } from 'vue';
   
   export default defineComponent({
     name: 'PlaybackControls',
@@ -52,13 +63,17 @@
     },
     emits: ['playProgression', 'clearCompilation', 'tempoChange'],
     setup(props, { emit }) {
+      // Définir quelques valeurs de tempo prédéfinies
+      const tempoPresets = ref([60, 80, 100, 120, 140, 160]);
+      
       function updateTempo(event: Event) {
         const target = event.target as HTMLInputElement;
         emit('tempoChange', parseInt(target.value));
       }
   
       return {
-        updateTempo
+        updateTempo,
+        tempoPresets
       };
     }
   });
@@ -71,6 +86,9 @@
     gap: 10px;
     justify-content: space-between;
     margin-top: 15px;
+    background-color: #333;
+    padding: 15px;
+    border-radius: 8px;
     
     .control-btn {
       padding: 8px 15px;
@@ -81,6 +99,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      transition: all 0.2s ease;
       
       &:disabled {
         opacity: 0.5;
@@ -116,7 +135,7 @@
       min-width: 200px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 8px;
       
       .control-label {
         font-size: 0.85rem;
@@ -150,6 +169,43 @@
           cursor: pointer;
           border: none;
         }
+      }
+      
+      .tempo-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 5px;
+        
+        .tempo-preset-btn {
+          padding: 4px 8px;
+          background-color: #444;
+          border: none;
+          border-radius: 3px;
+          color: #ccc;
+          font-size: 0.8rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          
+          &:hover {
+            background-color: #555;
+          }
+          
+          &.active {
+            background-color: #3a7ca5;
+            color: white;
+          }
+        }
+      }
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .compilation-controls {
+      flex-direction: column;
+      
+      .control-btn {
+        width: 100%;
       }
     }
   }

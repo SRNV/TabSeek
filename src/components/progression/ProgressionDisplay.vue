@@ -6,6 +6,7 @@
           v-for="(chord, index) in progressionChords" 
           :key="index"
           class="chord-box"
+          :class="{ 'playing': isPlaying && currentChordIndex === index }"
         >
           <div class="chord-numeral">{{ getNumeral(chord.numeral) }}</div>
           <div v-if="displayChords" class="chord-note">{{ chord.chordName }}</div>
@@ -42,6 +43,14 @@
       displayChords: {
         type: Boolean,
         default: true
+      },
+      isPlaying: {
+        type: Boolean,
+        default: false
+      },
+      currentChordIndex: {
+        type: Number,
+        default: -1
       }
     },
     setup(props) {
@@ -167,6 +176,16 @@
         padding: 8px 12px;
         min-width: 60px;
         text-align: center;
+        transition: all 0.3s ease;
+        
+        // Style pour l'accord en cours de lecture
+        &.playing {
+          background-color: orange;
+          
+          .chord-numeral, .chord-note {
+            color: white;
+          }
+        }
         
         .chord-numeral {
           font-weight: bold;

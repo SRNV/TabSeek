@@ -1,4 +1,4 @@
-// src/composables/useAudio.ts
+// src/composables/useAudio.ts mis à jour
 import { Note, Interval } from 'tonal';
 import eventBus from '../eventBus';
 
@@ -50,10 +50,17 @@ export async function playNote(
   if (audioCtx.state === 'suspended') {
     await audioCtx.resume();
   }
+  
+  // Ajouter un gain pour contrôler le volume
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.3; // Réduire le volume pour éviter la distorsion
+  gainNode.connect(audioCtx.destination);
+  
   const oscillator = audioCtx.createOscillator();
   oscillator.type = type;
   oscillator.frequency.value = frequency;
-  oscillator.connect(audioCtx.destination);
+  oscillator.connect(gainNode);
+  
   oscillator.start();
   oscillator.stop(audioCtx.currentTime + duration);
   
@@ -79,7 +86,7 @@ export async function playFifth(
   duration: number = 0.5,
   type: OscillatorType = 'sine'
 ): Promise<void> {
-  const fifthNote = Interval.transpose(note, 'P5');
+  const fifthNote = Note.transpose(note, 'P5');
   return playNote(fifthNote, duration, type);
 }
 
@@ -98,13 +105,22 @@ export async function playChord(
   gap: number = 0.1,
   type: OscillatorType = 'sine'
 ): Promise<void> {
-  for await (const note of notes) {
+  const validNotes = notes.filter(note => {
+    try {
+      Note.get(note); // Valider la note
+      return true;
+    } catch (error) {
+      console.warn(`Note invalide ignorée: ${note}`);
+      return false;
+    }
+  });
+  
+  for await (const note of validNotes) {
     await playNote(note, duration, type);
     // Attendre le gap avant de lancer la note suivante
     await new Promise(resolve => setTimeout(resolve, gap * 1000));
   }
 }
-
 
 /**
  * Joue simultanément toutes les notes d'un accord.
@@ -118,6 +134,74 @@ export async function playFullChord(
   duration: number = 0.5,
   type: OscillatorType = 'sine'
 ): Promise<void> {
-  const promises = notes.map(note => playNote(note, duration, type));
-  await Promise.all(promises);
+  // Filtrer les notes invalides pour éviter les erreurs
+  const validNotes = notes.filter(note => {
+    try {
+      const noteObj = Note.get(note);
+      return noteObj.midi !== null;
+    } catch (error) {
+      console.warn(`Note invalide ignorée: ${note}`);
+      return false;
+    }
+  });
+  
+  // S'assurer que toutes les notes ont une octave
+  const normalizedNotes = validNotes.map(note => {
+    if (!note.match(/\d/)) {
+      return `${note}4`; // Ajouter l'octave 4 par défaut si manquante
+    }
+    return note;
+  });
+  
+  // Utiliser l'API AudioContext
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContext) {
+    console.warn("Le Web Audio API n'est pas supporté par ce navigateur.");
+    return Promise.resolve();
+  }
+  
+  const audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+  
+  // Créer un nœud de gain commun pour toutes les oscillations
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.3 / Math.sqrt(normalizedNotes.length); // Réduire le volume en fonction du nombre de notes
+  gainNode.connect(audioCtx.destination);
+  
+  // Mettre un léger fade-out pour éviter les clics
+  gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  
+  // Créer des oscillateurs pour chaque note
+  const oscillators = normalizedNotes.map(note => {
+    const frequency = getFrequency(note);
+    const oscillator = audioCtx.createOscillator();
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gainNode);
+    
+    // Émettre l'événement pour la visualisation
+    const noteData = Note.get(note);
+    if (noteData.midi !== null) {
+      eventBus.emit('notePlayed', noteData.midi);
+    }
+    
+    return oscillator;
+  });
+  
+  // Démarrer tous les oscillateurs
+  oscillators.forEach(osc => osc.start());
+  
+  // Arrêter tous les oscillateurs après la durée spécifiée
+  oscillators.forEach(osc => osc.stop(audioCtx.currentTime + duration));
+  
+  // Attendre que toutes les notes soient terminées
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      audioCtx.close();
+      resolve();
+    }, duration * 1000);
+  });
 }

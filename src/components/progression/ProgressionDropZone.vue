@@ -21,6 +21,8 @@
             :item="item"
             :index="index"
             :rootNote="userScale"
+            :isPlaying="isPlaying && currentProgressionIndex === index"
+            :currentChordIndex="currentProgressionIndex === index ? currentChordIndex : -1"
             @moveUp="$emit('moveItemUp', index)"
             @moveDown="$emit('moveItemDown', index)"
             @remove="$emit('removeItem', index)"
@@ -42,9 +44,7 @@
   <script lang="ts">
   import { defineComponent } from 'vue';
   import type { PropType } from 'vue';
-  // @ts-ignore
   import CompiledProgressionItem from './CompiledProgressionItem.vue';
-  // @ts-ignore
   import PlaybackControls from './PlaybackControls.vue';
   import type { ChordProgression } from '../../composables/progressions.ts';
   
@@ -74,6 +74,16 @@
       isPlaying: {
         type: Boolean,
         required: true
+      },
+      currentProgressionIndex: {
+        type: Number,
+        required: true,
+        default: -1
+      },
+      currentChordIndex: {
+        type: Number,
+        required: true,
+        default: -1
       }
     },
     emits: [
