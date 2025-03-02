@@ -3,28 +3,21 @@
   <div class="container">
     <div class="liste">
       <div v-if="selectedChord" :key="selectedChord.name">
-        <Tab
-          :key="selectedChord.name"
-          :midiList="selectedChordMidiList"
-          matchType="one"
-          :tabLength="tabLength"
-          :visibleStart="visibleStart"
-          :visibleEnd="visibleEnd"
-          :withNotes="true"
-        />
+        <Tab :key="selectedChord.name" :midiList="selectedChordMidiList" matchType="one" :tabLength="tabLength"
+          :visibleStart="visibleStart" :visibleEnd="visibleEnd" :withNotes="true" />
       </div>
     </div>
   </div>
 </template>
-  
+
 <script lang="ts" setup>
 import { ref, onMounted, watch, computed } from 'vue';
-import { useMainStore } from '../stores';
-import { useGuitarNotes } from '../composables/useGuitarNotes';
-import { CHORD_TYPES_BY_CATEGORY } from '../composables/tonalChordsMapping';
-import Tab from './Tab.vue';
+import { useMainStore } from '../../stores';
+import { useGuitarNotes } from '../../composables/useGuitarNotes';
+import { CHORD_TYPES_BY_CATEGORY } from '../../composables/tonalChordsMapping';
+import Tab from '../tab/Tab.vue';
 import { Note } from 'tonal';
-import { useMidiUtils } from '../composables/useMidiUtils';
+import { useMidiUtils } from '../../composables/useMidiUtils';
 
 interface ChordDisplayProps {
   baseNote?: string;
@@ -54,10 +47,10 @@ const selectedChordMidiList = computed(() => {
 // Récupérer tous les accords depuis Tonal.js
 const allChords = computed(() => {
   // Si un MIDI est sélectionné, utiliser cette note comme base
-  const base = store.selectedMidi !== null 
-    ? Note.fromMidi(store.selectedMidi) 
+  const base = store.selectedMidi !== null
+    ? Note.fromMidi(store.selectedMidi)
     : (props.baseNote || userScale.value);
-    
+
   return ChordType.all().map((chordDesc: any) => {
     const name = chordDesc.name || (chordDesc.aliases ? chordDesc.aliases[0] : 'Unknown');
     chordDesc.name = name;
@@ -72,7 +65,7 @@ const allChords = computed(() => {
 // Organiser les accords par catégories
 const categorizedChords = computed(() => {
   const result: { [category: string]: { description?: string, chords: any[] } } = {};
-  
+
   // Initialiser les catégories avec leurs descriptions
   Object.keys(CHORD_TYPES_BY_CATEGORY).forEach(category => {
     const categoryData = CHORD_TYPES_BY_CATEGORY[category];
@@ -81,48 +74,48 @@ const categorizedChords = computed(() => {
       chords: []
     };
   });
-  
+
   // Une catégorie pour les accords non classés (devrait être beaucoup plus petit maintenant)
   result['Autres'] = {
     description: "Accords spéciaux ou moins courants qui ne rentrent pas dans les catégories standard.",
     chords: []
   };
-  
+
   // Parcourir tous les accords et les classer par catégorie
   allChords.value.forEach(chord => {
     let assigned = false;
-    
+
     // Chercher dans quelle catégorie l'accord s'inscrit
     for (const category in CHORD_TYPES_BY_CATEGORY) {
       const categoryChords = CHORD_TYPES_BY_CATEGORY[category].chords;
       const ind = CHORD_TYPES_BY_CATEGORY[category].indice || [];
       const matchingChordType = categoryChords.find(
-        (ct :any) => ct.id === chord.name
+        (ct: any) => ct.id === chord.name
           || chord.aliases.includes(ct.id)
           || ct.alt.includes(chord.name)
           || ind.find((i: string) => chord.name.includes(i))
       );
-      
+
       if (matchingChordType) {
         result[category].chords.push(chord);
         assigned = true;
         break;
       }
     }
-    
+
     // Si l'accord n'est classé dans aucune catégorie, le mettre dans "Autres"
     if (!assigned) {
       result['Autres'].chords.push(chord);
     }
   });
-  
+
   // Supprimer les catégories vides
   Object.keys(result).forEach(category => {
     if (result[category].chords.length === 0) {
       delete result[category];
     }
   });
-  
+
   return result;
 });
 
@@ -150,19 +143,19 @@ watch(() => store.selectedMidi, () => {
 <style lang="scss" scoped>
 .container {
   display: grid;
-  grid-template-areas: 
-    "t t t"  
+  grid-template-areas:
+    "t t t"
     "l l l"
     "l l l"
     "l l l";
   grid-template-columns: auto auto 420px;
   gap: 10px;
-  
+
   .liste {
     grid-area: l;
     top: 124px;
   }
-  
+
   .title {
     grid-area: t;
   }

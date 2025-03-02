@@ -39,7 +39,7 @@
             v-for="(numeral, chordIdx) in item.numerals.split('-')" 
             :key="chordIdx"
             class="chord-box"
-            :class="{ 'playing': isPlaying && currentChordIndex === chordIdx }"
+            :class="{ 'playing': isPlaying && currentChordIndex === chordIdx, 'highlight': isPlaying }"
           >
             <div class="chord-numeral">{{ numeral }}</div>
             <div v-if="chordNotes[chordIdx]" class="chord-note">{{ chordNotes[chordIdx] }}</div>
@@ -168,6 +168,7 @@ export default defineComponent({
   margin-bottom: 10px;
   transition: all 0.3s ease;
   border: 3px solid #333;
+  
   // Style pour la progression en cours de lecture
   &.playing {
     border: 3px solid orange;
@@ -230,11 +231,14 @@ export default defineComponent({
     
     .progression-display {
       margin: 10px 0;
+      overflow-x: auto;
+      padding-bottom: 5px;
       
       .progression-bar {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 10px;
+        min-width: max-content;
         
         .chord-box {
           background-color: #3d3d3d;
@@ -248,9 +252,17 @@ export default defineComponent({
           // Style pour l'accord en cours de lecture
           &.playing {
             background-color: orange;
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(255, 165, 0, 0.3);
+            
             .chord-numeral, .chord-note {
               color: white;
             }
+          }
+          
+          // Style pour les accords de la progression en cours mais pas l'accord actuel
+          &.highlight:not(.playing) {
+            background-color: #4d4d4d;
           }
           
           .chord-numeral {
@@ -265,6 +277,21 @@ export default defineComponent({
             color: #aaa;
           }
         }
+      }
+      
+      // Styles pour la scrollbar
+      &::-webkit-scrollbar {
+        height: 6px;
+      }
+      
+      &::-webkit-scrollbar-track {
+        background: #333;
+        border-radius: 3px;
+      }
+      
+      &::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 3px;
       }
     }
   }

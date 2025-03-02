@@ -1,12 +1,7 @@
 <!-- Mise à jour de GuitarNote.vue pour mettre à jour chordRootNote lors du clic -->
 <template>
-  <li 
-    :note="displayName"
-    :cord="cord"
-    class="noteItem"
-    :class="{ playing, forChordsDisplay }"
-    :style="{ backgroundColor: background }"
-    @click="handleClick">
+  <li :note="displayName" :cord="cord" class="noteItem" :class="{ playing, forChordsDisplay }"
+    :style="{ backgroundColor: background }" @click="handleClick">
 
     <div class="description">
       <div class="position">{{ position }}</div>
@@ -14,15 +9,9 @@
       <div class="degree">{{ degreeLabel }}</div>
     </div>
     <div class="intervals">
-      <div
-        v-for="(inter, i) in intervals"
-        :key="i"
-        class="child"
-        :style="{ backgroundColor: gtNc(inter, 0, modeIntervals) }"
-        @mouseenter="showIntervalTooltip(inter, $event)"
-        @mouseleave="hideTooltip"
-        :title="`${inter}`"
-      >___</div>
+      <div v-for="(inter, i) in intervals" :key="i" class="child"
+        :style="{ backgroundColor: gtNc(inter, 0, modeIntervals) }" @mouseenter="showIntervalTooltip(inter, $event)"
+        @mouseleave="hideTooltip" :title="`${inter}`">___</div>
     </div>
   </li>
 </template>
@@ -30,10 +19,10 @@
 <script lang="ts">
 import { Note, Scale } from 'tonal';
 import { defineComponent, ref, onMounted, onUnmounted, computed } from 'vue';
-import eventBus from '../eventBus';
-import { playNote } from '../composables/useAudio';
-import { getNoteColor } from '../composables/useNoteHelpers';
-import { useMainStore } from '../stores';
+import eventBus from '../../eventBus';
+import { playNote } from '../../composables/useAudio';
+import { getNoteColor } from '../../composables/useNoteHelpers';
+import { useMainStore } from '../../stores';
 
 
 export default defineComponent({
@@ -76,12 +65,12 @@ export default defineComponent({
     const order = [3, 5, 7, 2, 4, 6];
     const store = useMainStore();
     const playing = ref(false);
-    
+
     // Utiliser le mode fourni en prop, sinon utiliser le mode global du store
     const currentMode = computed(() => {
       return `${store.userScale} ${store.selectedMode}`;
     });
-    
+
     const intervals = computed(() => {
       const m = `${props.displayName} ${store.selectedMode}`;
       const minor = `${props.displayName} minor`;
@@ -89,12 +78,12 @@ export default defineComponent({
       const value = order.map(Scale.degrees(!sc.empty ? m : minor));
       return value.filter((n) => n.length);
     });
-    
+
     const modeIntervals = computed(() => {
       const value = order.map(Scale.degrees(currentMode.value));
       return value.filter((n) => n.length);
     });
-    
+
     const finalName = computed(() => {
       const note = Note.get(props.displayName);
       const isAccidented = Boolean(note.acc?.length);
@@ -108,7 +97,7 @@ export default defineComponent({
       playNote(props.displayName);
       if (midi != null) {
         eventBus.emit('noteSelected', midi);
-        
+
         // Mettre à jour également la note fondamentale pour les accords
         store.setChordRootNote(props.displayName);
       }
@@ -123,7 +112,7 @@ export default defineComponent({
         }, 700);
       }
     }
-    
+
     // Nouvelles fonctions pour gérer les tooltips
     function showIntervalTooltip(interval: string, event: MouseEvent) {
       try {
@@ -136,35 +125,35 @@ export default defineComponent({
           x: event.clientX,
           y: event.clientY
         };
-        
+
         // Émettre l'événement pour afficher le tooltip
         eventBus.emit('showTooltip', tooltipData);
       } catch (error) {
         console.error("Erreur lors du calcul de la note d'intervalle:", error);
       }
     }
-    
+
     function hideTooltip() {
       eventBus.emit('hideTooltip');
     }
-    
+
     const gtNc = getNoteColor;
-    
+
     onMounted(() => {
       eventBus.on('notePlayed', onNotePlayed);
     });
-    
+
     onUnmounted(() => {
       eventBus.off('notePlayed', onNotePlayed);
     });
 
-    return { 
-      order, 
-      modeIntervals, 
-      gtNc, 
-      intervals, 
-      playing, 
-      finalName, 
+    return {
+      order,
+      modeIntervals,
+      gtNc,
+      intervals,
+      playing,
+      finalName,
       handleClick,
       showIntervalTooltip,
       hideTooltip
@@ -185,16 +174,19 @@ export default defineComponent({
   list-style-type: none;
   cursor: pointer;
   transition: filter 0.3s ease;
+
   &:hover {
     filter: brightness(1.2);
     background-color: rgb(0, 255, 251);
   }
+
   &.playing {
     filter: brightness(2);
     border: 1px solid rgb(27, 239, 232);
     color: rgb(255, 145, 0);
   }
 }
+
 .child {
   max-width: 8px;
   max-height: 8px;
@@ -202,13 +194,14 @@ export default defineComponent({
   border: 1px solid #797979;
   cursor: pointer;
   transition: transform 0.2s ease;
-  
+
   &:hover {
     transform: scale(1.5);
     z-index: 10;
     box-shadow: 0 0 3px rgba(255, 255, 255, 0.5);
   }
 }
+
 .description {
   display: flex;
   flex-direction: column;
@@ -217,16 +210,20 @@ export default defineComponent({
   height: 100%;
   font-size: 0.8rem;
 }
+
 .name {
   font-weight: bold;
 }
+
 .position {
   font-size: 0.7rem;
   color: #888;
 }
+
 .degree {
   color: rgb(55, 69, 24);
 }
+
 .intervals {
   display: inline-flex;
   position: relative;

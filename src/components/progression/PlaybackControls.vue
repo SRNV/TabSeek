@@ -1,43 +1,47 @@
-<!-- PlaybackControls.vue - Composant pour les contrôles de lecture -->
+<!-- PlaybackControls.vue - Mis à jour pour position fixe et meilleure expérience utilisateur -->
 <template>
-    <div class="compilation-controls">
-      <button 
-        class="control-btn play-btn" 
-        @click="$emit('playProgression')"
-        :disabled="!hasContent || isPlaying"
-      >
-        <span class="btn-icon">{{ isPlaying ? '⏸' : '▶' }}</span> 
-        {{ isPlaying ? 'En cours...' : 'Jouer la progression' }}
-      </button>
-      <button 
-        class="control-btn clear-btn" 
-        @click="$emit('clearCompilation')"
-        :disabled="!hasContent"
-      >
-        <span class="btn-icon">&#10006;</span> Effacer
-      </button>
-      <div class="playback-controls">
-        <label class="control-label">Tempo: {{ tempo }} BPM</label>
-        <input 
-          type="range" 
-          :value="tempo" 
-          @input="updateTempo"
-          min="60" 
-          max="200" 
-          step="4" 
-          class="tempo-slider" 
-        />
-        <div class="tempo-presets">
-          <button 
-            v-for="presetTempo in tempoPresets" 
-            :key="presetTempo"
-            class="tempo-preset-btn"
-            :class="{ 'active': tempo === presetTempo }"
-            @click="$emit('tempoChange', presetTempo)"
-          >
-            {{ presetTempo }}
-          </button>
+    <div class="compilation-controls" :class="{ fixed: isFixed }">
+      <div class="controls-content">
+        <button 
+          class="control-btn play-btn" 
+          @click="$emit('playProgression')"
+          :disabled="!hasContent || isPlaying"
+        >
+          <span class="btn-icon">{{ isPlaying ? '⏸' : '▶' }}</span> 
+          {{ isPlaying ? 'En cours...' : 'Jouer la progression' }}
+        </button>
+        
+        <div class="playback-controls">
+          <label class="control-label">Tempo: {{ tempo }} BPM</label>
+          <input 
+            type="range" 
+            :value="tempo" 
+            @input="updateTempo"
+            min="60" 
+            max="200" 
+            step="4" 
+            class="tempo-slider" 
+          />
+          <div class="tempo-presets">
+            <button 
+              v-for="presetTempo in tempoPresets" 
+              :key="presetTempo"
+              class="tempo-preset-btn"
+              :class="{ 'active': tempo === presetTempo }"
+              @click="$emit('tempoChange', presetTempo)"
+            >
+              {{ presetTempo }}
+            </button>
+          </div>
         </div>
+        
+        <button 
+          class="control-btn clear-btn" 
+          @click="$emit('clearCompilation')"
+          :disabled="!hasContent"
+        >
+          <span class="btn-icon">&#10006;</span>
+        </button>
       </div>
     </div>
   </template>
@@ -59,6 +63,10 @@
       hasContent: {
         type: Boolean,
         required: true
+      },
+      isFixed: {
+        type: Boolean,
+        default: false
       }
     },
     emits: ['playProgression', 'clearCompilation', 'tempoChange'],
@@ -89,6 +97,28 @@
     background-color: #333;
     padding: 15px;
     border-radius: 8px;
+    width: 100%;
+    z-index: 100;
+    
+    &.fixed {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      margin: 0;
+      border-radius: 0;
+      border-top: 1px solid #555;
+    }
+    
+    .controls-content {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
     
     .control-btn {
       padding: 8px 15px;
@@ -136,6 +166,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      max-width: 500px;
       
       .control-label {
         font-size: 0.85rem;
@@ -202,10 +233,12 @@
   
   @media (max-width: 768px) {
     .compilation-controls {
-      flex-direction: column;
-      
-      .control-btn {
-        width: 100%;
+      .controls-content {
+        flex-direction: column;
+        
+        .control-btn {
+          width: 100%;
+        }
       }
     }
   }

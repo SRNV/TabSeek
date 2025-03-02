@@ -1,4 +1,4 @@
-<!-- ProgressionsList.vue - Composant pour afficher la liste des progressions disponibles -->
+<!-- ProgressionsList.vue - Mis à jour pour gérer la lecture des progressions -->
 <template>
     <div class="progressions-list">
       <h3>Progressions Disponibles</h3>
@@ -29,16 +29,17 @@
           v-for="progression in progressions" 
           :key="progression.name"
           :progression="progression"
+          :isPlaying="currentPlayingItem === progression.name"
           @dragStart="(event: Event) => $emit('dragStart', event, progression)"
+          @playProgression="playProgression"
         />
       </div>
     </div>
   </template>
   
   <script lang="ts">
-  import { defineComponent } from 'vue';
+  import { defineComponent, ref } from 'vue';
   import type { PropType } from 'vue';
-  // @ts-ignore
   import ProgressionItem from './ProgressionItem.vue';
   import type { ChordProgression } from '../../composables/progressions.ts';
   
@@ -68,8 +69,27 @@
     emits: [
       'update:searchQuery',
       'update:categoryFilter',
-      'dragStart'
-    ]
+      'dragStart',
+      'playProgression'
+    ],
+    setup(props, { emit }) {
+      const currentPlayingItem = ref('');
+      
+      function playProgression(progression: ChordProgression) {
+        currentPlayingItem.value = progression.name;
+        emit('playProgression', progression);
+        
+        // Réinitialiser après la fin présumée de la lecture
+        setTimeout(() => {
+          currentPlayingItem.value = '';
+        }, 5000); // Ajuster selon le tempo moyen
+      }
+      
+      return {
+        currentPlayingItem,
+        playProgression
+      };
+    }
   });
   </script>
   
@@ -79,6 +99,9 @@
     background-color: #2a2a2a;
     border-radius: 8px;
     padding: 15px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 180px);
     
     h3 {
       margin-top: 0;
@@ -126,7 +149,7 @@
     }
     
     .progressions-container {
-      max-height: 550px;
+      flex: 1;
       overflow-y: auto;
       padding-right: 5px;
       

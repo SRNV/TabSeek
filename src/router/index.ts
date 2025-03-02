@@ -1,13 +1,13 @@
 // src/router/index.ts
-import NotesSideBar from '../components/NotesSideBar.vue'
-import ChordsTabsDisplay from '../components/ChordsTabsDisplay.vue'
+import NotesSideBar from '../components/sidebars/NotesSideBar.vue'
+import ChordsTabsDisplay from '../components/chords/ChordsTabsDisplay.vue'
 import ScaleContainer from '../components/ScaleContainer.vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import ModesSideBar from '../components/ModesSideBar.vue'
-import ChordPopUp from '../components/ChordPopUp.vue'
-import ChordsDetailsSideBar from '../components/ChordsDetailsSideBar.vue'
-import ModeChordRecommendations from '../components/ModeChordRecommendations.vue'
-import ChordModeRecommendations from '../components/ChordModeRecommendations.vue'
+import ModesSideBar from '../components/sidebars/ModesSideBar.vue'
+import ChordPopUp from '../components/chords/ChordPopUp.vue'
+import ChordsDetailsSideBar from '../components/sidebars/ChordsDetailsSideBar.vue'
+import ModeChordRecommendations from '../components/modes/ModeChordRecommendations.vue'
+import ChordModeRecommendations from '../components/chords/ChordModeRecommendations.vue'
 import ProgressionCompiler from '../components/progression/ProgressionCompiler.vue'
 
 const router = createRouter({

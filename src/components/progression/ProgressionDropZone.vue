@@ -1,4 +1,4 @@
-<!-- ProgressionDropZone.vue - Composant pour la zone de dépôt des progressions -->
+<!-- ProgressionDropZone.vue - Mise à jour pour une meilleure UI/UX -->
 <template>
     <div 
       class="progression-drop-zone"
@@ -21,6 +21,7 @@
             :item="item"
             :index="index"
             :rootNote="userScale"
+            :maxIndex="compiledProgressions.length - 1"
             :isPlaying="isPlaying && currentProgressionIndex === index"
             :currentChordIndex="currentProgressionIndex === index ? currentChordIndex : -1"
             @moveUp="$emit('moveItemUp', index)"
@@ -30,14 +31,7 @@
         </div>
       </div>
       
-      <PlaybackControls 
-        :tempo="tempo"
-        :isPlaying="isPlaying"
-        :hasContent="compiledProgressions.length > 0"
-        @playProgression="$emit('playProgression')"
-        @clearCompilation="$emit('clearCompilation')"
-        @tempoChange="$emit('tempoChange', $event)"
-      />
+      <!-- Les contrôles ont été déplacés en position fixe dans le composant parent -->
     </div>
   </template>
   
@@ -45,14 +39,12 @@
   import { defineComponent } from 'vue';
   import type { PropType } from 'vue';
   import CompiledProgressionItem from './CompiledProgressionItem.vue';
-  import PlaybackControls from './PlaybackControls.vue';
   import type { ChordProgression } from '../../composables/progressions.ts';
   
   export default defineComponent({
     name: 'ProgressionDropZone',
     components: {
-      CompiledProgressionItem,
-      PlaybackControls
+      CompiledProgressionItem
     },
     props: {
       compiledProgressions: {
@@ -90,10 +82,7 @@
       'drop', 
       'moveItemUp', 
       'moveItemDown', 
-      'removeItem', 
-      'playProgression', 
-      'clearCompilation',
-      'tempoChange'
+      'removeItem'
     ]
   });
   </script>
@@ -104,6 +93,10 @@
     background-color: #2a2a2a;
     border-radius: 8px;
     padding: 15px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 180px);
+    overflow: hidden;
     
     h3 {
       margin-top: 0;
@@ -113,11 +106,12 @@
     }
     
     .drop-area {
-      min-height: 300px;
+      flex: 1;
       border: 2px dashed #444;
       border-radius: 6px;
       padding: 15px;
       margin-bottom: 15px;
+      overflow-y: auto;
       
       &.empty {
         display: flex;
@@ -129,6 +123,26 @@
         color: #888;
         font-style: italic;
         text-align: center;
+      }
+      
+      .compiled-items {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      &::-webkit-scrollbar-track {
+        background: #333;
+        border-radius: 3px;
+      }
+      
+      &::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 3px;
       }
     }
   }
