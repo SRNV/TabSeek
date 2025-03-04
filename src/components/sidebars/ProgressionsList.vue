@@ -46,17 +46,20 @@ export default defineComponent({
 
     // Filtrer les progressions en fonction de la recherche et de la catégorie
     const filteredProgressions = computed(() => {
-      return chordProgressions.filter(progression => {
-        const matchesSearch =
-          progression.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-          progression.description.toLowerCase().includes(searchQuery.value.toLowerCase());
+      return chordProgressions
+        .filter(progression => {
+          const matchesSearch =
+            progression.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            progression.description.toLowerCase().includes(searchQuery.value.toLowerCase());
 
-        const matchesCategory =
-          categoryFilter.value === '' ||
-          progression.compatibleModes.includes(categoryFilter.value);
+          const matchesCategory =
+            categoryFilter.value === '' ||
+            progression.compatibleModes.includes(categoryFilter.value);
 
-        return matchesSearch && matchesCategory;
-      });
+          return matchesSearch && matchesCategory;
+        })
+
+        .sort((a, b) => a.numerals.split('-').length - b.numerals.split('-').length);
     });
 
     // Gestion du drag and drop

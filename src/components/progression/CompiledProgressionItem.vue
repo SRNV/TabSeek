@@ -5,42 +5,26 @@
       <div class="item-header">
         <span class="item-name">{{ item.name }}</span>
         <div class="item-actions">
-          <button 
-            class="action-btn move-up" 
-            @click="$emit('moveUp')" 
-            :disabled="index === 0"
-            title="Déplacer vers le haut"
-          >
+          <button class="action-btn move-up" @click="$emit('moveUp')" :disabled="index === 0"
+            title="Déplacer vers le haut">
             &#8593;
           </button>
-          <button 
-            class="action-btn move-down" 
-            @click="$emit('moveDown')" 
-            :disabled="index === maxIndex"
-            title="Déplacer vers le bas"
-          >
+          <button class="action-btn move-down" @click="$emit('moveDown')" :disabled="index === maxIndex"
+            title="Déplacer vers le bas">
             &#8595;
           </button>
-          <button 
-            class="action-btn remove" 
-            @click="$emit('remove')"
-            title="Supprimer"
-          >
+          <button class="action-btn remove" @click="$emit('remove')" title="Supprimer">
             &#10005;
           </button>
         </div>
       </div>
       <div class="item-numerals">{{ item.numerals }}</div>
-      
+
       <!-- Composant de progression avec état de lecture transmis -->
       <div class="progression-display">
         <div class="progression-bar">
-          <div 
-            v-for="(numeral, chordIdx) in item.numerals.split('-')" 
-            :key="chordIdx"
-            class="chord-box"
-            :class="{ 'playing': isPlaying && currentChordIndex === chordIdx, 'highlight': isPlaying }"
-          >
+          <div v-for="(numeral, chordIdx) in item.numerals.split('-')" :key="chordIdx" class="chord-box"
+            :class="{ 'playing': isPlaying && currentChordIndex === chordIdx, 'highlight': isPlaying }">
             <div class="chord-numeral">{{ numeral }}</div>
             <div v-if="chordNotes[chordIdx]" class="chord-note">{{ chordNotes[chordIdx] }}</div>
           </div>
@@ -85,50 +69,50 @@ export default defineComponent({
     }
   },
   emits: ['moveUp', 'moveDown', 'remove'],
-  
+
   setup(props) {
     // Fonction pour obtenir les notes d'une gamme majeure
     const getMajorScaleNotes = (rootNote: string): string[] => {
       const intervals = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"];
       return intervals.map(interval => Note.transpose(rootNote, interval));
     };
-    
+
     // Convertir un chiffre romain en degré
     const romanToDegree = (roman: string): number => {
-      const romanToNumber: {[key: string]: number} = {
+      const romanToNumber: { [key: string]: number } = {
         'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7,
         'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7
       };
-      
+
       // Extraire la partie romaine de base (gérer les cas comme "IIm7", "V7", etc.)
       const baseRoman = roman.match(/^([IVXivx]+)/)?.[1] || '';
       return romanToNumber[baseRoman] || 1;
     };
-    
+
     // Générer les noms des accords en fonction des degrés
     const chordNotes = computed(() => {
       const scaleNotes = getMajorScaleNotes(props.rootNote);
       const numerals = props.item.numerals.split('-');
-      
+
       return numerals.map(numeral => {
         // Obtenir le degré
         const degree = romanToDegree(numeral);
-        
+
         // Obtenir la note racine de l'accord basé sur le degré
         const chordRoot = scaleNotes[(degree - 1) % 7];
-        
+
         // Déterminer le type d'accord basé sur la casse et les modificateurs
         const isMajor = numeral[0] === numeral[0].toUpperCase();
         const hasModifier = numeral.length > 1;
-        
+
         // Construire le nom de l'accord
         let chordName = chordRoot;
-        
+
         // Ajouter le modificateur selon le type d'accord
         if (!isMajor) {
           chordName += 'm';
         }
-        
+
         // Ajouter d'autres modificateurs (7, maj7, dim, etc.)
         if (hasModifier) {
           const modifiers = numeral.substring(numeral.match(/^([IVXivx]+)/)?.[1].length || 0);
@@ -148,11 +132,11 @@ export default defineComponent({
             chordName = chordRoot + 'm';
           }
         }
-        
+
         return chordName;
       });
     });
-    
+
     return {
       chordNotes
     };
@@ -168,29 +152,29 @@ export default defineComponent({
   margin-bottom: 10px;
   transition: all 0.3s ease;
   border: 3px solid #333;
-  
+
   // Style pour la progression en cours de lecture
   &.playing {
     border: 3px solid orange;
     padding: 9px; // Compenser la bordure pour garder la même taille
   }
-  
+
   .item-content {
     .item-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
-      
+
       .item-name {
         font-weight: bold;
         color: #e0e0e0;
       }
-      
+
       .item-actions {
         display: flex;
         gap: 5px;
-        
+
         .action-btn {
           width: 24px;
           height: 24px;
@@ -202,19 +186,19 @@ export default defineComponent({
           border-radius: 3px;
           color: #ccc;
           cursor: pointer;
-          
+
           &:hover:not(:disabled) {
             background-color: #555;
           }
-          
+
           &:disabled {
             opacity: 0.5;
             cursor: not-allowed;
           }
-          
+
           &.remove {
             color: #ff9999;
-            
+
             &:hover {
               background-color: #553333;
             }
@@ -222,24 +206,24 @@ export default defineComponent({
         }
       }
     }
-    
+
     .item-numerals {
       font-size: 0.85rem;
       color: #aaa;
       margin-bottom: 8px;
     }
-    
+
     .progression-display {
       margin: 10px 0;
       overflow-x: auto;
       padding-bottom: 5px;
-      
+
       .progression-bar {
         display: flex;
         flex-wrap: nowrap;
         gap: 10px;
         min-width: max-content;
-        
+
         .chord-box {
           background-color: #3d3d3d;
           border: 1px solid #555;
@@ -248,47 +232,48 @@ export default defineComponent({
           min-width: 60px;
           text-align: center;
           transition: all 0.3s ease;
-          
+
           // Style pour l'accord en cours de lecture
           &.playing {
             background-color: orange;
             transform: translateY(-5px);
             box-shadow: 0 5px 15px rgba(255, 165, 0, 0.3);
-            
-            .chord-numeral, .chord-note {
+
+            .chord-numeral,
+            .chord-note {
               color: white;
             }
           }
-          
+
           // Style pour les accords de la progression en cours mais pas l'accord actuel
           &.highlight:not(.playing) {
             background-color: #4d4d4d;
           }
-          
+
           .chord-numeral {
             font-weight: bold;
             font-size: 1rem;
             color: #e0e0e0;
             margin-bottom: 4px;
           }
-          
+
           .chord-note {
             font-size: 0.8rem;
             color: #aaa;
           }
         }
       }
-      
+
       // Styles pour la scrollbar
       &::-webkit-scrollbar {
         height: 6px;
       }
-      
+
       &::-webkit-scrollbar-track {
         background: #333;
         border-radius: 3px;
       }
-      
+
       &::-webkit-scrollbar-thumb {
         background: #555;
         border-radius: 3px;

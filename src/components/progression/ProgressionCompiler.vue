@@ -1,57 +1,42 @@
-<!-- ProgressionCompiler.vue - Restructuré avec tablature et contrôles fixés -->
+<!-- ProgressionCompiler.vue - Composant principal restructuré avec lecture améliorée -->
 <template>
+  <PartitionTab />
   <div class="progression-compiler">
     <div class="compiler-container">
       <div class="main-content">
-        <!-- Tablature pour visualiser les accords joués -->
-        <div class="tablature-container">
-          <h3>Visualisation de l'accord: {{ currentChordDisplay }}</h3>
-          <Tab :midiList="currentChordMidiList" matchType="one" :tabLength="24" :visibleStart="0" :visibleEnd="10" />
-        </div>
-
         <!-- Liste des progressions disponibles -->
-        <div class="list">
-          <ProgressionsList :progressions="filteredProgressions" :categories="categories"
-            v-model:searchQuery="searchQuery" v-model:categoryFilter="categoryFilter" @dragStart="dragStart"
-            @playProgression="playSingleProgression" />
-        </div>
+        <ProgressionsList v-model:searchQuery="searchQuery" v-model:categoryFilter="categoryFilter"
+          @dragStart="dragStart" />
 
         <!-- Zone de dépôt pour la progression compilée -->
-        <div class="drop">
-          <ProgressionDropZone :compiledProgressions="compiledProgressions" :currentKeyDisplay="currentKeyDisplay"
-            :userScale="userScale" :tempo="tempo" :isPlaying="isPlaying"
-            :currentProgressionIndex="currentProgressionIndex" :currentChordIndex="currentChordIndex" @drop="onDrop"
-            @moveItemUp="moveItemUp" @moveItemDown="moveItemDown" @removeItem="removeItem" />
-        </div>
+        <ProgressionDropZone :compiledProgressions="compiledProgressions" :currentKeyDisplay="currentKeyDisplay"
+          :userScale="userScale" :tempo="tempo" :isPlaying="isPlaying" :isPaused="isPaused" :repeat="repeat"
+          :currentProgressionIndex="currentProgressionIndex" :currentChordIndex="currentChordIndex" @drop="onDrop"
+          @moveItemUp="moveItemUp" @moveItemDown="moveItemDown" @removeItem="removeItem"
+          @playProgression="playCompiledProgression" @pauseProgression="pauseCompiledProgression"
+          @stopProgression="stopCompiledProgression" @toggleRepeat="toggleRepeat" @clearCompilation="clearCompilation"
+          @tempoChange="tempo = $event" />
       </div>
     </div>
-
-    <!-- Contrôles de lecture fixés en bas de l'écran -->
-    <PlaybackControls :tempo="tempo" :isPlaying="isPlaying" :hasContent="compiledProgressions.length > 0"
-      :isFixed="true" @playProgression="playCompiledProgression" @clearCompilation="clearCompilation"
-      @tempoChange="tempo = $event" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed, onBeforeUnmount } from 'vue';
 import { useMainStore } from '../../stores';
 import { chordProgressions } from '../../composables/progressions.ts';
 import { playNote, playFullChord } from '../../composables/useAudio';
 import { Note, Chord, Scale } from 'tonal';
-import ProgressionsList from './ProgressionsList.vue';
+import ProgressionsList from '../sidebars/ProgressionsList.vue';
 import ProgressionDropZone from './ProgressionDropZone.vue';
-import PlaybackControls from './PlaybackControls.vue';
-import Tab from '../tab/Tab.vue';
-import { useMidiUtils } from '../../composables/useMidiUtils';
+import PartitionTab from '../tab/PartitionTab.vue';
 
 export default defineComponent({
   name: 'ProgressionCompiler',
   components: {
     ProgressionsList,
     ProgressionDropZone,
-    PlaybackControls,
-    Tab
+    PartitionTab
   },
   setup() {
     const store = useMainStore();
@@ -60,22 +45,15 @@ export default defineComponent({
     const compiledProgressions = ref<any[]>([]);
     const tempo = ref(100);
     const isPlaying = ref(false);
-    const { notesToMidi } = useMidiUtils();
+    const isPaused = ref(false);
+    const repeat = ref(false);
+
+    // Pour la gestion de la pause/reprise
+    let playbackTimeout: number | null = null;
 
     // Indices pour suivre la progression et l'accord actuellement joués
     const currentProgressionIndex = ref(-1);
     const currentChordIndex = ref(-1);
-
-    // Pour la tablature - suivi des notes de l'accord actuel
-    const currentChordNotes = ref<string[]>([]);
-    const currentChordDisplay = ref('');
-
-    // Calculer les valeurs MIDI pour les notes actuelles de l'accord
-    const currentChordMidiList = computed(() => {
-      return notesToMidi(currentChordNotes.value.map(note =>
-        note.includes('4') ? note : `${note}4`
-      ));
-    });
 
     // Calculer la valeur d'affichage de la tonalité actuelle
     const currentKeyDisplay = computed(() => {
@@ -85,27 +63,6 @@ export default defineComponent({
 
     // Récupérer l'échelle utilisateur du store
     const userScale = computed(() => store.userScale.replace(/\d+$/, ''));
-
-    // Extraire toutes les catégories uniques des progressions
-    const categories = computed(() => {
-      const categoriesSet = new Set(chordProgressions.map(prog => prog.compatibleModes[0]));
-      return Array.from(categoriesSet).sort();
-    });
-
-    // Filtrer les progressions en fonction de la recherche et de la catégorie
-    const filteredProgressions = computed(() => {
-      return chordProgressions.filter(progression => {
-        const matchesSearch =
-          progression.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-          progression.description.toLowerCase().includes(searchQuery.value.toLowerCase());
-
-        const matchesCategory =
-          categoryFilter.value === '' ||
-          progression.compatibleModes.includes(categoryFilter.value);
-
-        return matchesSearch && matchesCategory;
-      });
-    });
 
     // Gestion du drag and drop
     function dragStart(event: DragEvent, progression: any) {
@@ -151,6 +108,8 @@ export default defineComponent({
     }
 
     function clearCompilation() {
+      // Arrêter la lecture si elle est en cours
+      stopCompiledProgression();
       compiledProgressions.value = [];
     }
 
@@ -193,7 +152,6 @@ export default defineComponent({
       if (modifiers.includes('7')) return isMajor ? '7' : 'min7';
       if (modifiers.includes('6')) return isMajor ? '6' : 'min6';
       if (modifiers.includes('m7b5') || modifiers.includes('Ø')) return 'min7b5';
-      if (modifiers.includes('m') || modifiers.includes('min')) return 'minor';
 
       // Si pas de modificateur, utiliser le type par défaut selon le degré
       if (!isMajor) return 'minor';
@@ -208,143 +166,135 @@ export default defineComponent({
         if (chord.empty) return [rootNote];
 
         // Générer les notes à partir des intervalles
-        return chord.notes;
+        return chord.notes.map(note => `${note}4`); // Ajouter l'octave 4 pour la lecture
       } catch (error) {
         console.error('Erreur lors de la génération des notes d\'accord:', error);
         return [rootNote];
       }
     }
 
-    // Lecture d'une seule progression
-    async function playSingleProgression(progression: any) {
-      if (isPlaying.value) return;
-
-      isPlaying.value = true;
-      const rootNote = userScale.value;
-      const beatDuration = 60 / tempo.value; // Durée d'un temps en secondes
-
-      try {
-        const numerals = progression.numerals.split('-');
-        const scaleNotes = getMajorScaleNotes(rootNote);
-
-        // Jouer chaque accord de la progression
-        for (let chordIndex = 0; chordIndex < numerals.length; chordIndex++) {
-          if (!isPlaying.value) break;
-
-          currentChordIndex.value = chordIndex;
-          const numeral = numerals[chordIndex];
-
-          // Convertir le chiffre romain en degré numérique
-          const degree = romanToDegree(numeral);
-
-          // Obtenir la note racine de l'accord basé sur le degré
-          const chordRoot = scaleNotes[(degree - 1) % 7];
-
-          // Déterminer le type d'accord
-          const chordType = getChordTypeFromNumeral(numeral, degree);
-
-          // Générer les notes de l'accord
-          const chordNotes = getChordNotes(chordRoot, chordType);
-
-          // Mettre à jour les notes pour la tablature
-          currentChordNotes.value = chordNotes;
-          currentChordDisplay.value = `${chordRoot}${chordType} (${numeral})`;
-
-          // Jouer toutes les notes de l'accord simultanément
-          await playFullChord(chordNotes.map(note => `${note}4`), beatDuration, 'sine');
-
-          // Pause entre les accords
-          await new Promise(r => setTimeout(r, beatDuration * 0.5 * 1000));
-        }
-      } catch (error) {
-        console.error('Erreur lors de la lecture:', error);
-      } finally {
-        isPlaying.value = false;
-        currentChordIndex.value = -1;
-
-        // Attendre un peu avant de réinitialiser les notes de l'accord
-        setTimeout(() => {
-          currentChordNotes.value = [];
-          currentChordDisplay.value = '';
-        }, 1000);
+    // Fonction pour arrêter tous les timeouts en cours
+    function clearPlaybackTimeouts() {
+      if (playbackTimeout !== null) {
+        window.clearTimeout(playbackTimeout);
+        playbackTimeout = null;
       }
     }
 
-    // Fonction de lecture améliorée de la progression complète
+    // Fonction pour mettre en pause la lecture
+    function pauseCompiledProgression() {
+      if (isPlaying.value && !isPaused.value) {
+        isPaused.value = true;
+        clearPlaybackTimeouts();
+      }
+    }
+
+    // Fonction pour arrêter complètement la lecture
+    function stopCompiledProgression() {
+      clearPlaybackTimeouts();
+      isPlaying.value = false;
+      isPaused.value = false;
+      currentProgressionIndex.value = -1;
+      currentChordIndex.value = -1;
+    }
+
+    // Fonction pour activer/désactiver la répétition
+    function toggleRepeat() {
+      repeat.value = !repeat.value;
+    }
+
+    // Fonction de lecture améliorée de la progression
     async function playCompiledProgression() {
-      if (isPlaying.value || compiledProgressions.value.length === 0) return;
+      if ((isPlaying.value && !isPaused.value) || compiledProgressions.value.length === 0) return;
 
+      // Si on reprend après une pause
+      if (isPaused.value) {
+        isPaused.value = false;
+        playNextChord();
+        return;
+      }
+
+      // Sinon, commencer une nouvelle lecture
       isPlaying.value = true;
+      isPaused.value = false;
+      currentProgressionIndex.value = 0;
+      currentChordIndex.value = 0;
+
+      // Lancer la lecture
+      playNextChord();
+    }
+
+    // Fonction pour jouer l'accord suivant
+    function playNextChord() {
+      if (!isPlaying.value || isPaused.value) return;
+
       const rootNote = userScale.value;
       const beatDuration = 60 / tempo.value; // Durée d'un temps en secondes
 
-      try {
-        // Parcourir chaque progression
-        for (let progIndex = 0; progIndex < compiledProgressions.value.length; progIndex++) {
-          currentProgressionIndex.value = progIndex;
-          const progression = compiledProgressions.value[progIndex];
-
-          // Conversion des chiffres romains
-          const numerals = progression.numerals.split('-');
-
-          // Obtenir les notes de la gamme majeure pour cette tonalité
-          const scaleNotes = getMajorScaleNotes(rootNote);
-
-          // Jouer chaque accord de la progression
-          for (let chordIndex = 0; chordIndex < numerals.length; chordIndex++) {
-            // Si la lecture a été interrompue, sortir de la boucle
-            if (!isPlaying.value) break;
-
-            currentChordIndex.value = chordIndex;
-            const numeral = numerals[chordIndex];
-
-            // Convertir le chiffre romain en degré numérique
-            const degree = romanToDegree(numeral);
-
-            // Obtenir la note racine de l'accord basé sur le degré
-            const chordRoot = scaleNotes[(degree - 1) % 7];
-
-            // Déterminer le type d'accord basé sur le degré et les modificateurs
-            const chordType = getChordTypeFromNumeral(numeral, degree);
-
-            // Générer les notes de l'accord
-            const chordNotes = getChordNotes(chordRoot, chordType);
-
-            // Mettre à jour les notes pour la tablature
-            currentChordNotes.value = chordNotes;
-            currentChordDisplay.value = `${chordRoot}${chordType} (${numeral})`;
-
-            // Jouer toutes les notes de l'accord simultanément
-            await playFullChord(chordNotes.map(note => `${note}4`), beatDuration, 'sine');
-
-            // Pause entre les accords
-            await new Promise(r => setTimeout(r, beatDuration * 0.5 * 1000));
-          }
+      // Vérifier si nous avons atteint la fin de la liste
+      if (currentProgressionIndex.value >= compiledProgressions.value.length) {
+        if (repeat.value) {
+          // Recommencer depuis le début si la répétition est activée
+          currentProgressionIndex.value = 0;
+          currentChordIndex.value = 0;
+        } else {
+          // Arrêter la lecture
+          stopCompiledProgression();
+          return;
         }
-      } catch (error) {
-        console.error('Erreur lors de la lecture:', error);
-      } finally {
-        isPlaying.value = false;
-        currentProgressionIndex.value = -1;
-        currentChordIndex.value = -1;
-
-        // Attendre un peu avant de réinitialiser les notes de l'accord
-        setTimeout(() => {
-          currentChordNotes.value = [];
-          currentChordDisplay.value = '';
-        }, 1000);
       }
+
+      // Récupérer la progression actuelle
+      const progression = compiledProgressions.value[currentProgressionIndex.value];
+      if (!progression) {
+        stopCompiledProgression();
+        return;
+      }
+
+      // Récupérer les numéraux de la progression
+      const numerals = progression.numerals.split('-');
+
+      // Vérifier si nous avons atteint la fin de la progression
+      if (currentChordIndex.value >= numerals.length) {
+        // Passer à la progression suivante
+        currentProgressionIndex.value++;
+        currentChordIndex.value = 0;
+        playNextChord();
+        return;
+      }
+
+      const numeral = numerals[currentChordIndex.value];
+
+      // Obtenir les notes de la gamme majeure pour cette tonalité
+      const scaleNotes = getMajorScaleNotes(rootNote);
+
+      // Convertir le chiffre romain en degré numérique
+      const degree = romanToDegree(numeral);
+
+      // Obtenir la note racine de l'accord basé sur le degré
+      const chordRoot = scaleNotes[(degree - 1) % 7];
+
+      // Déterminer le type d'accord basé sur le degré et les modificateurs
+      const chordType = getChordTypeFromNumeral(numeral, degree);
+
+      // Générer les notes de l'accord
+      const chordNotes = getChordNotes(chordRoot, chordType);
+
+      // Jouer l'accord
+      playFullChord(chordNotes, beatDuration, 'sine').then(() => {
+        // Préparer le prochain accord
+        currentChordIndex.value++;
+
+        // Planifier le prochain accord après une durée d'accord
+        playbackTimeout = window.setTimeout(() => {
+          playNextChord();
+        }, beatDuration * 1000);
+      });
     }
 
-    // Arrêter la lecture en cas de changement de composant
-    watch(() => store.userScale, () => {
-      if (isPlaying.value) {
-        isPlaying.value = false;
-        currentProgressionIndex.value = -1;
-        currentChordIndex.value = -1;
-        currentChordNotes.value = [];
-        currentChordDisplay.value = '';
-      }
+    // Nettoyer les timeouts avant de détruire le composant
+    onBeforeUnmount(() => {
+      clearPlaybackTimeouts();
     });
 
     return {
@@ -353,15 +303,12 @@ export default defineComponent({
       compiledProgressions,
       tempo,
       isPlaying,
+      isPaused,
+      repeat,
       currentKeyDisplay,
       userScale,
-      categories,
-      filteredProgressions,
       currentProgressionIndex,
       currentChordIndex,
-      currentChordNotes,
-      currentChordDisplay,
-      currentChordMidiList,
       dragStart,
       onDrop,
       moveItemUp,
@@ -369,7 +316,9 @@ export default defineComponent({
       removeItem,
       clearCompilation,
       playCompiledProgression,
-      playSingleProgression
+      pauseCompiledProgression,
+      stopCompiledProgression,
+      toggleRepeat
     };
   }
 });
@@ -390,26 +339,8 @@ export default defineComponent({
   }
 
   .main-content {
-    display: grid;
-    gap: 5px;
-    grid-template-areas:
-      "t t t"
-      "l d d"
-      "l d d";
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 5fr 5fr 1fr;
-
-    .tablature-container {
-      grid-area: t;
-    }
-
-    .list {
-      grid-area: l;
-    }
-
-    .drop {
-      grid-area: d;
-    }
+    display: flex;
+    gap: 20px;
 
     @media (max-width: 768px) {
       flex-direction: column;

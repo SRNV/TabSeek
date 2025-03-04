@@ -1,26 +1,39 @@
-<!-- PlaybackControls.vue - Mis à jour pour position fixe et meilleure expérience utilisateur -->
+<!-- PlaybackControls.vue - Composant pour les contrôles de lecture - version améliorée -->
 <template>
-  <div class="compilation-controls" :class="{ fixed: isFixed }">
-    <div class="controls-content">
-      <button class="control-btn play-btn" @click="$emit('playProgression')" :disabled="!hasContent || isPlaying">
-        <span class="btn-icon">{{ isPlaying ? '⏸' : '▶' }}</span>
-        {{ isPlaying ? 'En cours...' : 'Jouer la progression' }}
+  <div class="compilation-controls">
+    <div class="playback-main-controls">
+      <button class="control-btn play-btn"
+        @click="$emit(isPlaying && !isPaused ? 'pauseProgression' : 'playProgression')" :disabled="!hasContent"
+        :title="isPlaying && !isPaused ? 'Mettre en pause' : 'Lire la progression'">
+        <span class="btn-icon">{{ isPlaying && !isPaused ? '⏸' : '▶' }}</span>
+        {{ isPlaying && !isPaused ? 'Pause' : (isPaused ? 'Reprendre' : 'Jouer') }}
       </button>
 
-      <div class="playback-controls">
-        <label class="control-label">Tempo: {{ tempo }} BPM</label>
-        <input type="range" :value="tempo" @input="updateTempo" min="20" max="200" step="4" class="tempo-slider" />
-        <div class="tempo-presets">
-          <button v-for="presetTempo in tempoPresets" :key="presetTempo" class="tempo-preset-btn"
-            :class="{ 'active': tempo === presetTempo }" @click="$emit('tempoChange', presetTempo)">
-            {{ presetTempo }}
-          </button>
-        </div>
+      <button class="control-btn stop-btn" @click="$emit('stopProgression')" :disabled="!isPlaying && !isPaused"
+        title="Arrêter la lecture">
+        <span class="btn-icon">⏹</span> Arrêter
+      </button>
+
+      <button class="control-btn repeat-btn" @click="$emit('toggleRepeat')" :class="{ 'active': repeat }"
+        :disabled="!hasContent" title="Répéter la progression">
+        <span class="btn-icon">🔁</span> {{ repeat ? 'Répétition activée' : 'Répéter' }}
+      </button>
+
+      <button class="control-btn clear-btn" @click="$emit('clearCompilation')" :disabled="!hasContent"
+        title="Effacer toutes les progressions">
+        <span class="btn-icon">&#10006;</span> Effacer
+      </button>
+    </div>
+
+    <div class="playback-controls">
+      <label class="control-label">Tempo: {{ tempo }} BPM</label>
+      <input type="range" :value="tempo" @input="updateTempo" min="60" max="200" step="4" class="tempo-slider" />
+      <div class="tempo-presets">
+        <button v-for="presetTempo in tempoPresets" :key="presetTempo" class="tempo-preset-btn"
+          :class="{ 'active': tempo === presetTempo }" @click="$emit('tempoChange', presetTempo)">
+          {{ presetTempo }}
+        </button>
       </div>
-
-      <button class="control-btn clear-btn" @click="$emit('clearCompilation')" :disabled="!hasContent">
-        <span class="btn-icon">&#10006;</span>
-      </button>
     </div>
   </div>
 </template>
@@ -39,19 +52,30 @@ export default defineComponent({
       type: Boolean,
       required: true
     },
-    hasContent: {
+    isPaused: {
       type: Boolean,
       required: true
     },
-    isFixed: {
+    repeat: {
       type: Boolean,
-      default: false
+      required: true
+    },
+    hasContent: {
+      type: Boolean,
+      required: true
     }
   },
-  emits: ['playProgression', 'clearCompilation', 'tempoChange'],
+  emits: [
+    'playProgression',
+    'pauseProgression',
+    'stopProgression',
+    'toggleRepeat',
+    'clearCompilation',
+    'tempoChange'
+  ],
   setup(props, { emit }) {
     // Définir quelques valeurs de tempo prédéfinies
-    const tempoPresets = ref([20, 40, 60, 80, 100, 120, 140, 160]);
+    const tempoPresets = ref([60, 80, 100, 120, 140, 160]);
 
     function updateTempo(event: Event) {
       const target = event.target as HTMLInputElement;
@@ -69,34 +93,18 @@ export default defineComponent({
 <style scoped lang="scss">
 .compilation-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 15px;
   margin-top: 15px;
   background-color: #333;
   padding: 15px;
   border-radius: 8px;
-  width: 100%;
-  z-index: 100;
 
-  &.fixed {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin: 0;
-    border-radius: 0;
-    border-top: 1px solid #555;
-  }
-
-  .controls-content {
+  .playback-main-controls {
     display: flex;
-    justify-content: space-between;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px;
+    justify-content: space-between;
   }
 
   .control-btn {
@@ -109,6 +117,7 @@ export default defineComponent({
     align-items: center;
     gap: 6px;
     transition: all 0.2s ease;
+    min-width: 120px;
 
     &:disabled {
       opacity: 0.5;
@@ -118,10 +127,36 @@ export default defineComponent({
     &.play-btn {
       background-color: #3a7ca5;
       color: white;
-      min-width: 180px;
 
       &:hover:not(:disabled) {
         background-color: #4a8cb5;
+      }
+    }
+
+    &.stop-btn {
+      background-color: #a53a3a;
+      color: white;
+
+      &:hover:not(:disabled) {
+        background-color: #b54a4a;
+      }
+    }
+
+    &.repeat-btn {
+      background-color: #555;
+      color: #eee;
+
+      &.active {
+        background-color: #8c6b3a;
+        color: white;
+      }
+
+      &:hover:not(:disabled) {
+        background-color: #666;
+
+        &.active {
+          background-color: #a57c3a;
+        }
       }
     }
 
@@ -145,7 +180,6 @@ export default defineComponent({
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: 500px;
 
     .control-label {
       font-size: 0.85rem;
@@ -212,7 +246,7 @@ export default defineComponent({
 
 @media (max-width: 768px) {
   .compilation-controls {
-    .controls-content {
+    .playback-main-controls {
       flex-direction: column;
 
       .control-btn {
