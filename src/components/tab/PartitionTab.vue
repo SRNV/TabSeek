@@ -16,20 +16,63 @@
                     <div class="string-label">{{ stringTuning }}</div>
                     <div class="string-content">
                         <div v-for="(column, colIndex) in currentMeasureData[stringIndex]" :key="`col-${colIndex}`"
-                            class="tab-column" :class="{ 'active': colIndex === currentPlayingColumn }"
-                            @click="editCell(stringIndex, colIndex)">
+                            class="tab-column" :class="{
+                                'active': colIndex === currentPlayingColumn,
+                                'selected': isColumnSelected(colIndex)
+                            }" @click="handleColumnClick(stringIndex, colIndex, $event)">
                             <select v-model="currentMeasureData[stringIndex][colIndex]"
                                 @focus="currentEditingCell = { string: stringIndex, column: colIndex }"
                                 @blur="currentEditingCell = null" class="fret-select"
                                 :ref="(el) => { if (stringIndex === currentEditingCell?.string && colIndex === currentEditingCell?.column) focusElement = el }">
                                 <option value="-">-</option>
                                 <option value="x">x</option>
-                                <option v-for="i in 24" :key="i" :value="i.toString()">{{ i }}</option>
-                                <option v-for="i in 12" :key="`${i}h`" :value="`${i}h`">{{ i }}h</option>
-                                <option v-for="i in 12" :key="`${i}p`" :value="`${i}p`">{{ i }}p</option>
-                                <option v-for="i in 12" :key="`${i}/${i}`" :value="`${i}/${i}`">{{ i }}/{{ i }}</option>
+                                <option v-for="fret in availableFrets" :key="fret.value" :value="fret.value"
+                                    :style="{ display: !fret.inScale && filterByScaleEnabled ? 'none' : '', backgroundColor: !fret.inScale && filterByScaleEnabled ? '#A53A3A33' : 'black' }">
+                                    {{ fret.label }}
+                                </option>
                             </select>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sélection multi-colonnes et mode override -->
+            <div class="multi-selection-controls">
+                <div class="range-slider">
+                    <input type="range" min="0" :max="columns - 1" v-model.number="selectionStart"
+                        @input="updateSelection" class="range-input">
+                    <div class="selected-range" :style="{
+                        left: (selectionStart / (columns - 1) * 100) + '%',
+                        width: (selectionWidth / (columns - 1) * 100) + '%'
+                    }">
+                    </div>
+                </div>
+
+                <div class="selection-actions" v-if="hasSelection">
+                    <div class="mode-override">
+                        <label>Mode Override:</label>
+                        <select v-model="selectedModeOverride" @change="applyModeOverride">
+                            <option value="">Aucun override</option>
+                            <option value="major">Major</option>
+                            <option value="minor">Minor</option>
+                            <option value="dorian">Dorian</option>
+                            <option value="phrygian">Phrygian</option>
+                            <option value="lydian">Lydian</option>
+                            <option value="mixolydian">Mixolydian</option>
+                            <option value="locrian">Locrian</option>
+                        </select>
+                    </div>
+
+                    <div class="column-actions">
+                        <button @click="insertColumnLeft" class="action-btn" title="Insérer une colonne à gauche">
+                            <span>◀+</span>
+                        </button>
+                        <button @click="insertColumnRight" class="action-btn" title="Insérer une colonne à droite">
+                            <span>+▶</span>
+                        </button>
+                        <button @click="clearSelection" class="action-btn" title="Effacer la sélection">
+                            <span>×</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -77,6 +120,13 @@
                     </label>
                 </div>
 
+                <div class="filter-scale-control">
+                    <label class="filter-scale-label">
+                        <input type="checkbox" v-model="filterByScaleEnabled">
+                        Filtrer par gamme
+                    </label>
+                </div>
+
                 <div class="tempo-control">
                     <label for="tempo-input">Tempo: {{ tempo }} BPM</label>
                     <input id="tempo-input" type="range" v-model.number="tempo" min="40" max="240" step="4">
@@ -87,9 +137,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
+import { defineComponent, ref, computed, watch, onBeforeUnmount, nextTick, PropType } from 'vue';
 import { playNote } from '../../composables/useAudio';
 import { Note, Interval } from 'tonal';
+import { useMainStore } from '../../stores';
 
 export default defineComponent({
     name: 'PartitionTab',
@@ -108,6 +159,7 @@ export default defineComponent({
         }
     },
     setup(props) {
+        const store = useMainStore();
         const tuningArray = computed(() => props.tuning.split(',').reverse()); // Inversé pour l'affichage traditionnel
         const tuningDisplay = computed(() => tuningArray.value.slice().reverse().join(' - ')); // Affichage normal
 
@@ -118,6 +170,22 @@ export default defineComponent({
         const currentEditingCell = ref<{ string: number, column: number } | null>(null);
         const focusElement = ref<HTMLElement | null>(null);
         const metronomeEnabled = ref(false);
+        const filterByScaleEnabled = ref(true);
+
+        // Sélection multi-colonnes
+        const selectionStart = ref(0);
+        const selectionEnd = ref(0);
+        const selectedColumns = ref<number[]>([]);
+        const selectedModeOverride = ref('');
+        const modeOverrides = ref<Record<string, { measureIdx: number, columnIdx: number, mode: string }[]>>({});
+
+        const selectionWidth = computed(() => {
+            return selectionEnd.value - selectionStart.value;
+        });
+
+        const hasSelection = computed(() => {
+            return selectedColumns.value.length > 0;
+        });
 
         // Initialiser une structure pour stocker les mesures
         const measures = ref<string[][][]>([]);
@@ -151,6 +219,75 @@ export default defineComponent({
             return measures.value[currentMeasure.value];
         });
 
+        // Récupérer les frettes disponibles en fonction de la gamme actuelle
+        const availableFrets = computed(() => {
+            const frets = [];
+            const values = new Set();
+            const { modeNotes } = store;
+
+            // Format pour la comparaison : convertir en MIDI modulo 12 pour comparer les classes de hauteur
+            const scaleNotesSimple = modeNotes.map(note => {
+                const midi = Note.midi(note);
+                return midi !== null ? midi % 12 : -1;
+            }).filter(midi => midi !== -1);
+
+            console.log(modeNotes, scaleNotesSimple)
+            // Ajouter les frettes standards (1-24)
+            for (let stringIdx = 0; stringIdx < tuningArray.value.length; stringIdx++) {
+                for (let i = 1; i <= 24; i++) {
+                    // Vérifier pour chaque corde si cette frette produit une note dans la gamme
+                    const stringTuning = tuningArray.value[stringIdx];
+
+                    if (!values.has(i)) {
+                        frets.push({
+                            value: i.toString(),
+                            label: i.toString(),
+                            inScale: isNoteInScale(stringTuning, i)
+                        });
+                        values.add(i)
+                    }
+                }
+            }
+
+            // Ajouter les techniques spéciales (hammer-on, pull-off, slides)
+            for (let i = 1; i <= 12; i++) {
+                // Hammer-on
+                frets.push({
+                    value: `${i}h`,
+                    label: `${i}h`,
+                    inScale: true
+                });
+
+                // Pull-off
+                frets.push({
+                    value: `${i}p`,
+                    label: `${i}p`,
+                    inScale: true
+                });
+
+                // Slide
+                frets.push({
+                    value: `${i}/${i}`,
+                    label: `${i}/${i}`,
+                    inScale: true
+                });
+            }
+
+            return frets;
+
+            // Fonction pour vérifier si une note à une frette spécifique sur une corde est dans la gamme
+            function isNoteInScale(stringTuning: string, fret: number): boolean {
+                const noteToCheck = Note.transpose(stringTuning, Interval.fromSemitones(fret));
+                const midiNote = Note.midi(noteToCheck);
+
+                if (midiNote === null) return false;
+
+                console.log(stringTuning, scaleNotesSimple.includes(midiNote % 12));
+                // Comparer la classe de hauteur (note sans octave)
+                return scaleNotesSimple.includes(midiNote % 12);
+            }
+        });
+
         // Ajouter une nouvelle mesure
         function addMeasure() {
             measures.value.push(createEmptyMeasure());
@@ -175,6 +312,7 @@ export default defineComponent({
             if (currentMeasure.value > 0) {
                 currentMeasure.value--;
             }
+            clearSelection();
         }
 
         function nextMeasure() {
@@ -184,6 +322,7 @@ export default defineComponent({
                 // Si on est à la dernière mesure, en ajouter une nouvelle
                 addMeasure();
             }
+            clearSelection();
         }
 
         // Édition d'une cellule
@@ -196,6 +335,127 @@ export default defineComponent({
                     focusElement.value.focus();
                 }
             });
+        }
+
+        // Gestion des sélections multiples
+        function handleColumnClick(stringIndex: number, columnIndex: number, event: MouseEvent) {
+            if (event.shiftKey) {
+                // Sélection étendue
+                const start = Math.min(selectionStart.value, columnIndex);
+                const end = Math.max(selectionStart.value, columnIndex);
+
+                selectedColumns.value = [];
+                for (let i = start; i <= end; i++) {
+                    selectedColumns.value.push(i);
+                }
+
+                selectionStart.value = start;
+                selectionEnd.value = end;
+            } else if (event.ctrlKey || event.metaKey) {
+                // Ajouter/supprimer de la sélection
+                const index = selectedColumns.value.indexOf(columnIndex);
+                if (index === -1) {
+                    selectedColumns.value.push(columnIndex);
+                } else {
+                    selectedColumns.value.splice(index, 1);
+                }
+
+                // Mettre à jour les bornes de sélection
+                if (selectedColumns.value.length > 0) {
+                    selectionStart.value = Math.min(...selectedColumns.value);
+                    selectionEnd.value = Math.max(...selectedColumns.value);
+                }
+            } else {
+                // Sélection simple ou édition
+                if (selectedColumns.value.length === 1 && selectedColumns.value[0] === columnIndex) {
+                    // Si déjà sélectionné, passer en mode édition
+                    editCell(stringIndex, columnIndex);
+                } else {
+                    // Sélection simple
+                    selectedColumns.value = [columnIndex];
+                    selectionStart.value = columnIndex;
+                    selectionEnd.value = columnIndex;
+                }
+            }
+        }
+
+        function updateSelection() {
+            selectionEnd.value = selectionStart.value;
+            selectedColumns.value = [selectionStart.value];
+        }
+
+        function clearSelection() {
+            selectedColumns.value = [];
+            selectedModeOverride.value = '';
+        }
+
+        function isColumnSelected(columnIndex: number) {
+            return selectedColumns.value.includes(columnIndex);
+        }
+
+        // Gestion des overrides de mode
+        function applyModeOverride() {
+            if (!selectedModeOverride.value || selectedColumns.value.length === 0) return;
+
+            const measureKey = `measure-${currentMeasure.value}`;
+            if (!modeOverrides.value[measureKey]) {
+                modeOverrides.value[measureKey] = [];
+            }
+
+            // Supprimer les overrides existants pour les colonnes sélectionnées
+            modeOverrides.value[measureKey] = modeOverrides.value[measureKey].filter(
+                override => !selectedColumns.value.includes(override.columnIdx)
+            );
+
+            // Ajouter les nouveaux overrides
+            for (const columnIdx of selectedColumns.value) {
+                modeOverrides.value[measureKey].push({
+                    measureIdx: currentMeasure.value,
+                    columnIdx,
+                    mode: selectedModeOverride.value
+                });
+            }
+        }
+
+        // Insertion de colonnes
+        function insertColumnLeft() {
+            if (selectedColumns.value.length === 0) return;
+
+            const insertIndex = Math.min(...selectedColumns.value);
+            insertColumnAt(insertIndex);
+        }
+
+        function insertColumnRight() {
+            if (selectedColumns.value.length === 0) return;
+
+            const insertIndex = Math.max(...selectedColumns.value) + 1;
+            insertColumnAt(insertIndex);
+        }
+
+        function insertColumnAt(index: number) {
+            // Insérer une colonne vide à la position spécifiée
+            for (let i = 0; i < tuningArray.value.length; i++) {
+                currentMeasureData.value[i].splice(index, 0, '-');
+
+                // Si la mesure dépasse le nombre de colonnes, supprimer la dernière
+                if (currentMeasureData.value[i].length > props.columns) {
+                    currentMeasureData.value[i].pop();
+                }
+            }
+
+            // Mettre à jour les overrides
+            const measureKey = `measure-${currentMeasure.value}`;
+            if (modeOverrides.value[measureKey]) {
+                modeOverrides.value[measureKey] = modeOverrides.value[measureKey].map(override => {
+                    if (override.columnIdx >= index) {
+                        return { ...override, columnIdx: override.columnIdx + 1 };
+                    }
+                    return override;
+                });
+            }
+
+            // Mettre à jour la sélection
+            clearSelection();
         }
 
         // Gestion de la lecture
@@ -395,13 +655,28 @@ export default defineComponent({
             currentEditingCell,
             focusElement,
             metronomeEnabled,
+            filterByScaleEnabled,
+            availableFrets,
             previousMeasure,
             nextMeasure,
             addMeasure,
             deleteMeasure,
             editCell,
             togglePlayback,
-            stopPlayback
+            stopPlayback,
+            selectionStart,
+            selectionEnd,
+            selectionWidth,
+            selectedColumns,
+            selectedModeOverride,
+            hasSelection,
+            handleColumnClick,
+            updateSelection,
+            clearSelection,
+            isColumnSelected,
+            applyModeOverride,
+            insertColumnLeft,
+            insertColumnRight
         };
     }
 });
@@ -409,7 +684,7 @@ export default defineComponent({
 
 <style scoped lang="scss">
 .partition-tab-container {
-    max-height: 400px;
+    max-height: 500px; // Augmenté pour accommoder les nouvelles fonctionnalités
     display: flex;
     flex-direction: column;
     background-color: #2a2a2a;
@@ -442,7 +717,7 @@ export default defineComponent({
         background-color: #333;
         border-radius: 4px;
         padding: 10px;
-        max-height: 250px;
+        max-height: 350px; // Augmenté pour accommoder le slider
 
         .tablature {
             display: flex;
@@ -479,6 +754,10 @@ export default defineComponent({
                             background-color: rgba(59, 130, 246, 0.3);
                         }
 
+                        &.selected {
+                            background-color: rgba(246, 173, 59, 0.3);
+                        }
+
                         .fret-select {
                             width: 100%;
                             height: 100%;
@@ -501,6 +780,123 @@ export default defineComponent({
                                 background-color: #333;
                                 color: #e0e0e0;
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        .multi-selection-controls {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #1e1e1e;
+            border-radius: 4px;
+
+            .range-slider {
+                width: 100%;
+                position: relative;
+                height: 20px;
+                margin-bottom: 15px;
+
+                .range-input {
+                    width: 100%;
+                    -webkit-appearance: none;
+                    height: 4px;
+                    background: #555;
+                    border-radius: 2px;
+                    position: absolute;
+                    top: 50%;
+                    transform: translateY(-50%);
+
+                    &::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: #f6ad3b;
+                        cursor: pointer;
+                        z-index: 10;
+                        position: relative;
+                    }
+
+                    &::-moz-range-thumb {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: #f6ad3b;
+                        cursor: pointer;
+                        border: none;
+                        z-index: 10;
+                        position: relative;
+                    }
+                }
+
+                .selected-range {
+                    position: absolute;
+                    height: 6px;
+                    background-color: rgba(246, 173, 59, 0.5);
+                    top: 50%;
+                    transform: translateY(-50%);
+                    border-radius: 3px;
+                    pointer-events: none;
+                }
+            }
+
+            .selection-actions {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+
+                .mode-override {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+
+                    label {
+                        font-size: 0.9rem;
+                        color: #aaa;
+                    }
+
+                    select {
+                        background-color: #444;
+                        color: #e0e0e0;
+                        border: none;
+                        padding: 5px;
+                        border-radius: 4px;
+                        font-size: 0.9rem;
+
+                        &:focus {
+                            outline: none;
+                            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+                        }
+
+                        option {
+                            background-color: #333;
+                            color: #e0e0e0;
+                        }
+                    }
+                }
+
+                .column-actions {
+                    display: flex;
+                    gap: 5px;
+
+                    .action-btn {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        width: 32px;
+                        height: 32px;
+                        background-color: #444;
+                        color: #fff;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        transition: background-color 0.2s;
+
+                        &:hover {
+                            background-color: #555;
                         }
                     }
                 }
@@ -579,11 +975,13 @@ export default defineComponent({
             color: #aaa;
         }
 
-        .metronome-control {
+        .metronome-control,
+        .filter-scale-control {
             display: flex;
             align-items: center;
 
-            .metronome-label {
+            .metronome-label,
+            .filter-scale-label {
                 display: flex;
                 align-items: center;
                 gap: 5px;
