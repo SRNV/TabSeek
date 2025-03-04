@@ -1,6 +1,6 @@
 <!-- ProgressionCompiler.vue - Composant principal restructuré avec lecture améliorée -->
 <template>
-  <PartitionTab />
+  <TablatureMain />
   <div class="progression-compiler">
     <div class="compiler-container">
       <div class="main-content">
@@ -29,14 +29,14 @@ import { playNote, playFullChord } from '../../composables/useAudio';
 import { Note, Chord, Scale } from 'tonal';
 import ProgressionsList from '../sidebars/ProgressionsList.vue';
 import ProgressionDropZone from './ProgressionDropZone.vue';
-import PartitionTab from '../tab/PartitionTab.vue';
+import TablatureMain from '../tablature/TablatureMain.vue';
 
 export default defineComponent({
   name: 'ProgressionCompiler',
   components: {
     ProgressionsList,
     ProgressionDropZone,
-    PartitionTab
+    TablatureMain
   },
   setup() {
     const store = useMainStore();

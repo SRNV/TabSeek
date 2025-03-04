@@ -155,7 +155,7 @@ export default defineComponent({
         },
         columns: {
             type: Number,
-            default: 16 // Nombre de colonnes par mesure
+            default: 8 * 4 // Nombre de colonnes par mesure
         }
     },
     setup(props) {
