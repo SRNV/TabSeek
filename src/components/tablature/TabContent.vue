@@ -13,7 +13,9 @@
                             'slow-1': store.flatRhythmValue(gc - 1) === 1,
                             'slow-2': store.flatRhythmValue(gc - 1) === 2,
                             'slow-4': store.flatRhythmValue(gc - 1) === 4,
-                            'has-double-beam': store.flatRhythmValue(gc - 1) >= 16,
+                            'beams-2': store.flatRhythmValue(gc - 1) >= 16,
+                            'beams-3': store.flatRhythmValue(gc - 1) >= 32,
+                            'beams-4': store.flatRhythmValue(gc - 1) >= 64,
                             'drag-preview': isInRhythmDrag(gc - 1) && rhythmDragging
                         }" :style="{ width: columnWidth + 'px', minWidth: columnWidth + 'px' }"
                         @mousedown="onRhythmMousedown(gc - 1, $event)"
@@ -142,11 +144,6 @@ function isInRhythmDrag(gc: number): boolean {
 
 function onRhythmMousedown(gc: number, event: MouseEvent) {
     event.preventDefault();
-    // Si déjà une croche/double-croche, clic simple = effacer
-    if (store.flatRhythmValue(gc) >= 8 && !event.shiftKey) {
-        store.flatUpdateRhythmValue(gc, 0);
-        return;
-    }
     rhythmDragStart.value = gc;
     rhythmDragEnd.value = gc;
     rhythmDragging.value = true;
@@ -163,16 +160,33 @@ function onRhythmMouseup() {
     if (range) {
         const [start, end] = range;
         if (start === end) {
-            // Clic sans drag : cycler les rythmes lents (0 → 1 → 2 → 4 → 0)
+            // Clic sans drag
             const current = store.flatRhythmValue(start);
-            const slow = [0, 1, 2, 4];
-            const idx = slow.indexOf(current);
-            store.flatUpdateRhythmValue(start, slow[(idx + 1) % slow.length]);
+            if (current >= 8) {
+                // Déjà une ligature : effacer
+                store.flatUpdateRhythmValue(start, 0);
+            } else {
+                // Cycler rythmes lents (0 → 1 → 2 → 4 → 0)
+                const slow = [0, 1, 2, 4];
+                const idx = slow.indexOf(current);
+                store.flatUpdateRhythmValue(start, slow[(idx + 1) % slow.length]);
+            }
         } else {
-            // Drag : appliquer croche (8) ou double-croche (16 avec shift)
-            const value = 8;
+            // Drag : déterminer le niveau à appliquer
+            // Si toutes les cellules ont déjà le même niveau >= 8, monter d'un cran
+            const beamLevels = [8, 16, 32, 64];
+            let minLevel = Infinity;
             for (let i = start; i <= end; i++) {
-                store.flatUpdateRhythmValue(i, value);
+                const v = store.flatRhythmValue(i);
+                if (v < minLevel) minLevel = v;
+            }
+            let newValue = 8;
+            if (minLevel >= 8) {
+                const idx = beamLevels.indexOf(minLevel);
+                newValue = beamLevels[Math.min(idx + 1, beamLevels.length - 1)];
+            }
+            for (let i = start; i <= end; i++) {
+                store.flatUpdateRhythmValue(i, newValue);
             }
         }
     }
@@ -637,8 +651,11 @@ onMounted(() => { tablatureRef.value?.focus(); });
         }
 
         // Rhythm row — hampes + ligatures avec groupement
+        // Espacement entre ligatures
+        $beam-gap: 5px;
+
         &.rhythm-row {
-            height: 20px;
+            height: 28px;
             margin-bottom: 0;
 
             .rhythm-label {
@@ -672,24 +689,22 @@ onMounted(() => { tablatureRef.value?.focus(); });
                     }
 
                     // --- Rythmes lents (pas de ligature) ---
-                    // Ronde: trait horizontal court
                     &.slow-1::after {
                         content: '';
                         position: absolute;
-                        bottom: 2px;
+                        bottom: 4px;
                         left: 25%;
                         right: 25%;
                         height: 1.5px;
                         background-color: #999;
                     }
 
-                    // Blanche: hampe + cercle ouvert
                     &.slow-2::before {
                         content: '';
                         position: absolute;
                         left: 50%;
-                        top: 2px;
-                        bottom: 6px;
+                        top: 4px;
+                        bottom: 8px;
                         width: 1.5px;
                         background-color: #999;
                         transform: translateX(-50%);
@@ -697,7 +712,7 @@ onMounted(() => { tablatureRef.value?.focus(); });
                     &.slow-2::after {
                         content: '';
                         position: absolute;
-                        bottom: 2px;
+                        bottom: 4px;
                         left: 50%;
                         transform: translateX(-50%);
                         width: 6px;
@@ -706,13 +721,12 @@ onMounted(() => { tablatureRef.value?.focus(); });
                         border-radius: 50%;
                     }
 
-                    // Noire: hampe + point plein
                     &.slow-4::before {
                         content: '';
                         position: absolute;
                         left: 50%;
-                        top: 2px;
-                        bottom: 6px;
+                        top: 4px;
+                        bottom: 8px;
                         width: 1.5px;
                         background-color: #999;
                         transform: translateX(-50%);
@@ -720,7 +734,7 @@ onMounted(() => { tablatureRef.value?.focus(); });
                     &.slow-4::after {
                         content: '';
                         position: absolute;
-                        bottom: 2px;
+                        bottom: 4px;
                         left: 50%;
                         transform: translateX(-50%);
                         width: 5px;
@@ -729,61 +743,10 @@ onMounted(() => { tablatureRef.value?.focus(); });
                         border-radius: 50%;
                     }
 
-                    // --- Ligatures (croches / doubles-croches) ---
-                    // Première du groupe: hampe gauche ┌──
-                    &.beam-first::before {
-                        content: '';
-                        position: absolute;
-                        left: 50%;
-                        top: 2px;
-                        bottom: 0;
-                        width: 1.5px;
-                        background-color: #ccc;
-                        transform: translateX(-50%);
-                    }
-                    &.beam-first::after {
-                        content: '';
-                        position: absolute;
-                        top: 2px;
-                        left: 50%;
-                        right: 0;
-                        height: 2.5px;
-                        background-color: #ccc;
-                    }
-
-                    // Milieu du groupe: juste la barre ───
-                    &.beam-middle::after {
-                        content: '';
-                        position: absolute;
-                        top: 2px;
-                        left: 0;
-                        right: 0;
-                        height: 2.5px;
-                        background-color: #ccc;
-                    }
-
-                    // Dernière du groupe: ──┐ hampe droite
-                    &.beam-last::before {
-                        content: '';
-                        position: absolute;
-                        left: 50%;
-                        top: 2px;
-                        bottom: 0;
-                        width: 1.5px;
-                        background-color: #ccc;
-                        transform: translateX(-50%);
-                    }
-                    &.beam-last::after {
-                        content: '';
-                        position: absolute;
-                        top: 2px;
-                        left: 0;
-                        right: 50%;
-                        height: 2.5px;
-                        background-color: #ccc;
-                    }
-
-                    // Note isolée: ┌┐ hampe + petite barre
+                    // --- Ligatures : hampe (::before) + barre (::after) ---
+                    // Hampe sur first, last, single
+                    &.beam-first::before,
+                    &.beam-last::before,
                     &.beam-single::before {
                         content: '';
                         position: absolute;
@@ -794,28 +757,66 @@ onMounted(() => { tablatureRef.value?.focus(); });
                         background-color: #ccc;
                         transform: translateX(-50%);
                     }
+
+                    // Barre selon position
+                    &.beam-first::after {
+                        content: '';
+                        position: absolute;
+                        top: 2px;
+                        left: 50%;
+                        right: 0;
+                        height: 2.5px;
+                        background-color: #ccc;
+                    }
+                    &.beam-middle::after {
+                        content: '';
+                        position: absolute;
+                        top: 2px;
+                        left: 0;
+                        right: 0;
+                        height: 2.5px;
+                        background-color: #ccc;
+                    }
+                    &.beam-last::after {
+                        content: '';
+                        position: absolute;
+                        top: 2px;
+                        left: 0;
+                        right: 50%;
+                        height: 2.5px;
+                        background-color: #ccc;
+                    }
                     &.beam-single::after {
                         content: '';
                         position: absolute;
                         top: 2px;
-                        left: 35%;
-                        right: 35%;
+                        left: 30%;
+                        right: 30%;
                         height: 2.5px;
                         background-color: #ccc;
                     }
 
-                    // Double-croche: 2e ligature via box-shadow
-                    &.has-double-beam.beam-first::after {
-                        box-shadow: 0 5px 0 0 #ccc;
+                    // Ligatures supplémentaires via box-shadow sur ::after
+                    // 2 barres (double-croche)
+                    &.beams-2.beam-first::after,
+                    &.beams-2.beam-middle::after,
+                    &.beams-2.beam-last::after,
+                    &.beams-2.beam-single::after {
+                        box-shadow: 0 $beam-gap 0 0 #ccc;
                     }
-                    &.has-double-beam.beam-middle::after {
-                        box-shadow: 0 5px 0 0 #ccc;
+                    // 3 barres (triple-croche)
+                    &.beams-3.beam-first::after,
+                    &.beams-3.beam-middle::after,
+                    &.beams-3.beam-last::after,
+                    &.beams-3.beam-single::after {
+                        box-shadow: 0 $beam-gap 0 0 #ccc, 0 #{2 * $beam-gap} 0 0 #ccc;
                     }
-                    &.has-double-beam.beam-last::after {
-                        box-shadow: 0 5px 0 0 #ccc;
-                    }
-                    &.has-double-beam.beam-single::after {
-                        box-shadow: 0 5px 0 0 #ccc;
+                    // 4 barres (quadruple-croche)
+                    &.beams-4.beam-first::after,
+                    &.beams-4.beam-middle::after,
+                    &.beams-4.beam-last::after,
+                    &.beams-4.beam-single::after {
+                        box-shadow: 0 $beam-gap 0 0 #ccc, 0 #{2 * $beam-gap} 0 0 #ccc, 0 #{3 * $beam-gap} 0 0 #ccc;
                     }
                 }
             }

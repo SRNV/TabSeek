@@ -15,8 +15,10 @@ export interface TabMeasure {
   rhythmValues: number[];
 }
 
-// Rhythm subdivision values: 0=none(default), 1=whole, 2=half, 4=quarter, 8=eighth, 16=sixteenth
-export const RHYTHM_OPTIONS = [0, 1, 2, 4, 8, 16] as const;
+// Rhythm subdivision values: 0=none(default), 1=whole, 2=half, 4=quarter, 8=eighth, 16=16th, 32=32nd, 64=64th
+export const RHYTHM_OPTIONS = [0, 1, 2, 4, 8, 16, 32, 64] as const;
+// Beam levels: how many beams for each subdivision
+export const BEAM_COUNTS: Record<number, number> = { 8: 1, 16: 2, 32: 3, 64: 4 };
 
 export const useTablatureStore = defineStore('tablature', {
   state: () => ({
@@ -282,7 +284,7 @@ export const useTablatureStore = defineStore('tablature', {
     },
     cycleRhythmValue(globalCol: number) {
       const current = this.flatRhythmValue(globalCol);
-      const options = [0, 1, 2, 4, 8, 16];
+      const options = [0, 1, 2, 4, 8, 16, 32, 64];
       const idx = options.indexOf(current);
       const next = options[(idx + 1) % options.length];
       this.flatUpdateRhythmValue(globalCol, next);
