@@ -11,7 +11,12 @@ export interface ColumnOverride {
 export interface TabMeasure {
   data: string[][];
   modeOverrides: ColumnOverride[];
+  indexPositions: number[];
+  rhythmValues: number[];
 }
+
+// Rhythm subdivision values: 0=none(default), 1=whole, 2=half, 4=quarter, 8=eighth, 16=sixteenth
+export const RHYTHM_OPTIONS = [0, 1, 2, 4, 8, 16] as const;
 
 export const useTablatureStore = defineStore('tablature', {
   state: () => ({
@@ -45,6 +50,51 @@ export const useTablatureStore = defineStore('tablature', {
       }
       return state.measures[state.currentMeasure].modeOverrides;
     },
+    currentIndexPositions: (state) => {
+      if (state.currentMeasure >= state.measures.length) {
+        return createDefaultIndexPositions(state.columns);
+      }
+      return state.measures[state.currentMeasure].indexPositions;
+    },
+    // Total columns across all measures
+    totalColumns: (state) => state.measures.length * state.columns,
+    // Flat view: get cell value at global column index
+    flatCellValue: (state) => (stringIndex: number, globalCol: number): string => {
+      const measureIdx = Math.floor(globalCol / state.columns);
+      const localCol = globalCol % state.columns;
+      if (measureIdx >= state.measures.length) return '-';
+      return state.measures[measureIdx]?.data[stringIndex]?.[localCol] ?? '-';
+    },
+    // Flat index positions across all measures
+    flatIndexPosition: (state) => (globalCol: number): number => {
+      const measureIdx = Math.floor(globalCol / state.columns);
+      const localCol = globalCol % state.columns;
+      if (measureIdx >= state.measures.length) return 1;
+      return state.measures[measureIdx]?.indexPositions[localCol] ?? 1;
+    },
+    // Get column mode for a global column
+    flatColumnMode: (state) => (globalCol: number): string | null => {
+      const measureIdx = Math.floor(globalCol / state.columns);
+      const localCol = globalCol % state.columns;
+      const overrides = state.measures[measureIdx]?.modeOverrides || [];
+      const override = overrides.find(o => o.columnIdx === localCol);
+      return override ? override.mode : null;
+    },
+    // Flat rhythm value across all measures
+    flatRhythmValue: (state) => (globalCol: number): number => {
+      const measureIdx = Math.floor(globalCol / state.columns);
+      const localCol = globalCol % state.columns;
+      if (measureIdx >= state.measures.length) return 0;
+      return state.measures[measureIdx]?.rhythmValues[localCol] ?? 0;
+    },
+    // Get measure index for a global column
+    measureForColumn: (state) => (globalCol: number): number => {
+      return Math.floor(globalCol / state.columns);
+    },
+    // Is this global column the first in its measure?
+    isMeasureStart: (state) => (globalCol: number): boolean => {
+      return globalCol % state.columns === 0;
+    },
     hasSelection: (state) => state.selectedColumns.length > 0,
     selectionWidth: (state) => state.selectionEnd - state.selectionStart,
     availableFrets: (state) => {
@@ -60,9 +110,9 @@ export const useTablatureStore = defineStore('tablature', {
         return midi !== null ? midi % 12 : -1;
       }).filter(midi => midi !== -1);
 
-      // Ajouter les frettes standards (1-24)
+      // Ajouter les frettes standards (0-24, 0 = corde à vide)
       for (let stringIdx = 0; stringIdx < tuningArray.length; stringIdx++) {
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 0; i <= 24; i++) {
           // Vérifier pour chaque corde si cette frette produit une note dans la gamme
           const stringTuning = tuningArray[stringIdx];
 
@@ -127,10 +177,14 @@ export const useTablatureStore = defineStore('tablature', {
   actions: {
     initializeMeasures() {
       if (this.measures.length === 0) {
-        this.measures.push({
-          data: createEmptyMeasure(this.tuning.split(',').length, this.columns),
-          modeOverrides: []
-        });
+        for (let i = 0; i < 4; i++) {
+          this.measures.push({
+            data: createEmptyMeasure(this.tuning.split(',').length, this.columns),
+            modeOverrides: [],
+            indexPositions: createDefaultIndexPositions(this.columns),
+            rhythmValues: createDefaultRhythmValues(this.columns)
+          });
+        }
       }
     },
     setTempo(newTempo: number) {
@@ -142,8 +196,14 @@ export const useTablatureStore = defineStore('tablature', {
     toggleMetronome() {
       this.metronomeEnabled = !this.metronomeEnabled;
     },
+    setMetronomeEnabled(value: boolean) {
+      this.metronomeEnabled = value;
+    },
     toggleFilterByScale() {
       this.filterByScaleEnabled = !this.filterByScaleEnabled;
+    },
+    setFilterByScaleEnabled(value: boolean) {
+      this.filterByScaleEnabled = value;
     },
     setCurrentMeasure(measureIdx: number) {
       if (measureIdx >= 0 && measureIdx < this.measures.length) {
@@ -154,7 +214,9 @@ export const useTablatureStore = defineStore('tablature', {
       const emptyMeasure = createEmptyMeasure(this.tuning.split(',').length, this.columns);
       this.measures.push({
         data: emptyMeasure,
-        modeOverrides: []
+        modeOverrides: [],
+        indexPositions: createDefaultIndexPositions(this.columns),
+        rhythmValues: createDefaultRhythmValues(this.columns)
       });
       this.currentMeasure = this.measures.length - 1;
     },
@@ -186,9 +248,55 @@ export const useTablatureStore = defineStore('tablature', {
     clearCurrentEditingCell() {
       this.currentEditingCell = null;
     },
+    updateIndexPosition(columnIndex: number, value: number) {
+      if (this.measures[this.currentMeasure] && value >= 0 && value <= 24) {
+        this.measures[this.currentMeasure].indexPositions[columnIndex] = value;
+      }
+    },
     updateCellValue(stringIndex: number, columnIndex: number, value: string) {
       if (this.measures[this.currentMeasure]) {
         this.measures[this.currentMeasure].data[stringIndex][columnIndex] = value;
+      }
+    },
+    // Flat actions operating on global column indices
+    flatUpdateCellValue(stringIndex: number, globalCol: number, value: string) {
+      const measureIdx = Math.floor(globalCol / this.columns);
+      const localCol = globalCol % this.columns;
+      if (this.measures[measureIdx]) {
+        this.measures[measureIdx].data[stringIndex][localCol] = value;
+      }
+    },
+    flatUpdateIndexPosition(globalCol: number, value: number) {
+      const measureIdx = Math.floor(globalCol / this.columns);
+      const localCol = globalCol % this.columns;
+      if (this.measures[measureIdx] && value >= 0 && value <= 24) {
+        this.measures[measureIdx].indexPositions[localCol] = value;
+      }
+    },
+    flatUpdateRhythmValue(globalCol: number, value: number) {
+      const measureIdx = Math.floor(globalCol / this.columns);
+      const localCol = globalCol % this.columns;
+      if (this.measures[measureIdx]) {
+        this.measures[measureIdx].rhythmValues[localCol] = value;
+      }
+    },
+    cycleRhythmValue(globalCol: number) {
+      const current = this.flatRhythmValue(globalCol);
+      const options = [0, 1, 2, 4, 8, 16];
+      const idx = options.indexOf(current);
+      const next = options[(idx + 1) % options.length];
+      this.flatUpdateRhythmValue(globalCol, next);
+    },
+    // Ensure a global column exists by adding measures as needed
+    ensureColumn(globalCol: number) {
+      const neededMeasures = Math.floor(globalCol / this.columns) + 1;
+      while (this.measures.length < neededMeasures) {
+        this.measures.push({
+          data: createEmptyMeasure(this.tuning.split(',').length, this.columns),
+          modeOverrides: [],
+          indexPositions: createDefaultIndexPositions(this.columns),
+          rhythmValues: createDefaultRhythmValues(this.columns)
+        });
       }
     },
     togglePlayback() {
@@ -232,23 +340,24 @@ export const useTablatureStore = defineStore('tablature', {
       this.selectionEnd = 0;
     },
     applyModeOverride(mode: string) {
-      if (!mode || this.selectedColumns.length === 0) return;
-
+      if (this.selectedColumns.length === 0) return;
       if (!this.measures[this.currentMeasure]) return;
-      
+
       // Supprimer les overrides existants pour les colonnes sélectionnées
-      this.measures[this.currentMeasure].modeOverrides = 
+      this.measures[this.currentMeasure].modeOverrides =
         this.measures[this.currentMeasure].modeOverrides.filter(
           override => !this.selectedColumns.includes(override.columnIdx)
         );
 
-      // Ajouter les nouveaux overrides
-      for (const columnIdx of this.selectedColumns) {
-        this.measures[this.currentMeasure].modeOverrides.push({
-          measureIdx: this.currentMeasure,
-          columnIdx,
-          mode
-        });
+      // Ajouter les nouveaux overrides seulement si un mode est spécifié
+      if (mode) {
+        for (const columnIdx of this.selectedColumns) {
+          this.measures[this.currentMeasure].modeOverrides.push({
+            measureIdx: this.currentMeasure,
+            columnIdx,
+            mode
+          });
+        }
       }
     },
     insertColumnAt(index: number) {
@@ -416,7 +525,7 @@ export const useTablatureStore = defineStore('tablature', {
 // Fonction utilitaire pour créer une mesure vide
 function createEmptyMeasure(stringCount: number, columnCount: number): string[][] {
   const measure: string[][] = [];
-  
+
   for (let i = 0; i < stringCount; i++) {
     const row: string[] = [];
     for (let j = 0; j < columnCount; j++) {
@@ -424,6 +533,16 @@ function createEmptyMeasure(stringCount: number, columnCount: number): string[][
     }
     measure.push(row);
   }
-  
+
   return measure;
+}
+
+// Positions d'index par défaut (frette 1 pour chaque colonne)
+function createDefaultIndexPositions(columnCount: number): number[] {
+  return Array(columnCount).fill(1);
+}
+
+// Valeurs de rythme par défaut (0 = vide / noire implicite)
+function createDefaultRhythmValues(columnCount: number): number[] {
+  return Array(columnCount).fill(0);
 }

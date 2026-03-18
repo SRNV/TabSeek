@@ -53,11 +53,11 @@ watch(tempo, (newVal) => {
 });
 
 watch(metronomeEnabled, (newVal) => {
-    store.toggleMetronome();
+    store.setMetronomeEnabled(newVal);
 });
 
 watch(filterByScaleEnabled, (newVal) => {
-    store.toggleFilterByScale();
+    store.setFilterByScaleEnabled(newVal);
 });
 
 // Contexte audio pour le métronome
@@ -116,12 +116,12 @@ function playMetronomeClick(accentuated = false) {
     oscillator.stop(context.currentTime + 0.1);
 }
 
-function calculateNoteDuration() {
-    // Calculer la durée d'une noire en secondes
-    const quarterNoteDuration = 60 / store.tempo;
-
-    // Supposons que chaque colonne représente une croche (1/8 de note)
-    return quarterNoteDuration / 2;
+function calculateNoteDuration(rhythmValue?: number) {
+    // Durée d'une ronde en secondes = 4 noires = 4 * (60 / tempo)
+    const wholeNoteDuration = 4 * (60 / store.tempo);
+    // rhythmValue: 0=default(noire), 1=ronde, 2=blanche, 4=noire, 8=croche, 16=double-croche
+    const subdivision = (rhythmValue && rhythmValue > 0) ? rhythmValue : 4;
+    return wholeNoteDuration / subdivision;
 }
 
 function togglePlayback() {
@@ -159,57 +159,53 @@ function restartPlayback() {
 async function playColumn() {
     if (!store.isPlaying) return;
 
-    const columnIndex = store.currentPlayingColumn;
-    const currentMeasureData = store.currentMeasureData;
+    const globalCol = store.currentPlayingColumn;
     const tuningArray = store.tuningArray;
+    const rhythmValue = store.flatRhythmValue(globalCol);
+    const noteDuration = calculateNoteDuration(rhythmValue);
+
+    // Stop if we've gone past all measures
+    if (globalCol >= store.totalColumns) {
+        store.stopPlayback();
+        return;
+    }
 
     // Jouer un clic de métronome au début de chaque temps
-    // Accentuer le premier temps de chaque mesure
-    const isFirstBeat = columnIndex === 0 || columnIndex % 4 === 0;
+    const isFirstBeat = store.isMeasureStart(globalCol);
     playMetronomeClick(isFirstBeat);
 
     // Jouer les notes de la colonne actuelle
     const playPromises = [];
 
     for (let stringIndex = 0; stringIndex < tuningArray.length; stringIndex++) {
-        const cellValue = currentMeasureData[stringIndex][columnIndex];
+        const cellValue = store.flatCellValue(stringIndex, globalCol);
 
-        // Si la cellule n'est pas vide et n'est pas un tiret
         if (cellValue && cellValue !== '-') {
             const stringTuning = tuningArray[stringIndex];
 
-            // Gérer les cas spéciaux comme 'x' (corde étouffée)
             if (cellValue === 'x' || cellValue === 'X') {
-                // Pour une corde étouffée, on pourrait jouer un son percussif ou ne rien jouer
                 continue;
             } else {
-                // Gestion des différents types de notes (hammer-on, pull-off, etc.)
                 let fretNumber: number;
                 let technique = '';
 
                 if (cellValue.includes('h')) {
-                    // Hammer-on
                     fretNumber = parseInt(cellValue.replace('h', ''), 10);
                     technique = 'hammer-on';
                 } else if (cellValue.includes('p')) {
-                    // Pull-off
                     fretNumber = parseInt(cellValue.replace('p', ''), 10);
                     technique = 'pull-off';
                 } else if (cellValue.includes('/')) {
-                    // Slide
                     fretNumber = parseInt(cellValue.split('/')[0], 10);
                     technique = 'slide';
                 } else {
-                    // Note normale
                     fretNumber = parseInt(cellValue, 10);
                 }
 
                 if (isNaN(fretNumber)) continue;
 
-                // Calculer la note à jouer
                 const noteToPlay = Note.transpose(stringTuning, Interval.fromSemitones(fretNumber));
 
-                // Jouer la note avec le type d'oscillateur approprié selon la technique
                 let oscillatorType = 'sine';
                 if (technique === 'hammer-on' || technique === 'pull-off') {
                     oscillatorType = 'triangle';
@@ -217,21 +213,20 @@ async function playColumn() {
                     oscillatorType = 'sawtooth';
                 }
 
-                playPromises.push(playNote(noteToPlay, calculateNoteDuration(), oscillatorType));
+                playPromises.push(playNote(noteToPlay, noteDuration, oscillatorType));
             }
         }
     }
 
-    // Attendre que toutes les notes soient jouées
     await Promise.all(playPromises);
 
-    // Passer à la colonne suivante
-    store.incrementPlayingColumn();
+    // Passer à la colonne suivante (global)
+    store.currentPlayingColumn = globalCol + 1;
 
-    // Programmer la lecture de la prochaine colonne
+    // Programmer la lecture de la prochaine colonne avec la durée du rythme actuel
     playbackInterval = window.setTimeout(() => {
         playColumn();
-    }, calculateNoteDuration() * 1000);
+    }, noteDuration * 1000);
 }
 
 // Nettoyer les ressources lors de la destruction du composant

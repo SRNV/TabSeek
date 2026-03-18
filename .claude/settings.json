@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"router\\\\|Route\\\\|path:\" c:Usersrudy_DocumentsTabSeeksrc --include=*.ts --include=*.js --include=*.vue)",
+      "Bash(grep -r \"router.push\\\\|useRouter\\\\|$route\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" --include=\"*.ts\" --include=\"*.vue\")",
+      "Bash(grep -n \"router.push\\\\|useRouter\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.vue \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.ts)",
+      "Bash(npx vue-tsc:*)"
+    ]
+  }
+}

@@ -1,6 +1,5 @@
 <!-- ProgressionCompiler.vue - Composant principal restructuré avec lecture améliorée -->
 <template>
-  <TablatureMain />
   <div class="progression-compiler">
     <div class="compiler-container">
       <div class="main-content">
@@ -22,21 +21,20 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onBeforeUnmount } from 'vue';
+import { defineComponent, ref, computed, onBeforeUnmount, onMounted } from 'vue';
 import { useMainStore } from '../../stores';
 import { chordProgressions } from '../../composables/progressions.ts';
 import { playNote, playFullChord } from '../../composables/useAudio';
 import { Note, Chord, Scale } from 'tonal';
 import ProgressionsList from '../sidebars/ProgressionsList.vue';
 import ProgressionDropZone from './ProgressionDropZone.vue';
-import TablatureMain from '../tablature/TablatureMain.vue';
+import eventBus from '../../eventBus';
 
 export default defineComponent({
   name: 'ProgressionCompiler',
   components: {
     ProgressionsList,
     ProgressionDropZone,
-    TablatureMain
   },
   setup() {
     const store = useMainStore();
@@ -292,9 +290,25 @@ export default defineComponent({
       });
     }
 
+    // Écouter les événements de lecture depuis ProgressionsList
+    function onPlayProgressionEvent(progression: any) {
+      // Ajouter la progression si elle n'est pas déjà compilée, puis la jouer
+      compiledProgressions.value = [progression];
+      currentProgressionIndex.value = 0;
+      currentChordIndex.value = 0;
+      // Lancer la lecture
+      stopCompiledProgression();
+      setTimeout(() => playCompiledProgression(), 50);
+    }
+
+    onMounted(() => {
+      eventBus.on('playProgression', onPlayProgressionEvent);
+    });
+
     // Nettoyer les timeouts avant de détruire le composant
     onBeforeUnmount(() => {
       clearPlaybackTimeouts();
+      eventBus.off('playProgression', onPlayProgressionEvent);
     });
 
     return {

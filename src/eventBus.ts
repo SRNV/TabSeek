@@ -7,6 +7,8 @@ type Events = {
   midiSelected: number[];
   showTooltip: { title: string, content: string, x: number, y: number };
   hideTooltip: void;
+  playProgression: any;
+  progressionDragStart: any;
 };
 
 const emitter = mitt<Events>();

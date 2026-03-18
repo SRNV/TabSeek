@@ -16,7 +16,7 @@
 
     <div class="progressions-container">
       <ProgressionItem v-for="progression in filteredProgressions" :key="progression.name" :progression="progression"
-        @dragStart="dragStart($event, progression)" />
+        @dragStart="dragStart($event, progression)" @playProgression="playProgression" />
     </div>
   </div>
 </template>
@@ -73,12 +73,17 @@ export default defineComponent({
       }
     }
 
+    function playProgression(progression: any) {
+      eventBus.emit('playProgression', progression);
+    }
+
     return {
       searchQuery,
       categoryFilter,
       categories,
       filteredProgressions,
-      dragStart
+      dragStart,
+      playProgression
     };
   }
 });

@@ -9,6 +9,7 @@ import ChordsDetailsSideBar from '../components/sidebars/ChordsDetailsSideBar.vu
 import ModeChordRecommendations from '../components/modes/ModeChordRecommendations.vue'
 import ChordModeRecommendations from '../components/chords/ChordModeRecommendations.vue'
 import ProgressionCompiler from '../components/progression/ProgressionCompiler.vue'
+import TablaturePage from '../components/tablature/TablaturePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,11 +37,19 @@ const router = createRouter({
     },
     {
       path: '/progressions',
-      name: 'Compilation de progressions connues',
+      name: 'Progressions',
       components: {
         default: ProgressionCompiler,
         side1: NotesSideBar,
         side2: ModesSideBar,
+      }
+    },
+    {
+      path: '/tablature',
+      name: 'Tablature',
+      components: {
+        default: TablaturePage,
+        side1: NotesSideBar,
       }
     },
   ],

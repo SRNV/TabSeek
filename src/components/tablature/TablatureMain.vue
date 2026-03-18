@@ -43,7 +43,6 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .partition-tab-container {
-    max-height: 500px;
     display: flex;
     flex-direction: column;
     background-color: #2a2a2a;
@@ -76,7 +75,6 @@ onBeforeUnmount(() => {
         background-color: #333;
         border-radius: 4px;
         padding: 10px;
-        max-height: 350px;
     }
 
     .tab-controls {
