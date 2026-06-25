@@ -6,13 +6,11 @@
 
 ## 1. Identité du projet
 
-- **Nom affiché** : TabSeek (ancien nom de code dans le package.json : `guitarnote`)
-- **Stack** : Vue 3 (Composition API + `<script setup>`), Vite 6, TypeScript, Pinia, SCSS, Tonal.js
+- **Nom affiché** : TabSeek (nom de code package.json : `guitarnote`)
+- **Stack** : React 18 + TypeScript, Vite 6, Zustand, React Router v6, SCSS, Tonal.js
 - **PWA** : `vite-plugin-pwa` avec `registerType: 'autoUpdate'`
-  - Nom PWA actuel : `"Ma Super App Tonal"` — **placeholder à remplacer**
   - Icônes PWA manquantes : `public/icon-192.png` et `public/icon-512.png`
-- **Tests** : Vitest (unitaires) + Cypress (e2e)
-- **Linting** : ESLint + Prettier
+- **Migration** : Vue 3 + Pinia → React 18 + Zustand (juin 2025)
 
 ---
 
@@ -20,39 +18,34 @@
 
 ```bash
 npm install
-npm run dev          # serveur Vite HMR → http://localhost:5173
-
-npm run build        # build prod (typecheck inclus)
-npm run preview      # prévisualise le build prod
-npm run test:unit    # Vitest
-npm run test:e2e:dev # Cypress (ouvre l'UI)
-npm run lint         # ESLint --fix
-npm run format       # Prettier src/
+npm run dev      # serveur Vite HMR → http://localhost:5173
+npm run build    # tsc -b && vite build
+npm run preview  # prévisualise le build prod
+npm run lint     # ESLint --fix
+npm run format   # Prettier src/
 ```
 
 ---
 
 ## 3. Docker
 
-Trois fichiers ajoutés à la racine :
-
 | Fichier | Rôle |
 |---|---|
 | `Dockerfile` | Multi-stage : `deps` → `builder` → `nginx:alpine` (~25 MB final) |
-| `nginx.conf` | SPA fallback (`try_files → index.html`), gzip, cache 1 an assets hashés, **`no-store` sur `sw.js`** (obligatoire PWA) |
+| `nginx.conf` | SPA fallback, gzip, cache 1 an assets hashés, **`no-store` sur `sw.js`** |
 | `docker-compose.yml` | Production, port 80 |
-| `docker-compose.dev.yml` | Dev HMR, port 5173, volume mount + `--host` |
+| `docker-compose.dev.yml` | Dev HMR, port 5173 |
 
 ```bash
-docker compose up --build                    # prod
-docker compose -f docker-compose.dev.yml up  # dev
+docker compose up --build
+docker compose -f docker-compose.dev.yml up
 ```
 
 ---
 
 ## 4. Architecture du layout — RÈGLES ABSOLUES
 
-### 4.1 Structure de la grille (App.vue)
+### 4.1 Structure de la grille (App.tsx)
 
 ```
 ┌─────────────┬──────────────┬────────────────────────────────┐
@@ -71,47 +64,46 @@ height: 100vh;
 overflow: hidden;
 ```
 
-> **⚠️ Ne jamais oublier `grid-template-rows: 100vh`** — sans lui, la row se réduit à la hauteur du contenu (0 px si le composant n'a pas de hauteur propre).
+> **⚠️ Ne jamais oublier `grid-template-rows: 100vh`** — sans lui, la row se réduit à 0 px.
 
-### 4.2 NavSidebar (`src/components/NavSidebar.vue`)
+### 4.2 NavSidebar (`src/components/NavSidebar.tsx`)
 
 - **Rôle** : navigation entre routes uniquement
 - **Largeur** : 52 px (collapsé) ↔ 188 px (étendu), transition `0.22s ease`
 - **Active state** : fond orange `#e57c00`
 - **Extensible** : oui, via bouton toggle (chevron)
 - **z-index** : 1000 avec `position: relative`
+- **Props React** : `expanded: boolean` + `onExpandedChange: (v: boolean) => void`
 
-### 4.3 ConfigSidebar (`src/components/ConfigSidebar.vue`)
+### 4.3 ConfigSidebar (`src/components/ConfigSidebar.tsx`)
 
 - **Rôle** : boutons de panneaux de configuration (Fondamentale, Modes, Accords)
 - **Largeur** : 52 px fixe, **jamais extensible**
 - **Active state** : teal `rgba(56,178,172,0.15)` + barre gauche `#38b2ac`
-- **Boutons affichés** : uniquement ceux disponibles pour la route courante (`routePanels` dans `useUIState.ts`)
+- **Boutons affichés** : uniquement ceux disponibles pour la route courante
 - **z-index** : 1000 avec `position: relative`
 
 ### 4.4 Panneaux de configuration — RÈGLE UNIVERSELLE
 
-> **Toute configuration s'ouvre en popover. Aucune colonne supplémentaire ne s'ajoute au layout.**
+> **Toute configuration s'ouvre en popover. Aucune colonne ne s'ajoute au layout.**
 
 - `position: fixed`, glisse depuis la gauche (`translateX(-100%) → 0`)
 - Taille déterminée par le contenu (`min-width: 160px`, `max-width: 400px`)
-- `left` = largeur NavSidebar + largeur ConfigSidebar :
+- `left` = largeur NavSidebar + ConfigSidebar :
   - NavSidebar collapsée : `52 + 52 = 104px`
   - NavSidebar étendue : `188 + 52 = 240px`
-- `transition: left 0.22s ease` — suit l'animation de la NavSidebar
 - **z-index** : 500 (sous les sidebars à 1000)
 
-### 4.5 Backdrop (fermeture du popover)
+### 4.5 Backdrop
 
 - `position: fixed`, transparent, z-index 499
 - **Démarre après les deux sidebars** (`left: 104px` ou `240px`)
-  → les boutons de la ConfigSidebar restent cliquables sans double-clic
-- Clic → `activePanel = null`
-- Échap → `activePanel = null` (keydown capturé sur `.app`)
+- Clic → ferme le popover
+- Échap → ferme le popover (keydown sur `.app`)
 
 ---
 
-## 5. Routing
+## 5. Routing (React Router v6)
 
 ```
 /              → ScaleContainer       panneaux: notes, modes, chords
@@ -120,73 +112,78 @@ overflow: hidden;
 /tablature     → TablaturePage        panneaux: notes, modes, chords
 ```
 
-> **Plus de `side1` / `side2` / `side3`** dans le router. Chaque route n'a qu'un `component` par défaut. Les sidebars sont gérées globalement par `useUIState`.
+**Fichier** : `src/router/index.tsx` — `createBrowserRouter([...])`
 
 ---
 
-## 6. Gestion d'état
+## 6. Gestion d'état (Zustand)
 
-### 6.1 Store principal (`src/stores/index.ts`)
+### 6.1 Store principal (`src/stores/useMainStore.ts`)
 
 ```ts
-// Commentaire dans le code : "Mise à jour du store pour inclure chordRootNote"
+// Importation : import { useMainStore } from '../stores/useMainStore'
+// Utilisation : const store = useMainStore()
+// Ou sélecteur : const scale = useMainStore(s => s.userScale)
+// Hors composant : useMainStore.getState().setSelectedMidi(midi)
+
 state: {
   userScale: 'C4',          // note fondamentale de la gamme
-  selectedMidi: null,        // note MIDI sélectionnée (via GuitarNote ou piano)
+  selectedMidi: null,        // note MIDI sélectionnée
   selectedMode: 'ionian',    // nom du mode courant
-  modeObject: defaultMode,   // objet ModeGuitar complet du mode courant
+  modeObject: defaultMode,   // objet ModeGuitar complet
   chordRootNote: 'C4',      // fondamentale pour les accords
-  chordRootObject: null,     // ChordsCompleteDef sélectionné (null = rien affiché)
-  chordRootNoteType: 'major' // identifiant du type d'accord
+  chordRootObject: null,     // ChordsCompleteDef | null
+  chordRootNoteType: 'major'
 }
 
-// Getter clé :
-modeNotes // transpose userScale par chaque intervalle du modeObject → notes réelles de la gamme
+// Computed (fonctions dans le store, pas des getters Zustand) :
+modeNotes()   // intervals.map(i => Note.transpose(userScale, i))
+modeTriad()
+modeSeventh()
 ```
 
-> **Par défaut la page `/chords` charge A Majeur** via `onMounted` dans `ChordsTabsDisplay` si `chordRootObject === null`.
+> **Page `/chords` : charge A Majeur par défaut** dans `ChordsTabsDisplay` si `chordRootObject === null`.
 
-### 6.2 Store tablature (`src/stores/tablatureStore.ts`)
+### 6.2 Store tablature (`src/stores/useTablatureStore.ts`)
 
 ```ts
-// Commentaire : "Rhythm subdivision values: 0=none(default), 1=whole, 2=half, 4=quarter,
-//               8=eighth, 16=16th, 32=32nd, 64=64th"
-// Commentaire : "Beam levels: how many beams for each subdivision"
+// Rhythm subdivision values: 0=none, 1=whole, 2=half, 4=quarter,
+// 8=eighth, 16=16th, 32=32nd, 64=64th
 // BEAM_COUNTS: { 8: 1, 16: 2, 32: 3, 64: 4 }
 
 state: {
-  measures: TabMeasure[],       // tableau de mesures
-  columns: 8 * 4,              // 32 colonnes par mesure
-  tuning: 'E2,A2,D3,G3,C3,E4', // accordage (affiché inversé pour l'UI)
-  tempo: 120,                   // BPM
-  filterByScaleEnabled: true,   // masque les frettes hors gamme
-  currentPlayingColumn: -1,     // -1 = pas de lecture
+  measures: TabMeasure[],
+  columns: 32,              // 8 * 4 colonnes par mesure
+  tuning: 'E2,A2,D3,G3,C3,E4',
+  tempo: 120,
+  filterByScaleEnabled: true,
+  currentPlayingColumn: -1,  // -1 = pas de lecture
 }
-
-// TabMeasure = { data: string[][], modeOverrides: ColumnOverride[], indexPositions: number[], rhythmValues: number[] }
-// Les getters "flat*" convertissent (mesure, colonne locale) → colonne globale
+// Les getters "flat*" convertissent colonne globale → (mesure, col locale)
 ```
 
-> **Tuning non-standard** : `G3` avant `C3` dans la chaîne — vérifier si intentionnel ou bug.
+> **Tuning non-standard** : `G3` avant `C3` — à vérifier si intentionnel.
 
-### 6.3 État UI (`src/composables/useUIState.ts`)
+### 6.3 Store UI (`src/composables/useUIState.ts`)
 
 ```ts
-// Singleton module-level — partagé entre tous les composants
-const activePanel = ref<PanelId | null>(null)  // 'notes' | 'modes' | 'chords' | null
+// Zustand store — singleton partagé entre tous les composants
+import { useUIStore } from '../composables/useUIState'
 
-// Quand la route change : ferme le panneau s'il n'est pas disponible sur la nouvelle route
-closePanelIfUnavailable(routePath)
+const { activePanel, togglePanel, closePanel } = useUIStore()
+// ou
+const activePanel = useUIStore(s => s.activePanel)
+
+// Quand la route change → closePanelIfUnavailable(pathname)
 ```
 
 ### 6.4 EventBus (`src/eventBus.ts`)
 
 ```ts
-// Commentaire : "eventBus.ts - Système d'événements amélioré"
-// Utilise mitt<Events>
+// mitt — framework agnostic, fonctionne identiquement en Vue et React
 Events: {
-  noteSelected: number,           // MIDI → main.ts → store.setSelectedMidi()
-  notePlayed: number,             // émis par useAudio après playNote()
+  noteSelected: number,     // MIDI → main.tsx → store.setSelectedMidi()
+  notePlayed: number,
   midiSelected: number[],
   showTooltip: { title, content, x, y },
   hideTooltip: void,
@@ -197,32 +194,30 @@ Events: {
 
 ---
 
-## 7. Composables clés
+## 7. Composables → Hooks React
 
-| Fichier | Rôle | Commentaire dans le code |
-|---|---|---|
-| `useAudio.ts` | Web Audio API — `playNote(note, duration, type, onEnd)` | "mis à jour" ; fréquence = `440 * 2^((midi-69)/12)` |
-| `useGuitarNotes.ts` | Calculs de notes sur le manche | — |
-| `useGuitarChords.ts` | Formes d'accords sur le manche | — |
-| `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` | — |
-| `useMidiUtils.ts` | `notesToMidi()` | — |
-| `chord-charts.ts` | Rendu SVG des diagrammes d'accord | — |
-| `useUIState.ts` | État panneau actif, disponibilité par route | Singleton module-level |
+Les composables Vue ont été conservés comme hooks purs TypeScript (pas de Vue reactivity).
+
+| Fichier | Rôle |
+|---|---|
+| `useAudio.ts` | Web Audio API — `playNote(note, duration, type, onEnd)` |
+| `useGuitarNotes.ts` | Calculs de notes sur le manche |
+| `useGuitarChords.ts` | Formes d'accords sur le manche |
+| `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
+| `useMidiUtils.ts` | `notesToMidi()` |
+| `chord-charts.ts` | Rendu SVG des diagrammes d'accord |
+| `useUIState.ts` | Store Zustand pour activePanel |
 
 ---
 
 ## 8. Données statiques (fichiers lourds)
 
-> Ces fichiers contiennent exclusivement des données. Ils n'ont pas de logique métier.
-
 | Fichier | Lignes | Contenu |
 |---|---|---|
-| `tonalChordsMapping.ts` | ~1430 | `TONAL_CHORD_TYPES` (liste) + `CHORD_TYPES_BY_CATEGORY` (catégorisé avec descriptions) |
-| `extraModes.ts` | ~963 | `EXTRA_MODES: ModeGuitar[]` — 40+ modes avec descriptions culturelles |
-| `progressions.ts` | ~956 | `chordProgressions: ChordProgression[]` — 100+ progressions avec exemples |
-| `chords.ts` | ~896 | `CHORDS` (positions de frettes) + interfaces `ChordTypeDef`, `ChordsCompleteDef` |
-
-**Recommandation** : déplacer ces données vers `src/data/*.json` pour séparer données et logique.
+| `tonalChordsMapping.ts` | ~1430 | `CHORD_TYPES_BY_CATEGORY` avec descriptions |
+| `extraModes.ts` | ~963 | `EXTRA_MODES: ModeGuitar[]` — 40+ modes |
+| `progressions.ts` | ~956 | `chordProgressions[]` — 100+ progressions |
+| `chords.ts` | ~896 | `CHORDS` (positions de frettes) + interfaces |
 
 ---
 
@@ -234,64 +229,87 @@ Events: {
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
 ```
 > **Ne jamais redéfinir les scrollbar styles dans les composants.**
 
-### 9.2 Body / HTML
+### 9.2 SCSS par composant
+Chaque composant a son propre fichier `.scss` importé directement :
+```tsx
+import './ComponentName.scss'  // pas de CSS modules
+```
+
+### 9.3 Body / HTML
 ```css
-/* src/assets/main.css */
 html, body { height: 100%; overflow: hidden; }
 ```
-> Le `display: flex; place-items: center` du template Vue par défaut a été **supprimé** — il centrait l'app verticalement.
 
 ---
 
-## 10. Composants à refactoriser (dette technique)
+## 10. Correspondances Vue → React
+
+| Vue | React |
+|---|---|
+| `ref(x)` | `useState(x)` |
+| `computed(() => x)` | `useMemo(() => x, [deps])` |
+| `watch(src, cb)` | `useEffect(() => { cb() }, [deps])` |
+| `onMounted(cb)` | `useEffect(cb, [])` |
+| `onBeforeUnmount` | cleanup dans `useEffect` |
+| `v-if="cond"` | `{cond && <JSX>}` |
+| `v-for="item in list"` | `{list.map(item => <JSX key={...}/>)}` |
+| `v-model="x"` | `value={x} onChange={e => setX(e.target.value)}` |
+| `@click="fn"` | `onClick={fn}` |
+| `:class="{ a: b }"` | `className={b ? 'a' : ''}` |
+| `defineModel` | `props.value + props.onChange` |
+| `useRoute().path` | `useLocation().pathname` |
+| `<RouterLink to="/">` | `<Link to="/">` |
+| Pinia store | Zustand store |
+| `<Transition>` | CSS classes conditionnelles |
+
+---
+
+## 11. Composants à refactoriser (dette technique)
 
 | Composant | Lignes | Problème |
 |---|---|---|
-| `PartitionTab.vue` | 1052 | **Composant legacy** — Options API, `console.log` ligne 234, mélange playback + sélection + rendu + styles. À découper en composable `useTabPlayback` + sous-composants |
-| `TabContent.vue` | 900 | Trois zones (rythme, cordes, index) dans un seul composant. Candidat : `RhythmRow.vue`, `StringRow.vue`, `IndexRow.vue` |
-| `ProgressionCompiler.vue` | 363 | Logique de compilation mélangée avec UI de lecture |
-| `TabPlayback.vue` | 355 | Gère l'état audio — logique à extraire vers `useAudio.ts` |
-| `ChordTab.vue` | 332 | SVG + sélection + calcul de positions dans un seul composant |
+| `TabContent.tsx` | ~600 | Trois zones (rythme, cordes, index) dans un fichier. Candidat : `RhythmRow`, `StringRow`, `IndexRow` |
+| `ProgressionCompiler.tsx` | ~240 | Logique playback mélangée avec UI de compilation |
+| `TabPlayback.tsx` | ~196 | Logique audio à extraire vers `useTabPlayback` hook |
+| `ChordTab.tsx` | ~153 | SVG + sélection + calcul mélangés |
 
 ---
 
-## 11. Console.log à supprimer (production)
+## 12. Console.log à supprimer
 
-| Fichier | Ligne | Contenu |
-|---|---|---|
-| `main.ts` | 22 | `console.log(midi)` |
-| `stores/index.ts` | — | via setSelectedMidi |
-| `ChordTab.vue` | 109 | `console.log(store.chordRootObject?.intervals)` |
-| `TabSVGOverlay.vue` | 47 | `console.log(i)` (intervalle) |
-| `ChordsDetailsSideBar.vue` | 41 | `console.log(store)` |
+| Fichier | Contenu |
+|---|---|
+| `src/main.tsx` | `console.log(midi)` dans le listener noteSelected |
+| `src/components/chords/ChordTab.tsx` | `console.log(store.chordRootObject?.intervals)` |
+| `src/components/tab/TabSVGOverlay.tsx` | `console.log(i)` |
+| `src/components/sidebars/ChordsDetailsSideBar.tsx` | `console.log(store)` |
 
 ---
 
-## 12. Types principaux (`src/types.ts`)
+## 13. Types principaux (`src/types.ts`)
 
 ```ts
 interface ModeGuitar {
   name: string        // ex: "dorian"
-  aliases: string[]   // ex: ["dor", "m"]
-  modeNum: number     // index dans l'octave (0–6 pour les modes diatoniques)
-  mode: number        // idem
+  aliases: string[]
+  modeNum: number
+  mode: number
   intervals: string[] // ex: ["1P", "2M", "3m", "4P", "5P", "6M", "7m"]
-  alt: string[]       // altérations ex: ["b3", "b7"]
+  alt: string[]
   triad: string       // "major" | "minor" | "diminished" | "augmented"
-  seventh: string     // "maj7" | "min7" | "dom7" | etc.
+  seventh: string
   description?: string
-  culture?: string    // ex: "Celtique & Jazz modal"
-  category: string    // ex: "Modes Principaux"
+  culture?: string
+  category: string
 }
 ```
 
 ---
 
-## 13. Hiérarchie z-index
+## 14. Hiérarchie z-index
 
 | Élément | z-index | Position |
 |---|---|---|
@@ -300,3 +318,23 @@ interface ModeGuitar {
 | Popover config | 500 | `fixed` |
 | Backdrop popover | 499 | `fixed` |
 | Reste du contenu | auto | — |
+
+---
+
+## 15. Chantier WebGL (prévu — pas encore implémenté)
+
+Le composant `Tab.tsx` (manche de guitare) est le candidat pour une migration WebGL :
+
+**Solution recommandée** : **Three.js vanilla** dans un hook `useFretboard3D.ts`
+- Caméra orthographique (pas de distorsion)
+- `InstancedMesh` pour les cases (6 × N frettes ≈ 150 instances)
+- `InstancedMesh` pour les cordes (6 instances)
+- `InstancedMesh` pour les barres de frette (N+1 instances)
+- `CSS2DRenderer` pour les labels (note name, degré)
+- Raycaster pour les clics → `playNote()` + `eventBus`
+- `setColorAt(i, color)` + `instanceColor.needsUpdate = true` pour sync avec le store
+
+```bash
+npm install three
+npm install -D @types/three
+```
