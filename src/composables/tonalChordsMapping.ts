@@ -1429,3 +1429,61 @@ export const MODE_CHORD_ASSOCIATIONS = {
     ]
   }
 };
+
+// Emoji per chord type — reflects the emotional/sonic character
+export const CHORD_EMOJIS: Record<string, string> = {
+  major:      '☀️',
+  minor:      '🌙',
+  diminished: '💀',
+  augmented:  '✨',
+  '5':        '⚡',
+  'm#5':      '🌪️',
+  sus2:       '🍃',
+  sus4:       '⏳',
+  '7sus4':    '🎷',
+  '9sus4':    '🎶',
+  sus24:      '🔀',
+  add9:       '🌱',
+  madd9:      '🌿',
+  '6':        '🌻',
+  min6:       '🍂',
+  '69':       '💫',
+  m69:        '🎭',
+  '7':        '🎸',
+  maj7:       '🌟',
+  min7:       '🌃',
+  minMaj7:    '🎭',
+  dim7:       '🕸️',
+  min7b5:     '☠️',
+  aug7:       '🚀',
+  '7b5':      '🌀',
+  'maj7#5':   '🌈',
+  maj7b5:     '🔮',
+  'min7#5':   '🌊',
+  '9':        '🎺',
+  maj9:       '💎',
+  min9:       '🌫️',
+  minMaj9:    '🎻',
+  '7b9':      '😈',
+  '7#9':      '🤘',
+  '11':       '🎪',
+  maj11:      '🦋',
+  min11:      '🌌',
+  '7#11':     '🌠',
+  'maj7#11':  '💡',
+  '13':       '🎠',
+  maj13:      '👑',
+  min13:      '🌊',
+  'maj13#11': '🏆',
+  '7b13':     '🌑',
+  '7#9#11':   '🔥',
+  '7#9b13':   '💥',
+  '7b9#11':   '⚡',
+  '7b9b13':   '🕳️',
+}
+
+// Flat list of all chord types for navigation (null = no chord selected)
+export const ALL_CHORDS: Array<any> = [
+  null,
+  ...Object.values(CHORD_TYPES_BY_CATEGORY).flatMap((cat: any) => cat.chords),
+]

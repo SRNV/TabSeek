@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react'
 import './ChordTab.scss'
 import { Note } from 'tonal'
 import { useMainStore } from '../../stores/useMainStore'
-import { CHORD_TYPES_BY_CATEGORY, getReadableChordName } from '../../composables/tonalChordsMapping'
+import { ALL_CHORDS, getReadableChordName } from '../../composables/tonalChordsMapping'
 import Tab from '../tab/Tab'
 import Notes from '../Notes'
 import { useMidiUtils } from '../../composables/useMidiUtils'
@@ -13,10 +13,6 @@ interface ChordTabProps {
   hideFretboard?: boolean
 }
 
-const ALL_CHORDS: any[] = [
-  null,
-  ...Object.values(CHORD_TYPES_BY_CATEGORY).flatMap((cat: any) => cat.chords),
-]
 
 export default function ChordTab({ chordType, chordData, hideFretboard = false }: ChordTabProps) {
   const chordRootNote     = useMainStore(s => s.chordRootNote)
@@ -101,7 +97,7 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
           <div className="chord-content">
             <Notes
               key={`${chordRootNoteType}-${chordRootNote}`}
-              rootNote={chordRootNote}
+              rootNote={effectiveRoot}
               notes={chordNotes}
               collection={modeNotes}
               chordType={chordRootNoteType}
@@ -129,7 +125,7 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
                       className={['interval-chip', !isIntervalInMode(iv) ? 'outside-mode' : ''].filter(Boolean).join(' ')}
                     >
                       {iv}
-                      <span className="interval-note">{getIntervalNote(chordRootNote, iv)}</span>
+                      <span className="interval-note">{getIntervalNote(effectiveRoot, iv)}</span>
                     </span>
                   ))}
                 </div>

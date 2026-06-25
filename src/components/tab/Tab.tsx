@@ -8,6 +8,7 @@ import { useMainStore } from '../../stores/useMainStore'
 import { getNoteName } from '../../composables/useNoteHelpers'
 import { playNote } from '../../composables/useAudio'
 import eventBus from '../../eventBus'
+import { ALL_CHORDS, CHORD_EMOJIS, getReadableChordName } from '../../composables/tonalChordsMapping'
 import './Tab.scss'
 
 // ── Layout constants ───────────────────────────────────────────────────────────
@@ -183,6 +184,89 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const outlineRef       = useRef<THREE.InstancedMesh>(null!)
   const dimColor         = useMemo(() => new THREE.Color(DEFAULT_BG), [])
 
+  // ── Popover ───────────────────────────────────────────────────────────────
+  const chordRootObject                       = useMainStore(s => s.chordRootObject)
+  const [popoverCell, setPopoverCell]         = useState<CellData | null>(null)
+  const [popoverVisible, _setPopoverVisible]  = useState(false)
+  const popoverVisibleRef    = useRef(false)
+  const popoverLockedRef     = useRef(false) // true once show timer fires until popover fully closes
+  const popoverShowTimer     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const popoverHideTimer     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chordOutlineActiveRef = useRef<number[]>([])   // cells currently drawn in outline mesh
+  const chordOutlinePendingRef = useRef<number[]>([])  // cells computed by effect, awaiting useFrame
+  const chordOutlineDirtyRef  = useRef(false)
+
+  const setPopoverVisible = useCallback((v: boolean) => {
+    popoverVisibleRef.current = v
+    _setPopoverVisible(v)
+  }, [])
+
+  const navigateChord = useCallback((delta: -1 | 1) => {
+    const { chordRootObject: cur, setChordObject, setChordRootNoteType } = useMainStore.getState()
+    const currentIdx = cur ? Math.max(0, ALL_CHORDS.findIndex((c: any) => c?.id === cur.id)) : 0
+    const nextIdx = (currentIdx + delta + ALL_CHORDS.length) % ALL_CHORDS.length
+    const next = ALL_CHORDS[nextIdx]
+    if (!next) { setChordObject(null); setChordRootNoteType('') }
+    else        { setChordObject(next); setChordRootNoteType(next.id) }
+  }, [])
+
+  // Chord interval highlighting while popover is open — re-runs when chord navigates
+  useEffect(() => {
+    if (!popoverVisible || !chordRootObject || !popoverCell) return
+    const rootLabel = popoverCell.label  // locked note, never stale
+    const chordPCs = new Set<number>()
+    ;(chordRootObject.intervals as string[]).forEach(iv => {
+      const m = Note.midi(Note.transpose(`${rootLabel}4`, iv))
+      if (m !== null) chordPCs.add(m % 12)
+    })
+    cells.forEach((c, i) => {
+      const isChord = c.midi !== null && chordPCs.has(c.midi % 12)
+      targetColors.current[i] = isChord
+        ? originalColors.current[i]
+        : originalColors.current[i].clone().lerp(dimColor, 0.78)
+    })
+    colorNeedsUpdate.current = true
+  }, [popoverVisible, popoverCell, chordRootObject, cells, dimColor])
+
+  // Compute which cells need chord outlines — mesh update deferred to useFrame
+  useEffect(() => {
+    if (!popoverVisible || !chordRootObject || !popoverCell || popoverCell.midi === null) {
+      chordOutlinePendingRef.current = []
+      chordOutlineDirtyRef.current = true
+      return
+    }
+    const rootNote = Note.fromMidi(popoverCell.midi)
+    const targetMidis = (chordRootObject.intervals as string[])
+      .map(iv => Note.midi(Note.transpose(rootNote, iv)) ?? null)
+      .filter((m): m is number => m !== null)
+
+    const seen = new Set<number>()
+    const rootX = popoverCell.posX
+    const rootY = popoverCell.posY
+
+    chordOutlinePendingRef.current = targetMidis.map(targetMidi => {
+      let bestIdx = -1
+      let bestDist = Infinity
+      cells.forEach((c, idx) => {
+        if (c.midi !== targetMidi || seen.has(idx)) return
+        const dx = c.posX - rootX
+        const dy = c.posY - rootY
+        const d = dx * dx + dy * dy
+        if (d < bestDist) { bestDist = d; bestIdx = idx }
+      })
+      if (bestIdx >= 0) seen.add(bestIdx)
+      return bestIdx
+    }).filter(idx => idx >= 0)
+
+    chordOutlineDirtyRef.current = true
+  }, [popoverVisible, popoverCell, chordRootObject, cells])
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    if (popoverShowTimer.current) clearTimeout(popoverShowTimer.current)
+    if (popoverHideTimer.current) clearTimeout(popoverHideTimer.current)
+  }, [])
+
   // ── Cells ─────────────────────────────────────────────────────────────────
   const cellsRef = useRef<THREE.InstancedMesh>(null!)
 
@@ -201,7 +285,6 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
     for (let i = cells.length; i < MAX_INS; i++) mesh.setMatrixAt(i, offM)
     mesh.instanceMatrix.needsUpdate = true
 
-    // Reset all outlines to hidden — outline only appears on pulse if highlighted
     const outMesh = outlineRef.current
     if (outMesh) {
       for (let i = 0; i < MAX_INS; i++) outMesh.setMatrixAt(i, offM)
@@ -325,7 +408,6 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       }
       done.forEach(idx => {
         hoverScales.current.delete(idx)
-        // Reset cell back to z=0 (normal layer)
         const pos = basePosRef.current[idx]
         if (pos) {
           animM.makeScale(1, 1, 1)
@@ -378,6 +460,22 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       }
     }
 
+    // Apply pending chord outline changes from React effects
+    if (chordOutlineDirtyRef.current && outMesh) {
+      chordOutlineDirtyRef.current = false
+      const zeroM = new THREE.Matrix4().makeScale(0, 0, 0)
+      chordOutlineActiveRef.current.forEach(idx => outMesh.setMatrixAt(idx, zeroM))
+      chordOutlineActiveRef.current = [...chordOutlinePendingRef.current]
+      chordOutlineActiveRef.current.forEach(idx => {
+        const pos = basePosRef.current[idx]
+        if (!pos) return
+        animM.makeScale(1, 1, 1)
+        animM.setPosition(pos[0], pos[1], -0.005)
+        outMesh.setMatrixAt(idx, animM)
+      })
+      outMesh.instanceMatrix.needsUpdate = true
+    }
+
     if (matrixChanged) {
       mesh.instanceMatrix.needsUpdate = true
       if (outMesh) outMesh.instanceMatrix.needsUpdate = true
@@ -386,34 +484,73 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
 
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
+    if (popoverLockedRef.current) return
     const id = e.instanceId
     if (id !== undefined && cells[id]) onCellClick(cells[id])
   }, [cells, onCellClick])
 
+  const closePopover = useCallback(() => {
+    popoverLockedRef.current = false
+    setPopoverVisible(false)
+    useMainStore.getState().setHoveredRootNote('')
+    cells.forEach((_, i) => { targetColors.current[i] = originalColors.current[i] })
+    colorNeedsUpdate.current = true
+    setTimeout(() => setPopoverCell(null), 280)
+  }, [cells, setPopoverVisible])
+
   const handlePointerOver = useCallback((e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
+    // Popover locked: ignore all raycaster events to keep highlighting stable
+    if (popoverLockedRef.current) return
     const id = e.instanceId
     if (id !== undefined && id < cells.length) {
       hoveredCell.current = id
       document.body.style.cursor = 'pointer'
-      cells.forEach((_, i) => {
-        targetColors.current[i] = i === id
+
+      // Compute chord PCs from current chord intervals using hovered cell as root
+      const { chordRootObject: chord } = useMainStore.getState()
+      const chordPCs = new Set<number>()
+      chordPCs.add(cells[id].midi !== null ? cells[id].midi! % 12 : -1)
+      if (chord) {
+        ;(chord.intervals as string[]).forEach(iv => {
+          const m = Note.midi(Note.transpose(`${cells[id].label}4`, iv))
+          if (m !== null) chordPCs.add(m % 12)
+        })
+      }
+      cells.forEach((c, i) => {
+        const keep = i === id || (c.midi !== null && chordPCs.has(c.midi % 12))
+        targetColors.current[i] = keep
           ? originalColors.current[i]
           : originalColors.current[i].clone().lerp(dimColor, 0.78)
       })
       colorNeedsUpdate.current = true
       useMainStore.getState().setHoveredRootNote(cells[id].label)
+
+      if (popoverHideTimer.current) { clearTimeout(popoverHideTimer.current); popoverHideTimer.current = null }
+      if (cells[id].isHighlighted && !cells[id].isOpen) {
+        if (popoverShowTimer.current) clearTimeout(popoverShowTimer.current)
+        const snap = cells[id]
+        popoverShowTimer.current = setTimeout(() => {
+          popoverShowTimer.current = null
+          popoverLockedRef.current = true
+          setPopoverCell(snap)
+          // Two rAFs so the element is in the DOM before the visible class triggers the transition
+          requestAnimationFrame(() => requestAnimationFrame(() => setPopoverVisible(true)))
+        }, 500)
+      }
     }
-  }, [cells, dimColor])
+  }, [cells, dimColor, setPopoverVisible])
 
   const handlePointerOut = useCallback((_e: ThreeEvent<PointerEvent>) => {
+    // Popover locked: raycaster fires freely under the popover — ignore everything
+    if (popoverLockedRef.current) return
+
     hoveredCell.current = null
     document.body.style.cursor = ''
-    cells.forEach((_, i) => {
-      targetColors.current[i] = originalColors.current[i]
-    })
-    colorNeedsUpdate.current = true
+    if (popoverShowTimer.current) { clearTimeout(popoverShowTimer.current); popoverShowTimer.current = null }
     useMainStore.getState().setHoveredRootNote('')
+    cells.forEach((_, i) => { targetColors.current[i] = originalColors.current[i] })
+    colorNeedsUpdate.current = true
   }, [cells])
 
   // ── Strings ───────────────────────────────────────────────────────────────
@@ -483,6 +620,44 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       {chordLines.map(l => (
         <Line key={l.key} points={l.pts} color="orange" lineWidth={2.5} transparent opacity={0.65} />
       ))}
+
+      {popoverCell && (() => {
+        const curIdx = chordRootObject
+          ? Math.max(0, ALL_CHORDS.findIndex((c: any) => c?.id === chordRootObject.id))
+          : 0
+        const prevChord = ALL_CHORDS[(curIdx - 1 + ALL_CHORDS.length) % ALL_CHORDS.length]
+        const nextChord = ALL_CHORDS[(curIdx + 1) % ALL_CHORDS.length]
+        const rootLabel = popoverCell.label
+        const chordLabel = chordRootObject
+          ? `${rootLabel}${getReadableChordName(chordRootObject.id, 'symbol')}`
+          : rootLabel
+        return (
+          <Html
+            key="fret-popover"
+            position={[popoverCell.posX, popoverCell.posY, 0.2]}
+            center
+            zIndexRange={[30, 30]}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{ pointerEvents: 'auto' }}>
+            <div
+              className={`fret-popover${popoverVisible ? ' visible' : ''}`}
+              onMouseEnter={() => {
+                if (popoverHideTimer.current) { clearTimeout(popoverHideTimer.current); popoverHideTimer.current = null }
+              }}
+              onMouseLeave={() => closePopover()}
+            >
+              <button className="pop-nav" onClick={() => navigateChord(-1)} title={prevChord ? getReadableChordName(prevChord.id, 'symbol') : ''}>◀</button>
+              <div className="pop-chord-info">
+                <span className="pop-emoji">{chordRootObject ? (CHORD_EMOJIS[chordRootObject.id] ?? '🎵') : '–'}</span>
+                <span className="pop-name">{chordLabel}</span>
+              </div>
+              <button className="pop-nav" onClick={() => navigateChord(1)} title={nextChord ? getReadableChordName(nextChord.id, 'symbol') : ''}>▶</button>
+            </div>
+            </div>
+          </Html>
+        )
+      })()}
 
       {cells.map(c => {
         const hsl = { h: 0, s: 0, l: 0 }

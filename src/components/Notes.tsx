@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import './Notes.scss'
 import { Interval, Note, Scale } from 'tonal'
 import { playChord, playFullChord } from '../composables/useAudio'
@@ -32,6 +32,12 @@ export default function Notes({
   chordType,
 }: NotesProps) {
   const [localNotes, setLocalNotes] = useState([...notes])
+
+  // Sync when parent's note list changes (e.g. hovered root override)
+  useEffect(() => {
+    setLocalNotes([...notes])
+    setSelectedOctave(0)
+  }, [notes.join(',')])
   const [isPlaying, setIsPlaying] = useState(false)
   const [selectedOctave, setSelectedOctave] = useState(0)
   const [selectedWaveform, setSelectedWaveform] = useState<OscillatorType>('sine')
