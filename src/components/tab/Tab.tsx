@@ -201,7 +201,7 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
     for (let i = cells.length; i < MAX_INS; i++) mesh.setMatrixAt(i, offM)
     mesh.instanceMatrix.needsUpdate = true
 
-    // Reset all outlines to hidden — outline only appears on hover (driven by useFrame)
+    // Reset all outlines to hidden — outline only appears on pulse if highlighted
     const outMesh = outlineRef.current
     if (outMesh) {
       for (let i = 0; i < MAX_INS; i++) outMesh.setMatrixAt(i, offM)
@@ -315,10 +315,10 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
           animM.makeScale(scale, scale, 1)
           animM.setPosition(pos[0], pos[1], z)
           mesh.setMatrixAt(idx, animM)
+
           if (outMesh) {
-            // Outline at z=0.01: in front of all cells (z=0), behind hovered cell (z=0.02)
-            animM.makeScale(scale, scale, 1)
-            animM.setPosition(pos[0], pos[1], 0.01)
+            // Outline behind cell: z=0.015 (if hovered) or z=-0.005
+            animM.setPosition(pos[0], pos[1], isHovered ? 0.015 : -0.005)
             outMesh.setMatrixAt(idx, animM)
           }
         }
@@ -332,7 +332,9 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
           animM.setPosition(pos[0], pos[1], 0)
           mesh.setMatrixAt(idx, animM)
         }
-        if (outMesh) outMesh.setMatrixAt(idx, offM)
+        if (outMesh) {
+          outMesh.setMatrixAt(idx, offM)
+        }
       })
     }
 
@@ -350,10 +352,22 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
           animM.makeScale(scale, scale, 1)
           animM.setPosition(pos[0], pos[1], 0)
           mesh.setMatrixAt(anim.idx, animM)
+          if (outMesh) {
+            animM.setPosition(pos[0], pos[1], -0.005)
+            outMesh.setMatrixAt(anim.idx, animM)
+          }
         }
       })
       const prev = playAnims.current.length
+      const finished = playAnims.current.filter(a => a.t >= 1)
       playAnims.current = playAnims.current.filter(a => a.t < 1)
+
+      // Hide outlines for finished animations
+      if (outMesh && finished.length > 0) {
+        finished.forEach(anim => outMesh.setMatrixAt(anim.idx, offM))
+        outMesh.instanceMatrix.needsUpdate = true
+      }
+
       // All animations done — restore colors (hover re-applies if still active)
       if (prev > 0 && playAnims.current.length === 0 && pendingTimer.current === null) {
         playingPCs.current.clear()
