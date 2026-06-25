@@ -1,6 +1,5 @@
-import React from 'react'
-import { Link, useLocation } from 'react-router-dom'
 import './NavSidebar.scss'
+import { useUIStore } from '../composables/useUIState'
 
 interface NavSidebarProps {
   expanded: boolean
@@ -8,7 +7,8 @@ interface NavSidebarProps {
 }
 
 export default function NavSidebar({ expanded, onExpandedChange }: NavSidebarProps) {
-  const location = useLocation()
+  const activePanel = useUIStore(s => s.activePanel)
+  const togglePanel = useUIStore(s => s.togglePanel)
 
   return (
     <nav className={['nav-sidebar', expanded ? 'expanded' : ''].filter(Boolean).join(' ')}>
@@ -28,49 +28,38 @@ export default function NavSidebar({ expanded, onExpandedChange }: NavSidebarPro
 
       <div className="separator" />
 
-      <Link
-        to="/"
-        className={['sidebar-btn', 'nav-link', location.pathname === '/' ? 'active' : ''].filter(Boolean).join(' ')}
-        title={expanded ? '' : 'Tablature selon le Mode'}
+      <button
+        className={['sidebar-btn', 'config-link', activePanel === 'notes' ? 'active' : ''].filter(Boolean).join(' ')}
+        onClick={() => togglePanel('notes')}
+        title={expanded ? '' : 'Notes / Fondamentale'}
       >
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+          <path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16-8v6.18C18.69 15.07 18.36 15 18 15c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2V7h3V5h-4z"/>
+        </svg>
+        <span className="label">Notes</span>
+      </button>
+
+      <button
+        className={['sidebar-btn', 'config-link', activePanel === 'modes' ? 'active' : ''].filter(Boolean).join(' ')}
+        onClick={() => togglePanel('modes')}
+        title={expanded ? '' : 'Modes'}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M4 8h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0-12h10v2H4z"/>
         </svg>
         <span className="label">Modes</span>
-      </Link>
+      </button>
 
-      <Link
-        to="/chords"
-        className={['sidebar-btn', 'nav-link', location.pathname === '/chords' ? 'active' : ''].filter(Boolean).join(' ')}
-        title={expanded ? '' : 'Description des Accords'}
+      <button
+        className={['sidebar-btn', 'config-link', activePanel === 'chords' ? 'active' : ''].filter(Boolean).join(' ')}
+        onClick={() => togglePanel('chords')}
+        title={expanded ? '' : 'Accords'}
       >
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/>
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c1.1 0 2-.9 2-2V5h14c0-1.1-.9-2-2-2zm-2 4H7v10h2V9h3v8h2V9h3v8h2V7z"/>
         </svg>
         <span className="label">Accords</span>
-      </Link>
-
-      <Link
-        to="/progressions"
-        className={['sidebar-btn', 'nav-link', location.pathname === '/progressions' ? 'active' : ''].filter(Boolean).join(' ')}
-        title={expanded ? '' : 'Progressions'}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M4 8h4v8H4zm5 2h4v4H9zm5-3h4v10h-4z"/>
-        </svg>
-        <span className="label">Progressions</span>
-      </Link>
-
-      <Link
-        to="/tablature"
-        className={['sidebar-btn', 'nav-link', location.pathname === '/tablature' ? 'active' : ''].filter(Boolean).join(' ')}
-        title={expanded ? '' : 'Tablature'}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/>
-        </svg>
-        <span className="label">Tablature</span>
-      </Link>
+      </button>
     </nav>
   )
 }

@@ -214,7 +214,6 @@ export default function ProgressionCompiler() {
   return (
     <div className="progression-compiler">
       <div className="main-content">
-        <ProgressionsList />
         <ProgressionDropZone
           compiledProgressions={compiledProgressions}
           currentKeyDisplay={currentKeyDisplay}

@@ -39,7 +39,16 @@ export default function ProgressionsList() {
 
   return (
     <div className="progressions-list">
-      <h3>Progressions Disponibles</h3>
+      <div className="progressions-container">
+        {filteredProgressions.map(progression => (
+          <ProgressionItem
+            key={progression.name}
+            progression={progression}
+            onDragStart={(e: React.DragEvent) => dragStart(e, progression)}
+            onPlayProgression={() => playProgression(progression)}
+          />
+        ))}
+      </div>
       <div className="search-bar">
         <input
           type="text"
@@ -60,16 +69,6 @@ export default function ProgressionsList() {
             ))}
           </select>
         </div>
-      </div>
-      <div className="progressions-container">
-        {filteredProgressions.map(progression => (
-          <ProgressionItem
-            key={progression.name}
-            progression={progression}
-            onDragStart={(e: React.DragEvent) => dragStart(e, progression)}
-            onPlayProgression={() => playProgression(progression)}
-          />
-        ))}
       </div>
     </div>
   )

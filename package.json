@@ -11,11 +11,14 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "abcjs": "^6.4.4",
     "mitt": "^3.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
+    "three": "^0.185.0",
     "tonal": "^6.4.0",
     "vite-plugin-pwa": "^0.21.1",
     "zustand": "^5.0.3"
@@ -24,6 +27,7 @@
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^4.3.4",
     "prettier": "^3.5.1",
     "sass-embedded": "^1.85.0",

@@ -284,7 +284,6 @@ html, body { height: 100%; overflow: hidden; }
 |---|---|
 | `src/main.tsx` | `console.log(midi)` dans le listener noteSelected |
 | `src/components/chords/ChordTab.tsx` | `console.log(store.chordRootObject?.intervals)` |
-| `src/components/tab/TabSVGOverlay.tsx` | `console.log(i)` |
 | `src/components/sidebars/ChordsDetailsSideBar.tsx` | `console.log(store)` |
 
 ---
@@ -321,20 +320,48 @@ interface ModeGuitar {
 
 ---
 
-## 15. Chantier WebGL (prévu — pas encore implémenté)
+## 15. Fretboard WebGL — R3F (implémenté juin 2026)
 
-Le composant `Tab.tsx` (manche de guitare) est le candidat pour une migration WebGL :
+`Tab.tsx` est désormais un composant **React Three Fiber**. `TabSVGOverlay.tsx` est supprimé.
 
-**Solution recommandée** : **Three.js vanilla** dans un hook `useFretboard3D.ts`
-- Caméra orthographique (pas de distorsion)
-- `InstancedMesh` pour les cases (6 × N frettes ≈ 150 instances)
-- `InstancedMesh` pour les cordes (6 instances)
-- `InstancedMesh` pour les barres de frette (N+1 instances)
-- `CSS2DRenderer` pour les labels (note name, degré)
-- Raycaster pour les clics → `playNote()` + `eventBus`
-- `setColorAt(i, color)` + `instanceColor.needsUpdate = true` pour sync avec le store
+### Packages
+```
+@react-three/fiber@8   (React 18 — v9 requiert React 19)
+@react-three/drei@9
+three + @types/three
+```
 
-```bash
-npm install three
-npm install -D @types/three
+### Architecture interne de Tab.tsx
+```
+Tab (export default)
+  ├── Canvas (orthographic, alpha)
+  │     └── FretboardScene (useThree → zoom fit)
+  │           ├── instancedMesh × MAX_INS — cellules (couleur + octave)
+  │           ├── instancedMesh × 6       — cordes
+  │           ├── mesh                    — nut (séparateur corde à vide)
+  │           ├── instancedMesh × MAX_INS — dots accord (bleu root / orange)
+  │           ├── <Line>*                 — lignes entre notes de l'accord
+  │           └── <Html>*                 — labels note + degré (cellules surligée)
+  └── boutons nav ◀ ▶ (HTML, hors canvas)
+```
+
+### Couleurs et octaves
+- `matchType='multiple'` (gamme) : couleur par degré (`DEGREE_COLORS[deg-1]`) modulée par l'octave
+- `matchType='one'` (accord) : orange `#FF9500` pour les notes de l'accord, modulé par octave
+- Luminosité octave : `l = 0.28 + (oct-2)/3 × 0.66` — oct 2 = très sombre, oct 5 = pleine couleur
+- Corde à vide (fret 0) : multiplicateur supplémentaire ×0.55
+
+### Overlay accord (remplace TabSVGOverlay)
+- Pour chaque corde, prend la 1re case surlignée (fret le plus bas)
+- Dot bleu (`#3355FF`) sur la fondamentale, orange sur les autres
+- `<Line>` orange entre positions consécutives (triées par string index)
+- Tout calculé mathématiquement — plus de `querySelectorAll` DOM
+
+### Règles InstancedMesh
+```ts
+mesh.setMatrixAt(i, matrix)
+mesh.setColorAt(i, color)
+mesh.instanceMatrix.needsUpdate = true
+mesh.instanceColor.needsUpdate  = true
+// Instances inutilisées → setPosition(0, 0, -1000) (hors frustum)
 ```

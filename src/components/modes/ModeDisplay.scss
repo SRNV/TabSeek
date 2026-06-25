@@ -1,3 +1,9 @@
+// fills the flex-1 slot in ScaleContainer
+.mode-display-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
 .mode-selection {
   margin-bottom: 15px;
 

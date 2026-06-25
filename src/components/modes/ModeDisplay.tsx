@@ -67,17 +67,14 @@ export default function ModeDisplay() {
   if (!currentMode) return null
 
   return (
-    <div>
-      <div>
-        <Tab
-          midiList={modeMidiNotes}
-          matchType="multiple"
-          tabLength={tabLength}
-          visibleStart={visibleStart}
-          visibleEnd={visibleEnd}
-          forChordsDisplay={true}
-        />
-      </div>
+    <div className="mode-display-wrap">
+      <Tab
+        midiList={modeMidiNotes}
+        matchType="multiple"
+        tabLength={tabLength}
+        visibleStart={visibleStart}
+        visibleEnd={visibleEnd}
+      />
     </div>
   )
 }

@@ -83,6 +83,11 @@ $icon-size:   20px;
   color: #fff;
 }
 
+.config-link.active {
+  background-color: rgba(56, 178, 172, 0.15);
+  color: #38b2ac;
+}
+
 .nav-sidebar.expanded .sidebar-btn {
   width: calc(#{$w-expanded} - #{$item-mx} * 2);
   min-width: calc(#{$w-expanded} - #{$item-mx} * 2);

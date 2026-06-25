@@ -1,26 +1,37 @@
+// Tab fills 100% of whatever container it is placed in.
+// The parent is responsible for giving it a defined height.
 .tab-container {
   width: 100%;
-  padding: 1rem;
-  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 4px;
+  box-sizing: border-box;
 }
 
 .tab-navigation-container {
-  position: relative;
+  flex: 1;
+  min-height: 0;      // critical: allows flex child to shrink below content size
   display: flex;
   align-items: stretch;
-  margin: 10px 0;
+  margin: 4px 0;
+  overflow-x: auto;   // scrolls horizontally in narrow containers instead of crushing
 }
 
-.tab-content {
+// R3F canvas wrapper — fills remaining flex space, never below min-height
+.tab-gl-wrap {
   flex: 1;
-  margin: 0 10px;
-}
+  min-height: 180px;
+  min-width: 520px;   // prevents extreme cell compression in narrow sidebar panels
+  position: relative;
+  margin: 0 8px;
+  isolation: isolate;  // contain drei Html z-index inside this stacking context
 
-.fret-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
-  margin-bottom: 10px;
+  canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
 }
 
 .nav-btn {
@@ -30,6 +41,7 @@
   background-color: rgba(50, 50, 50, 0.7);
   border: none;
   width: 40px;
+  min-width: 40px;
   color: white;
   font-size: 1.5rem;
   cursor: pointer;
@@ -37,37 +49,39 @@
   border-radius: 4px;
   padding: 0;
 
-  &:hover:not(.disabled) {
-    background-color: rgba(70, 70, 70, 0.9);
-  }
-
-  &.disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .arrow-icon {
-    font-weight: bold;
-  }
+  &:hover:not(.disabled) { background-color: rgba(70, 70, 70, 0.9); }
+  &.disabled { opacity: 0.3; cursor: not-allowed; }
+  .arrow-icon { font-weight: bold; }
 }
 
 .position-indicator {
   text-align: center;
-  font-size: 0.8rem;
-  color: #777;
-  margin-top: 10px;
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 4px;
+  flex-shrink: 0;
 }
 
-.open-string {
-  border-right: 2px solid rgb(114, 114, 114) !important;
-  margin-right: 6px;
-  filter: brightness(0.5) saturate(1.5);
-  transition: 0.5s ease;
+// Labels rendered by @react-three/drei Html
+.fret-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+
+  .fret-note   { font-size: 12px; font-weight: 600; line-height: 1.1; opacity: 0.6; }
+  .fret-degree { font-size: 9px;  font-weight: 500; line-height: 1;   opacity: 0.65; }
+
+  // Highlighted cells: full opacity + slightly larger
+  &.hl {
+    .fret-note   { font-size: 13px; opacity: 1; font-weight: 700; }
+    .fret-degree { font-size: 10px; opacity: 1; }
+  }
 }
 
 @media (max-width: 768px) {
-  .nav-btn {
-    width: 30px;
-    font-size: 1.2rem;
-  }
+  .nav-btn { width: 30px; min-width: 30px; font-size: 1.2rem; }
+  .tab-gl-wrap { min-width: 400px; }
 }

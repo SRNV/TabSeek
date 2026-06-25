@@ -1,0 +1,28 @@
+.main-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: repeat(4, 1fr) 1.3fr;
+  grid-template-rows: 2fr 2fr 2fr 1fr 2fr 2fr;
+  grid-template-areas:
+    "f   f   f   f   pda"
+    "f   f   f   f   pda"
+    "f   f   f   f   pda"
+    "ti  ti  ti  ti pc"
+    "ti  ti  ti  ti  pc"
+    "ti  ti  ti  ti  pc";
+  overflow: hidden;
+
+  > div {
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  // z-index: 0 on area-f creates a stacking context that contains drei Html labels,
+  // preventing them from painting above panels (z-index: 1) in sibling areas.
+  .area-f   { grid-area: f;   position: relative; z-index: 0; }
+  .area-pc  { grid-area: pc;  position: relative; z-index: 1; border-left: 1px solid #2a2a2a; }
+  .area-pda { grid-area: pda; position: relative; z-index: 1; border-left: 1px solid #2a2a2a; border-top: 1px solid #2a2a2a; }
+  .area-ti  { grid-area: ti;  position: relative; z-index: 1; border-top: 1px solid #2a2a2a; }
+}
