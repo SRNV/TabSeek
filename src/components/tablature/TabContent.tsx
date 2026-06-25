@@ -262,6 +262,7 @@ export default function TabContent() {
       setSelectedCell({ string: stringIndex, column: gc })
       store.updateSelection(gc, gc)
       store.setCurrentEditingCell(stringIndex, gc)
+      useTablatureStore.setState({ activeColumn: gc })
       tablatureRef.current?.focus()
     }
   }
@@ -277,7 +278,7 @@ export default function TabContent() {
     setSelectedCell({ string: s, column: gc })
     store.updateSelection(gc, gc)
     store.setCurrentEditingCell(s, gc)
-    useTablatureStore.setState({ currentMeasure: store.measureForColumn(gc) })
+    useTablatureStore.setState({ currentMeasure: store.measureForColumn(gc), activeColumn: gc })
     setTimeout(() => scrollToColumn(gc), 0)
   }
 

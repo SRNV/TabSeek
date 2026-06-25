@@ -32,6 +32,7 @@ interface TablatureState {
   selectedColumns: number[]
   selectionStart: number
   selectionEnd: number
+  activeColumn: number
   // getters (computed via functions)
   tuningArray: () => string[]
   tuningDisplay: () => string
@@ -78,6 +79,7 @@ interface TablatureState {
   incrementPlayingColumn: () => void
   updateSelection: (start: number, end: number) => void
   clearSelection: () => void
+  setActiveColumn: (col: number) => void
   applyModeOverride: (mode: string) => void
   insertColumnAt: (index: number) => void
   insertColumnLeft: () => void
@@ -123,6 +125,7 @@ export const useTablatureStore = create<TablatureState>((set, get) => ({
   selectedColumns: [],
   selectionStart: 0,
   selectionEnd: 0,
+  activeColumn: -1,
 
   tuningArray: () => get().tuning.split(',').reverse(),
   tuningDisplay: () => get().tuning.split(',').join(' - '),
@@ -429,6 +432,7 @@ export const useTablatureStore = create<TablatureState>((set, get) => ({
     set({ selectionStart: start, selectionEnd: end, selectedColumns: selected })
   },
   clearSelection: () => set({ selectedColumns: [], selectionStart: 0, selectionEnd: 0 }),
+  setActiveColumn: (col) => set({ activeColumn: col }),
   applyModeOverride: (mode) => {
     const s = get()
     if (s.selectedColumns.length === 0) return
