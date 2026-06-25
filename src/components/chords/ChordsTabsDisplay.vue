@@ -4,27 +4,31 @@
     <div class="chord-display">
       <ChordTab v-if="store.chordRootObject" :chordData="store.chordRootObject" :chordType="store.chordRootNoteType" />
     </div>
-    <div>
-      <RouterView name="details1"></RouterView>
-      <RouterView name="details2"></RouterView>
-    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, watch } from 'vue';
-import { CHORDS } from '../../composables/chords';
+import { ref, computed, onMounted } from 'vue';
 import { useMainStore } from '../../stores';
 import ChordTab from './ChordTab.vue';
-import { useMidiUtils } from '../../composables/useMidiUtils';
+import { CHORD_TYPES_BY_CATEGORY } from '../../composables/tonalChordsMapping';
 
 const store = useMainStore();
-const selectedChordType = computed(() => {
-  return store.chordRootNoteType
-});
+const selectedChordType = computed(() => store.chordRootNoteType);
 const selectedChordData = ref(null);
-const { notesToMidi } = useMidiUtils();
 
+onMounted(() => {
+  if (!store.chordRootObject) {
+    const majorChord = (CHORD_TYPES_BY_CATEGORY['Triades'] as any).chords.find(
+      (c: any) => c.id === 'major'
+    )
+    if (majorChord) {
+      store.setChordRootNote('A4')
+      store.setChordObject(majorChord)
+      store.setChordRootNoteType('major')
+    }
+  }
+})
 </script>
 
 <style scoped lang="scss">

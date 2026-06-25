@@ -146,19 +146,6 @@ export default defineComponent({
     overflow-y: auto;
     padding-right: 5px;
 
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: #333;
-      border-radius: 3px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: #555;
-      border-radius: 3px;
-    }
   }
 }
 </style>

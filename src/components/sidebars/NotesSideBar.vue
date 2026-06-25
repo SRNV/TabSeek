@@ -63,16 +63,11 @@ export default defineComponent({
 
 <style scoped lang="scss">
 .notes-sidebar {
-  z-index: 99999;
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 103px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
   background-color: #272727;
   padding: 10px;
-  /* overflow-y: auto; */
-  border-right: 1px solid #3a3a3a;
 }
 
 .notes-grid {

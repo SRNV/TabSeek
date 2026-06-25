@@ -529,17 +529,6 @@ onMounted(() => { tablatureRef.value?.focus(); });
     overflow-y: hidden;
     width: 100%;
 
-    &::-webkit-scrollbar {
-        height: 8px;
-    }
-    &::-webkit-scrollbar-track {
-        background: #1e1e1e;
-        border-radius: 4px;
-    }
-    &::-webkit-scrollbar-thumb {
-        background: #555;
-        border-radius: 4px;
-    }
 }
 
 .tablature {
