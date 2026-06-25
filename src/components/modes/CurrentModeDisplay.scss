@@ -1,0 +1,114 @@
+.chord-category {
+  margin-bottom: 15px;
+  background-color: rgba(30, 30, 30, 0.7);
+  border-radius: 8px;
+  padding: 15px;
+
+  .category-title {
+    font-size: 1.2rem;
+    margin: 0 0 5px 0;
+    color: #f0f0f0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #555;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+
+    .mode-scale {
+      font-size: 0.9rem;
+      color: #aaa;
+      font-style: italic;
+      font-weight: normal;
+    }
+  }
+
+  .mode-culture {
+    margin: 8px 0;
+    color: orange;
+    font-size: 0.85rem;
+    font-style: italic;
+
+    .culture-label {
+      color: #aaa;
+      font-weight: bold;
+      margin-right: 5px;
+    }
+  }
+
+  .category-description {
+    font-size: 0.8rem;
+    color: #bbb;
+    margin: 0 0 15px 0;
+    font-style: italic;
+    line-height: 1.4;
+  }
+
+  .mode-details-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .details-block {
+      background-color: rgba(40, 40, 40, 0.5);
+      border-radius: 4px;
+      padding: 10px;
+
+      .details-title {
+        font-size: 0.9rem;
+        margin: 0 0 8px 0;
+        color: #ddd;
+        font-weight: normal;
+      }
+    }
+
+    .interval-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+
+      .interval-chip {
+        background-color: #3a4a5a;
+        color: #ddd;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        font-family: monospace;
+      }
+    }
+
+    .chords-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+
+      .chord-type {
+        font-size: 0.85rem;
+
+        .chord-label {
+          color: #aaa;
+          margin-right: 5px;
+        }
+
+        .chord-value {
+          color: orange;
+          font-weight: bold;
+        }
+      }
+    }
+
+    .notes-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .note-chip {
+        background-color: #3a3a3a;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-family: monospace;
+        color: #ddd;
+        font-size: 0.9rem;
+      }
+    }
+  }
+}

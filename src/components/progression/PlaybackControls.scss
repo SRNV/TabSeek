@@ -1,0 +1,122 @@
+.compilation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 15px;
+  background-color: #333;
+  padding: 15px;
+  border-radius: 8px;
+
+  .playback-main-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .control-btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    min-width: 120px;
+
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    &.play-btn {
+      background-color: #3a7ca5;
+      color: white;
+      &:hover:not(:disabled) { background-color: #4a8cb5; }
+    }
+    &.stop-btn {
+      background-color: #a53a3a;
+      color: white;
+      &:hover:not(:disabled) { background-color: #b54a4a; }
+    }
+    &.repeat-btn {
+      background-color: #555;
+      color: #eee;
+      &.active { background-color: #8c6b3a; color: white; }
+      &:hover:not(:disabled) { background-color: #666; }
+    }
+    &.clear-btn {
+      background-color: #555;
+      color: #eee;
+      &:hover:not(:disabled) { background-color: #666; }
+    }
+
+    .btn-icon { font-size: 1.1rem; }
+  }
+
+  .playback-controls {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .control-label { font-size: 0.85rem; color: #aaa; }
+
+    .tempo-slider {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #444;
+      outline: none;
+      border-radius: 3px;
+
+      &::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #3a7ca5;
+        cursor: pointer;
+      }
+
+      &::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #3a7ca5;
+        cursor: pointer;
+        border: none;
+      }
+    }
+
+    .tempo-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 5px;
+
+      .tempo-preset-btn {
+        padding: 4px 8px;
+        background-color: #444;
+        border: none;
+        border-radius: 3px;
+        color: #ccc;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover { background-color: #555; }
+        &.active { background-color: #3a7ca5; color: white; }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .compilation-controls .playback-main-controls {
+    flex-direction: column;
+    .control-btn { width: 100%; }
+  }
+}

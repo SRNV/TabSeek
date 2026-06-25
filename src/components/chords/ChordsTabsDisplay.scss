@@ -1,0 +1,10 @@
+.chords-display-container {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  background-color: #222;
+  border-left: 1px solid #333;
+
+  .chord-display { flex: 1; }
+}

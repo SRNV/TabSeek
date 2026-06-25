@@ -27,7 +27,7 @@ export const TONAL_CHORD_TYPES = [
 ];
 
 // Mappings entre les noms d'accords communs et les noms Tonal.js
-export const CHORD_NAME_MAPPINGS = {
+export const CHORD_NAME_MAPPINGS: Record<string, string> = {
   // Triades
   "major": "major",
   "maj": "major",

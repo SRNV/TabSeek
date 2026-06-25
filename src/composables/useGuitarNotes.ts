@@ -92,7 +92,8 @@ export function useGuitarNotes() {
             intervals: m.intervals,
             alt: [], // À compléter si nécessaire
             triad: "", // À compléter si nécessaire
-            seventh: "" // À compléter si nécessaire
+            seventh: "", // À compléter si nécessaire
+            category: "" // À compléter si nécessaire
           };
         } else {
           this.modeObject = null;
@@ -232,7 +233,8 @@ export function useGuitarNotes() {
       intervals: mode.intervals,
       alt,
       triad,
-      seventh
+      seventh,
+      category: ""
     };
   }
 

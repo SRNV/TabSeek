@@ -1,0 +1,65 @@
+// ── Layout principal ────────────────────────────────────────────────────────
+.app {
+  display: grid;
+  grid-template-areas: "nav config main";
+  grid-template-columns: auto auto 1fr;
+  grid-template-rows: 100vh;
+  height: 100vh;
+  overflow: hidden;
+
+  .nav-area    { grid-area: nav; }
+  .config-area { grid-area: config; }
+
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    min-width: 0;
+  }
+}
+
+// ── Backdrop (ferme le popover au clic extérieur) ───────────────────────────
+.popover-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 499;
+}
+
+// ── Popover flottant ────────────────────────────────────────────────────────
+.config-popover {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  min-width: 160px;
+  max-width: 400px;
+  z-index: 500;
+  background-color: #1a1a1a;
+  border-right: 1px solid #2e2e2e;
+  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+  transition: left 0.22s ease;
+}
+
+// ── Animation slide gauche → droite ────────────────────────────────────────
+.popover-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.popover-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 0.22s ease, opacity 0.18s ease;
+}
+
+.popover-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.popover-exit-active {
+  transform: translateX(-100%);
+  opacity: 0;
+  transition: transform 0.22s ease, opacity 0.18s ease;
+}

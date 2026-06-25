@@ -1,8 +1,7 @@
-import { ref } from 'vue'
+import { create } from 'zustand'
 
 export type PanelId = 'notes' | 'modes' | 'chords'
 
-// Which panels are available per route path
 export const routePanels: Record<string, PanelId[]> = {
   '/':             ['notes', 'modes', 'chords'],
   '/chords':       ['notes', 'chords'],
@@ -10,20 +9,22 @@ export const routePanels: Record<string, PanelId[]> = {
   '/tablature':    ['notes', 'modes', 'chords'],
 }
 
-// Module-level singleton — shared across all components
-const activePanel = ref<PanelId | null>(null)
-
-export function useUIState() {
-  function togglePanel(id: PanelId) {
-    activePanel.value = activePanel.value === id ? null : id
-  }
-
-  function closePanelIfUnavailable(routePath: string) {
-    const available = routePanels[routePath] ?? []
-    if (activePanel.value && !available.includes(activePanel.value)) {
-      activePanel.value = null
-    }
-  }
-
-  return { activePanel, togglePanel, closePanelIfUnavailable }
+interface UIState {
+  activePanel: PanelId | null
+  togglePanel: (id: PanelId) => void
+  closePanel: () => void
+  closePanelIfUnavailable: (routePath: string) => void
 }
+
+export const useUIStore = create<UIState>((set, get) => ({
+  activePanel: null,
+  togglePanel: (id) => set(s => ({ activePanel: s.activePanel === id ? null : id })),
+  closePanel: () => set({ activePanel: null }),
+  closePanelIfUnavailable: (routePath) => {
+    const available = routePanels[routePath] ?? []
+    const { activePanel } = get()
+    if (activePanel && !available.includes(activePanel)) {
+      set({ activePanel: null })
+    }
+  },
+}))

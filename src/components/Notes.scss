@@ -1,0 +1,179 @@
+.notes-container {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  cursor: pointer;
+  user-select: none;
+  padding: 15px;
+  border: 1px solid rgba(118, 118, 118, 0.5);
+  border-radius: 10px;
+  background-color: #2d2d2d;
+  margin-bottom: 15px;
+  margin-top: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+
+  &:hover {
+    border-color: rgba(118, 118, 118, 0.8);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .notes-header {
+    margin-bottom: 10px;
+    text-align: center;
+
+    .chord-type {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+  }
+
+  .notes-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .note-square {
+    border-radius: 8px;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #444;
+    font-weight: bold;
+    font-size: 0.75rem;
+    color: #2c2c2c;
+    transition: all 0.2s ease;
+    position: relative;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    &.octave-btn {
+      background-color: #555;
+      font-size: 1.2rem;
+      cursor: pointer;
+
+      &:hover { background-color: #666; }
+
+      &.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+
+        &:hover {
+          transform: none;
+          box-shadow: none;
+        }
+      }
+    }
+
+    &.reset-btn {
+      background-color: #664;
+      font-size: 0.7rem;
+      cursor: pointer;
+
+      &:hover { background-color: #775; }
+    }
+  }
+
+  .controls-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .play-btns {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+
+    .play-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+
+      .play-icon { font-size: 1.1rem; }
+
+      &.arpeggio {
+        background-color: #3a7ca5;
+        color: white;
+        &:hover { background-color: #4a8cb5; }
+      }
+
+      &.chord {
+        background-color: #6a7a8a;
+        color: white;
+        &:hover { background-color: #7a8a9a; }
+      }
+
+      &.active { background-color: #9a8a7a; }
+    }
+
+    .waveform-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .waveform-label {
+        font-size: 0.8rem;
+        color: #aaa;
+        min-width: 50px;
+      }
+
+      .waveform-buttons {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+
+      .waveform-btn {
+        padding: 4px 8px;
+        background-color: #444;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        color: #ddd;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover { background-color: #555; }
+        &.active {
+          background-color: #665;
+          box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .notes-container {
+    padding: 10px;
+
+    .note-square {
+      width: 40px;
+      height: 40px;
+      font-size: 0.7rem;
+    }
+
+    .play-btn {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+  }
+}
