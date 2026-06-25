@@ -45,7 +45,9 @@ const DEFAULT_BG      = '#1c1c1c'
 const OUTLINE_EXTRA   = 0.07
 const CHORD_ORANGE    = '#FF9500'
 const CHORD_ROOT_BLUE = '#3355FF'
-const OPEN_DIM        = 0.38
+const OPEN_DIM           = 0.38
+const CHORD_LINE_HALF_W  = 0.08  // world-space half-width ≈ 10px at typical zoom
+const MAX_CHORD_SEGS     = 8     // max segments between chord interval cells
 
 // ── Octave brightness ─────────────────────────────────────────────────────────
 // 25% total delta: ×0.875 at oct 2, ×1.125 at oct 5 (multiplicative on base lightness)
@@ -201,6 +203,75 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const chordOutlineDirtyRef   = useRef(false)
   const colorRuleTriggerRef    = useRef(false)          // fires color rules from chordOutlineActiveRef
 
+  // ── Chord interval connector line ─────────────────────────────────────────
+  const chordLineMeshRef = useRef<THREE.Mesh>(null!)
+  const lineActiveRef    = useRef(false)
+  const lineSegsRef      = useRef<Array<{
+    ax: number; ay: number; bx: number; by: number
+    cA: THREE.Color; cB: THREE.Color
+  }>>([])
+
+  const chordLineMat = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+    },
+    vertexShader: `
+      attribute vec3  aCenterPos;
+      attribute vec3  aPerp;
+      attribute vec3  aColor;
+      attribute float aGlobalU;   // 0 = start of entire chord path, 1 = end
+      uniform float   uTime;
+      varying vec3    vColor;
+      varying float   vV;
+      void main() {
+        vColor = aColor;
+        vV     = uv.y;
+        // Thickness-wave traveling from start→end at 0.8 Hz
+        float wavePos = fract(uTime * 0.8);
+        float dist    = abs(aGlobalU - wavePos);
+        float bell    = max(0.0, 1.0 - dist * 6.0);  // non-zero over ~1/6 of path
+        float wScale  = 1.0 + 0.9 * bell * bell;     // 1.0 → 1.5 at wave peak
+        gl_Position   = projectionMatrix * modelViewMatrix
+                        * vec4(aCenterPos + aPerp * wScale, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3  vColor;
+      varying float vV;
+      void main() {
+        float edge    = abs(vV - 0.5) * 2.0;        // 0 = centre, 1 = outer edge
+        // Orange border in the outer ~30 % of the half-width
+        float borderT = smoothstep(0.55, 0.80, edge);
+        vec3  orange  = vec3(1.0, 0.584, 0.0);      // #FF9500
+        vec3  color   = mix(vColor, orange, borderT);
+        float alpha   = (1.0 - smoothstep(0.82, 1.0, edge)) * 0.92;
+        gl_FragColor  = vec4(color, alpha);
+      }
+    `,
+    transparent: true,
+    depthTest:   false,
+    depthWrite:  false,
+    side: THREE.DoubleSide,
+  }), [])
+
+  const chordLineGeo = useMemo(() => {
+    const nV  = MAX_CHORD_SEGS * 4
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position',   new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
+    geo.setAttribute('aCenterPos', new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
+    geo.setAttribute('aPerp',      new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
+    geo.setAttribute('aColor',     new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
+    geo.setAttribute('aGlobalU',   new THREE.BufferAttribute(new Float32Array(nV * 1), 1))
+    geo.setAttribute('uv',         new THREE.BufferAttribute(new Float32Array(nV * 2), 2))
+    const idx: number[] = []
+    for (let s = 0; s < MAX_CHORD_SEGS; s++) {
+      const b = s * 4
+      idx.push(b, b+1, b+2,  b+2, b+1, b+3)
+    }
+    geo.setIndex(idx)
+    return geo
+  }, [])
+
   const setPopoverVisible = useCallback((v: boolean) => {
     popoverVisibleRef.current = v
     _setPopoverVisible(v)
@@ -223,26 +294,58 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       return
     }
     const rootNote = Note.fromMidi(popoverCell.midi)
-    const targetMidis = (chordRootObject.intervals as string[])
-      .map(iv => Note.midi(Note.transpose(rootNote, iv)) ?? null)
-      .filter((m): m is number => m !== null)
-
-    const seen = new Set<number>()
-    const rootX = popoverCell.posX
-    const rootY = popoverCell.posY
-
-    chordOutlinePendingRef.current = targetMidis.map(targetMidi => {
-      let bestIdx = -1
-      let bestDist = Infinity
-      cells.forEach((c, idx) => {
-        if (c.midi !== targetMidi || seen.has(idx)) return
-        const dx = c.posX - rootX
-        const dy = c.posY - rootY
-        const d = dx * dx + dy * dy
-        if (d < bestDist) { bestDist = d; bestIdx = idx }
+    // Pitch-class matching: every string position for a given note is a candidate
+    // regardless of octave (exact-MIDI matching left only 1-2 options per interval).
+    const targetPCs = (chordRootObject.intervals as string[])
+      .map(iv => {
+        const m = Note.midi(Note.transpose(rootNote, iv))
+        return m != null ? m % 12 : null
       })
-      if (bestIdx >= 0) seen.add(bestIdx)
-      return bestIdx
+      .filter((pc): pc is number => pc !== null)
+
+    const seen        = new Set<number>()
+    const usedStrings = new Set<number>()
+    const rootX    = popoverCell.posX
+    const rootY    = popoverCell.posY
+    const rootFret = popoverCell.fretSemi
+    const MAX_SPAN = 4   // max fret span reachable with 4 fingers
+
+    // Start 1 below root so the root's own MIDI passes the ascending check (> prevMidi)
+    let prevMidi = popoverCell.midi - 1
+
+    chordOutlinePendingRef.current = targetPCs.map(targetPC => {
+      // 4-tier priority — higher tier = preferred:
+      // T0: free string + near fret + ascending pitch  (ideal playable voicing)
+      // T1: free string + near fret                    (playable but non-ascending)
+      // T2: free string                                 (one note per string)
+      // T3: any cell                                    (last resort)
+      let t0Idx = -1; let t0Dist = Infinity
+      let t1Idx = -1; let t1Dist = Infinity
+      let t2Idx = -1; let t2Dist = Infinity
+      let t3Idx = -1; let t3Dist = Infinity
+
+      cells.forEach((c, idx) => {
+        if (c.midi == null || c.midi % 12 !== targetPC || seen.has(idx)) return
+        const dx   = c.posX - rootX
+        const dy   = c.posY - rootY
+        const d    = dx * dx + dy * dy
+        const free = !usedStrings.has(c.si)
+        const near = Math.abs(c.fretSemi - rootFret) <= MAX_SPAN
+        const asc  = c.midi > prevMidi   // note must be higher than previous interval
+
+        if      (free && near && asc && d < t0Dist) { t0Dist = d; t0Idx = idx }
+        else if (free && near        && d < t1Dist) { t1Dist = d; t1Idx = idx }
+        else if (free                && d < t2Dist) { t2Dist = d; t2Idx = idx }
+        if (d < t3Dist) { t3Dist = d; t3Idx = idx }
+      })
+
+      const chosen = t0Idx >= 0 ? t0Idx : t1Idx >= 0 ? t1Idx : t2Idx >= 0 ? t2Idx : t3Idx
+      if (chosen >= 0) {
+        seen.add(chosen)
+        usedStrings.add(cells[chosen].si)
+        prevMidi = cells[chosen].midi!
+      }
+      return chosen
     }).filter(idx => idx >= 0)
 
     chordOutlineDirtyRef.current = true
@@ -335,6 +438,57 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       if (pendingTimer.current !== null) clearTimeout(pendingTimer.current)
     }
   }, [cells, dimColor, scaleGrey])
+
+  // ── Chord line geometry builder (called from useFrame on chord change) ──────
+  // Separates the centerline (aCenterPos) from the perpendicular offset (aPerp)
+  // so the vertex shader can pulse only the centerline from the centroid.
+  function updateChordLineGeo() {
+    const posAttr = chordLineGeo.attributes.position   as THREE.BufferAttribute
+    const cpAttr  = chordLineGeo.attributes.aCenterPos as THREE.BufferAttribute
+    const prpAttr = chordLineGeo.attributes.aPerp      as THREE.BufferAttribute
+    const colAttr = chordLineGeo.attributes.aColor     as THREE.BufferAttribute
+    const guAttr  = chordLineGeo.attributes.aGlobalU   as THREE.BufferAttribute
+    const uvAttr  = chordLineGeo.attributes.uv         as THREE.BufferAttribute
+    const segs    = lineSegsRef.current
+    const S       = segs.length  // actual number of segments (0 when inactive)
+    for (let s = 0; s < MAX_CHORD_SEGS; s++) {
+      const seg  = segs[s]
+      const b    = s * 4
+      if (!seg) {
+        for (let v = 0; v < 4; v++) {
+          posAttr.setXYZ(b+v, 0, 0, 0); cpAttr.setXYZ(b+v, 0, 0, 0)
+          prpAttr.setXYZ(b+v, 0, 0, 0); colAttr.setXYZ(b+v, 0, 0, 0)
+          guAttr.setX(b+v, 0); uvAttr.setXY(b+v, 0, 0)
+        }
+        continue
+      }
+      const { ax, ay, bx, by, cA, cB } = seg
+      const dx  = bx - ax
+      const dy  = by - ay
+      const len = Math.sqrt(dx * dx + dy * dy) || 1
+      const px  = -dy / len * CHORD_LINE_HALF_W
+      const py  =  dx / len * CHORD_LINE_HALF_W
+      const z   = 0.001
+      // Global U: maps this segment's start/end into [0,1] across the entire path
+      const u0  = S > 0 ? s / S : 0
+      const u1  = S > 0 ? (s + 1) / S : 1
+      cpAttr.setXYZ(b+0, ax, ay, z);  cpAttr.setXYZ(b+1, ax, ay, z)
+      cpAttr.setXYZ(b+2, bx, by, z);  cpAttr.setXYZ(b+3, bx, by, z)
+      prpAttr.setXYZ(b+0, -px, -py, 0);  prpAttr.setXYZ(b+1, px, py, 0)
+      prpAttr.setXYZ(b+2, -px, -py, 0);  prpAttr.setXYZ(b+3, px, py, 0)
+      posAttr.setXYZ(b+0, ax-px, ay-py, z);  posAttr.setXYZ(b+1, ax+px, ay+py, z)
+      posAttr.setXYZ(b+2, bx-px, by-py, z);  posAttr.setXYZ(b+3, bx+px, by+py, z)
+      guAttr.setX(b+0, u0);  guAttr.setX(b+1, u0)
+      guAttr.setX(b+2, u1);  guAttr.setX(b+3, u1)
+      uvAttr.setXY(b+0, 0, 0);  uvAttr.setXY(b+1, 0, 1)
+      uvAttr.setXY(b+2, 1, 0);  uvAttr.setXY(b+3, 1, 1)
+      colAttr.setXYZ(b+0, cA.r, cA.g, cA.b);  colAttr.setXYZ(b+1, cA.r, cA.g, cA.b)
+      colAttr.setXYZ(b+2, cB.r, cB.g, cB.b);  colAttr.setXYZ(b+3, cB.r, cB.g, cB.b)
+    }
+    posAttr.needsUpdate = true;  cpAttr.needsUpdate  = true
+    prpAttr.needsUpdate = true;  colAttr.needsUpdate = true
+    guAttr.needsUpdate  = true;  uvAttr.needsUpdate  = true
+  }
 
   // ── Per-frame: color lerp + scale animation ───────────────────────────────
   useFrame((_, delta) => {
@@ -459,6 +613,29 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       })
       outMesh.instanceMatrix.needsUpdate = true
       colorRuleTriggerRef.current = true
+
+      // Build connector-line segments from the newly active chord cells
+      const lineCells = chordOutlineActiveRef.current.map(idx => cells[idx]).filter(Boolean)
+      lineActiveRef.current = lineCells.length >= 2
+      if (lineActiveRef.current) {
+        lineSegsRef.current = []
+        for (let i = 0; i < lineCells.length - 1; i++) {
+          lineSegsRef.current.push({
+            ax: lineCells[i].posX,     ay: lineCells[i].posY,
+            bx: lineCells[i + 1].posX, by: lineCells[i + 1].posY,
+            cA: lineCells[i].color.clone(),
+            cB: lineCells[i + 1].color.clone(),
+          })
+        }
+      } else {
+        lineSegsRef.current = []
+      }
+      updateChordLineGeo()
+    }
+
+    // Advance chord line pulse (shader reads uTime every frame)
+    if (lineActiveRef.current) {
+      chordLineMat.uniforms.uTime.value += delta
     }
 
     // Apply three-tier color rules: outline = highlighted → degree color
@@ -600,7 +777,11 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
 
   return (
     <>
-      <instancedMesh ref={outlineRef} args={[outlineGeo, outlineMat, MAX_INS]} raycast={() => undefined} />
+      {/* Chord interval connector: depthTest=false so it draws over dimmed cells;
+          renderOrder=2 → draws after cells(0) but before orange outlines(3) */}
+      <mesh ref={chordLineMeshRef} geometry={chordLineGeo} material={chordLineMat} frustumCulled={false} renderOrder={2} />
+      {/* Orange outlines — renderOrder=3 so they always appear above the connector line */}
+      <instancedMesh ref={outlineRef} args={[outlineGeo, outlineMat, MAX_INS]} raycast={() => undefined} renderOrder={3} />
       <instancedMesh ref={cellsRef} args={[cellGeo, cellMat, MAX_INS]} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut} />
       <instancedMesh ref={stringsRef} args={[strGeo, strMat, N_STRINGS]} />
 
