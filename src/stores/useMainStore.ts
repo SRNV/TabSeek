@@ -24,6 +24,7 @@ interface MainState {
   chordRootObject: ChordsCompleteDef | null
   chordRootNoteType: string
   hoveredRootNote: string
+  tabHoveredChordName: string | null
   setUserScale: (scale: string) => void
   setSelectedMidi: (midi: number | null) => void
   clearSelectedMidi: () => void
@@ -33,6 +34,7 @@ interface MainState {
   setChordRootNote: (note: string, type?: string) => void
   setChordRootNoteType: (type: string) => void
   setHoveredRootNote: (note: string) => void
+  setTabHoveredChordName: (name: string | null) => void
   getModeNotes: () => string[]
   getModeTriad: () => string
   getModeSeventh: () => string
@@ -47,6 +49,7 @@ export const useMainStore = create<MainState>((set, get) => ({
   chordRootObject: null,
   chordRootNoteType: 'major',
   hoveredRootNote: '',
+  tabHoveredChordName: null,
 
   getModeNotes: () => {
     const { userScale, modeObject } = get()
@@ -76,4 +79,5 @@ export const useMainStore = create<MainState>((set, get) => ({
   setChordRootNote: (note) => set({ chordRootNote: note }),
   setChordRootNoteType: (type) => set({ chordRootNoteType: type }),
   setHoveredRootNote: (note) => set({ hoveredRootNote: note }),
+  setTabHoveredChordName: (name) => set({ tabHoveredChordName: name }),
 }))

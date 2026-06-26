@@ -1,11 +1,11 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { Note, Chord } from 'tonal'
 import { useTablatureR3FStore } from '../../stores/useTablatureR3FStore'
-import type { TablatureNote, ChordGroup } from '../../stores/useTablatureR3FStore'
+import type { TablatureNote, ChordGroup, ProgressionGroup } from '../../stores/useTablatureR3FStore'
 import type { ChordProgression } from '../../composables/progressions'
 import { useTablatureStore } from '../../stores/useTablatureStore'
 import { useMainStore } from '../../stores/useMainStore'
@@ -44,13 +44,23 @@ const PEND_COL      = '#3d8de0'
 const gridTop    = ((N_STRINGS - 1) / 2) * STRING_H + LANE_H / 2 + 0.12
 const gridBottom = -gridTop
 
-// Info lane — sits below low E, shows chord labels; no notes/pods overlap it
-const INFO_LANE_GAP = 0.20              // gap between low E lane and info lane (WU)
-const INFO_LANE_H   = LANE_H            // same height as string lanes
+// Info lane — chord labels
+const INFO_LANE_GAP = 0.20
+const INFO_LANE_H   = LANE_H
 const infoLaneY     = gridBottom - INFO_LANE_GAP - INFO_LANE_H / 2
-// Asymmetric frustum: top = symmetric, bottom extended to include info lane + margin
+// Progression lane — sits below info lane
+const PROG_LANE_GAP = 0.12
+const PROG_LANE_H   = LANE_H * 0.75
+const progLaneY     = infoLaneY - INFO_LANE_H / 2 - PROG_LANE_GAP - PROG_LANE_H / 2
+// Asymmetric frustum: top = symmetric, bottom extended to include both lanes + margin
 const CAM_HALF_H_TOP = gridTop + STRING_H * 0.35
-const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + 0.30
+const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + PROG_LANE_GAP + PROG_LANE_H + 0.30
+
+// Progression pod style
+const PROG_BORDER_COL = '#5B8EE8'
+const PROG_COL        = '#1a2440'
+const PROG_PAD_H      = 0.45   // extra horizontal padding beyond chord pod range
+const PROG_PAD_V      = 0.20   // extra vertical padding above/below chord pods
 
 const CHORD_DUR       = BEATS_PER_MEAS   // 4 beats per chord slot when dropping a progression
 const CHORD_PAD_H     = 0.25            // horizontal padding around chord pod (WU ≈ 5px)
@@ -143,6 +153,25 @@ function constrainLeft(rightEdge: number, wantedBeat: number, si: number, id: st
   return { beat, dur: rightEdge - beat }
 }
 
+// Returns the fret on openNote string that gives the exact same MIDI pitch, or null if out of range (0-24)
+function findFretForNote(openNote: string, targetNote: string): number | null {
+  const targetMidi = Note.midi(targetNote)
+  if (targetMidi === null) return null
+  for (let f = 0; f <= 24; f++)
+    if (Note.midi(getNoteName(openNote, f)) === targetMidi) return f
+  return null
+}
+
+// Cycles to the next fret (0-24) on the same string that shares the same pitch class
+function nextFretSamePc(openNote: string, currentFret: number): number {
+  const targetPc = Note.pitchClass(getNoteName(openNote, currentFret))
+  const matches: number[] = []
+  for (let f = 0; f <= 24; f++)
+    if (Note.pitchClass(getNoteName(openNote, f)) === targetPc) matches.push(f)
+  if (matches.length <= 1) return currentFret
+  return matches[(matches.indexOf(currentFret) + 1) % matches.length]
+}
+
 // Returns the maximum allowed dBeat for a chord group move (no overlap with external notes)
 function constrainChordGroupMove(
   origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>,
@@ -161,6 +190,25 @@ function constrainChordGroupMove(
     }
   }
   return Math.max(lo, Math.min(hi, dBeat))
+}
+
+// Returns a darkened, slightly-more-saturated version of a hex color for text on that pod
+function darkenPodColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min
+  const l = (max + min) / 2
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1))
+  let h = 0
+  if (delta !== 0) {
+    if (max === r)      h = ((g - b) / delta + (g < b ? 6 : 0)) / 6
+    else if (max === g) h = ((b - r) / delta + 2) / 6
+    else                h = ((r - g) / delta + 4) / 6
+  }
+  const newL = Math.max(0.16, l * 0.30)
+  const newS = Math.min(1, s + 0.15)
+  return `hsl(${Math.round(h * 360)},${Math.round(newS * 100)}%,${Math.round(newL * 100)}%)`
 }
 
 function roundedRect(w: number, h: number, r: number) {
@@ -190,7 +238,7 @@ function buildMeasGeo(n: number) {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type DragNote = { kind: 'note'; noteId: string; type: 'move'|'resize-left'|'resize-right'; startX: number; origBeat: number; origDur: number }
+type DragNote = { kind: 'note'; noteId: string; type: 'move'|'resize-left'|'resize-right'; startX: number; origBeat: number; origDur: number; origSi: number; origFret: number }
 type DragRect = { kind: 'rect'; x0: number; y0: number; x1: number; y1: number }
 type DragChordGroup = {
   kind: 'chord-group'
@@ -202,14 +250,47 @@ type DragChordGroup = {
   origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>
   didMove: boolean
 }
-type ClipNote = Pick<TablatureNote, 'string'|'fret'|'duration'> & { startBeat: number }
+type ClipNote  = Pick<TablatureNote, 'string'|'fret'|'duration'> & { startBeat: number }
+type ClipGroup = { noteIndices: number[]; chordName: string }
+type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
+type DragProgGroup = {
+  kind: 'prog-group'
+  progId: string
+  startX: number
+  origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>
+  didMove: boolean
+}
+
+// ── BlinkMaterial: 0.5 Hz pulse, imperative ShaderMaterial to avoid colorspace issues ──
+const BLINK_VERT = `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`
+const BLINK_FRAG = `
+  uniform float u_time;
+  uniform vec3  u_base;
+  void main(){
+    // lighten by blending 40% white in linear space — 2 Hz sine
+    float t=(sin(u_time*12.5663706)+1.0)*0.5;
+    gl_FragColor=vec4(u_base+(1.0-u_base)*0.40*t,1.0);
+    #include <colorspace_fragment>
+  }
+`
+function BlinkMaterial({ color }: { color: string }) {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { u_time: { value: 0 }, u_base: { value: new THREE.Color(color) } },
+    vertexShader:   BLINK_VERT,
+    fragmentShader: BLINK_FRAG,
+  }), [color])
+
+  useFrame(({ clock }) => { material.uniforms.u_time.value = clock.getElapsedTime() })
+
+  return <primitive object={material} attach="material" />
+}
 
 interface SceneProps { onStringYPcts: (pcts: number[]) => void }
 
 // ── Scene ───────────────────────────────────────────────────────────────────────
 function TablatureScene({ onStringYPcts }: SceneProps) {
   const { camera, gl, size, scene } = useThree()
-  const { notes, chordGroups, addNote, updateNote, deleteNote, addChordGroup, removeChordGroup, pushHistory, undo, redo } = useTablatureR3FStore()
+  const { notes, chordGroups, progressionGroups, addNote, updateNote, deleteNote, addChordGroup, removeChordGroup, addProgressionGroup, removeProgressionGroup, pushHistory, undo, redo } = useTablatureR3FStore()
 
   const userScale  = useMainStore(s => s.userScale)
   const modeObject = useMainStore(s => s.modeObject)
@@ -380,13 +461,26 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   const [inputVal,  setInputVal]  = useState('')
   const newNoteIds = useRef(new Set<string>())
 
-  const clipboard = useRef<ClipNote[]>([])
+  const clipboard = useRef<ClipData>({ notes: [], groups: [] })
 
   const [rectBox, setRectBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
-  const drag    = useRef<DragNote | DragRect | DragChordGroup | null>(null)
+  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | null>(null)
   const [hoveredGroupId,      setHoveredGroupId]      = useState<string | null>(null)
   const [labelHoveredGroupId, setLabelHoveredGroupId] = useState<string | null>(null)
+  const [hoveredProgId,       setHoveredProgId]       = useState<string | null>(null)
+  const [labelHoveredProgId,  setLabelHoveredProgId]  = useState<string | null>(null)
+  const [selectedChordGroupIds, setSelectedChordGroupIds] = useState<Set<string>>(new Set())
+  const selectedChordGroupIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => { selectedChordGroupIdsRef.current = selectedChordGroupIds }, [selectedChordGroupIds])
+
+  // Sync fretboard highlight: when any chord pod is hovered, show its notes in the fretboard
+  useEffect(() => {
+    const activeId = hoveredGroupId ?? labelHoveredGroupId
+    const group = activeId ? chordGroups.find(g => g.id === activeId) : null
+    useMainStore.getState().setTabHoveredChordName(group?.chordName ?? null)
+  }, [hoveredGroupId, labelHoveredGroupId, chordGroups])
+
   // lanePend: tracks a lane mousedown that hasn't moved yet (click → dblclick-create; drag → rect-select)
   const lanePend = useRef<{ si: number; beat: number; startCX: number; startCY: number; startWX: number; startWY: number } | null>(null)
 
@@ -417,7 +511,18 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         if (d.type === 'move') {
           const newSi   = siFromWorldY(wy(e.clientY))
           const newBeat = constrainMove(snapBeat(d.origBeat + dB), d.origDur, newSi, d.noteId)
-          updateNote(d.noteId, { startBeat: newBeat, string: newSi })
+          // Pitch-preserving fret when changing string inside a chord group
+          let newFret: number | undefined
+          if (newSi !== n.string) {
+            const inGroup = useTablatureR3FStore.getState().chordGroups.some(g => g.noteIds.includes(d.noteId))
+            if (inGroup) {
+              const tun    = useTablatureStore.getState().tuning.split(',')
+              const pitch  = getNoteName(tun[d.origSi], d.origFret)
+              const found  = newSi === d.origSi ? d.origFret : findFretForNote(tun[newSi], pitch)
+              newFret = found !== null ? found : d.origFret
+            }
+          }
+          updateNote(d.noteId, { startBeat: newBeat, string: newSi, ...(newFret !== undefined && { fret: newFret }) })
         } else if (d.type === 'resize-right') {
           updateNote(d.noteId, { duration: constrainRight(d.origBeat, snapBeat(d.origDur + dB), n.string, d.noteId) })
         } else {
@@ -519,18 +624,25 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const sel = useTablatureR3FStore.getState().notes.filter(n => ids.has(n.id))
         if (!sel.length) return
         e.preventDefault()
-        const minBeat = Math.min(...sel.map(n => n.startBeat))
-        clipboard.current = sel.map(n => ({ string: n.string, fret: n.fret, duration: n.duration, startBeat: n.startBeat - minBeat }))
+        const minBeat  = Math.min(...sel.map(n => n.startBeat))
+        const clipNotes: ClipNote[] = sel.map(n => ({ string: n.string, fret: n.fret, duration: n.duration, startBeat: n.startBeat - minBeat }))
+        const selIds   = new Set(sel.map(n => n.id))
+        const clipGroups: ClipGroup[] = useTablatureR3FStore.getState().chordGroups
+          .filter(g => g.noteIds.every(id => selIds.has(id)))
+          .map(g => ({ chordName: g.chordName, noteIndices: g.noteIds.map(id => sel.findIndex(n => n.id === id)) }))
+        clipboard.current = { notes: clipNotes, groups: clipGroups }
       }
       if (ctrl && e.key === 'v') {
-        if (!clipboard.current.length) return
+        if (!clipboard.current.notes.length) return
         e.preventDefault()
         pushHistory()
         const all     = useTablatureR3FStore.getState().notes
         const pasteAt = all.length > 0 ? Math.max(...all.map(n => n.startBeat + n.duration)) : 0
-        const newIds: string[] = []
-        for (const cn of clipboard.current)
-          newIds.push(addNote({ ...cn, startBeat: pasteAt + cn.startBeat }))
+        const newIds: string[] = clipboard.current.notes.map(cn => addNote({ ...cn, startBeat: pasteAt + cn.startBeat }))
+        for (const cg of clipboard.current.groups) {
+          const groupNoteIds = cg.noteIndices.map(i => newIds[i]).filter(Boolean)
+          if (groupNoteIds.length) addChordGroup(groupNoteIds, cg.chordName)
+        }
         setSelectedIds(new Set(newIds))
       }
 
@@ -654,6 +766,21 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
 
 
+  // Which notes are the root (tonic) of their chord group — used for blink overlay
+  const rootNoteIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const group of chordGroups) {
+      const tonic = Chord.get(group.chordName).tonic
+      if (!tonic) continue
+      for (const noteId of group.noteIds) {
+        const n = notes.find(n => n.id === noteId)
+        if (!n || !tuningArr[n.string]) continue
+        if (Note.pitchClass(getNoteName(tuningArr[n.string], n.fret)) === tonic) ids.add(noteId)
+      }
+    }
+    return ids
+  }, [notes, chordGroups, tuningArr])
+
   const laneBgGeo = useMemo(() => new THREE.PlaneGeometry(LARGE_W, LANE_H), [])
   const laneBgMat = useMemo(() => new THREE.MeshBasicMaterial({ color: LANE_COL }), [])
   const matBeat   = useMemo(() => new THREE.LineBasicMaterial({ color: BEAT_LINE_COL }), [])
@@ -696,7 +823,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     const w  = note.duration * BEAT_W
     const lx = e.point.x - note.startBeat * BEAT_W
     const tp = noteZone(lx, w)
-    drag.current = { kind: 'note', noteId: note.id, type: tp, startX: e.point.x, origBeat: note.startBeat, origDur: note.duration }
+    drag.current = { kind: 'note', noteId: note.id, type: tp, startX: e.point.x, origBeat: note.startBeat, origDur: note.duration, origSi: note.string, origFret: note.fret }
     gl.domElement.style.cursor = tp === 'move' ? 'grabbing' : zoneCursor(tp)
   }
 
@@ -724,8 +851,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       ))}
 
       {/* Grid lines */}
-      <lineSegments geometry={beatGeo} material={matBeat} frustumCulled={false} />
-      <lineSegments geometry={measGeo} material={matMeas} frustumCulled={false} />
+      <lineSegments position={[0, 0, -0.035]} geometry={beatGeo} material={matBeat} frustumCulled={false} />
+      <lineSegments position={[0, 0, -0.035]} geometry={measGeo} material={matMeas} frustumCulled={false} />
 
       {/* Measure labels */}
       {Array.from({ length: rightMeas - leftMeas + 1 }, (_, i) => {
@@ -801,10 +928,20 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
       {/* Notes */}
       {notes.map(note => {
-        const w     = note.duration * BEAT_W
-        const cx    = note.startBeat * BEAT_W + w / 2
-        const y     = stringY(note.string)
-        const color = noteColor(note)
+        const w          = note.duration * BEAT_W
+        const cx         = note.startBeat * BEAT_W + w / 2
+        const y          = stringY(note.string)
+        const color      = noteColor(note)
+        // Sticky-left label: clamp to camera left edge so number stays visible
+        const noteLeftX  = note.startBeat * BEAT_W
+        const noteRightX = noteLeftX + w
+        const camLeft    = scrollX - halfW
+        const camRight   = scrollX + halfW
+        const labelVisible   = noteRightX > camLeft && noteLeftX < camRight
+        const podWidthPx     = w / (2 * halfW) * gl.domElement.clientWidth
+        const showNoteName   = podWidthPx >= 50
+        // Local X inside the group: max of note's left edge or camera left edge, + small padding
+        const labelLocalX  = Math.max(noteLeftX, camLeft) - cx + 0.15
 
         return (
           <group key={note.id} position={[cx, y, 0]}>
@@ -815,7 +952,9 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               </mesh>
             )}
             <mesh geometry={getNoteGeo(w)}>
-              <meshBasicMaterial color={color} />
+              {rootNoteIds.has(note.id)
+                ? <BlinkMaterial color={color} />
+                : <meshBasicMaterial color={color} />}
             </mesh>
 
             <mesh position={[0, 0, 0.02]}
@@ -830,7 +969,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
               onDoubleClick={e => {
                 e.stopPropagation()
-                setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
+                const inGroup = chordGroups.some(g => g.noteIds.includes(note.id))
+                if (inGroup) {
+                  const newFret = nextFretSamePc(tuningArr[note.string], note.fret)
+                  if (newFret !== note.fret) { pushHistory(); updateNote(note.id, { fret: newFret }) }
+                } else {
+                  setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
+                }
               }}
               onContextMenu={e => {
                 e.stopPropagation()
@@ -855,11 +1000,18 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                   }}
                   onBlur={() => confirmEdit(note.id, inputVal)} />
               </Html>
-            ) : (
-              <Html center style={{ pointerEvents: 'none' }}>
-                <span className="tab-r3f-fret-label">{note.fret}</span>
+            ) : labelVisible ? (
+              <Html position={[labelLocalX, 0, 0.03]} style={{ pointerEvents: 'none', transform: 'translateY(-50%)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="tab-r3f-fret-label" style={{ color: darkenPodColor(color) }}>{note.fret}</span>
+                  {showNoteName && (
+                    <span className="tab-r3f-fret-label" style={{ color: darkenPodColor(color), opacity: 0.4 }}>
+                      {Note.pitchClass(getNoteName(tuningArr[note.string], note.fret))}
+                    </span>
+                  )}
+                </span>
               </Html>
-            )}
+            ) : null}
           </group>
         )
       })}

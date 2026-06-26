@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Note } from 'tonal'
+import { Note, Chord } from 'tonal'
 import { useMainStore } from '../stores/useMainStore'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMidiUtils } from '../composables/useMidiUtils'
@@ -20,8 +20,9 @@ function findModeByTabName(name: string): ModeGuitar | null {
 }
 
 export default function SmartFretboard() {
-  const userScale    = useMainStore(s => s.userScale)
-  const modeObject   = useMainStore(s => s.modeObject)
+  const userScale           = useMainStore(s => s.userScale)
+  const modeObject          = useMainStore(s => s.modeObject)
+  const tabHoveredChordName = useMainStore(s => s.tabHoveredChordName)
   const { notesToMidi } = useMidiUtils()
 
   // ── Tablature sync ────────────────────────────────────────────────────────
@@ -45,10 +46,14 @@ export default function SmartFretboard() {
   const cords = useMemo(() => tabTuning.split(','), [tabTuning])
 
   const midiList = useMemo(() => {
+    if (tabHoveredChordName) {
+      const pcs = Chord.get(tabHoveredChordName).notes   // pitch classes e.g. ["C","E","G","B"]
+      return notesToMidi(pcs.map(pc => `${pc}4`))         // octave 4 → pitch-class match in Tab
+    }
     const eff = contextModeObject ?? modeObject
     const modeNotes = eff.intervals.map((iv: string) => Note.transpose(userScale, iv))
     return notesToMidi(modeNotes)
-  }, [userScale, modeObject, contextModeObject, notesToMidi])
+  }, [tabHoveredChordName, userScale, modeObject, contextModeObject, notesToMidi])
 
   return (
     <Tab
