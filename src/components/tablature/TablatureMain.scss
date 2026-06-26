@@ -1,54 +1,40 @@
 .partition-tab-container {
   display: flex;
   flex-direction: column;
-  background-color: #2a2a2a;
+  height: 100%;
+  background-color: #1e1e1e;
   border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 10px 12px 8px;
+  box-sizing: border-box;
   color: #e0e0e0;
 
   .tab-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
 
     .tab-title {
       margin: 0;
-      font-size: 1.2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #ccc;
     }
 
     .tuning-info {
-      font-size: 0.9rem;
-      color: #aaa;
+      font-size: 0.78rem;
+      color: #888;
       font-family: monospace;
     }
   }
 
-  .tab-content {
+  // R3F canvas area — fills remaining vertical space
+  .tab-r3f-content {
     flex: 1;
-    overflow-y: auto;
-    background-color: #333;
-    border-radius: 4px;
-    padding: 10px;
-  }
-
-  .tab-controls {
-    margin-top: 15px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-}
-
-@media (min-width: 768px) {
-  .tab-controls {
-    flex-direction: row !important;
-    justify-content: space-between;
-
-    .measure-navigation,
-    .playback-controls {
-      flex: 1;
-    }
+    min-height: 0;     // critical: lets flex child shrink below content size
+    border-radius: 6px;
+    overflow: hidden;
+    background: #171717;
   }
 }

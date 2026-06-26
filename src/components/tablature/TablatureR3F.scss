@@ -1,0 +1,85 @@
+.tab-r3f-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+}
+
+// Sticky sidebar: string name labels, aligned to camera Y positions
+.tab-r3f-sidebar {
+  width: 34px;
+  flex-shrink: 0;
+  position: relative;
+  background: #111111;
+
+  .tab-r3f-string-label {
+    position: absolute;
+    right: 6px;
+    transform: translateY(-50%);
+  }
+}
+
+// Canvas occupies remaining width
+.tab-r3f-canvas-area {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+
+  canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+
+.tab-r3f-fret-input {
+  width: 38px;
+  height: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1.5px solid #FF9500;
+  border-radius: 5px;
+  color: #fff;
+  outline: none;
+  padding: 0 2px;
+  caret-color: #FF9500;
+
+  &:focus {
+    border-color: #ffb443;
+    box-shadow: 0 0 0 2px rgba(255, 149, 0, 0.25);
+  }
+}
+
+.tab-r3f-fret-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.tab-r3f-string-label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #888;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.tab-r3f-meas-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #555;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

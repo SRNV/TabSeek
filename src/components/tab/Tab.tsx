@@ -47,7 +47,8 @@ const CHORD_ORANGE    = '#FF9500'
 const CHORD_ROOT_BLUE = '#3355FF'
 const OPEN_DIM           = 0.38
 const CHORD_LINE_HALF_W  = 0.08  // world-space half-width ≈ 10px at typical zoom
-const MAX_CHORD_SEGS     = 8     // max segments between chord interval cells
+const MAX_CHORD_SEGS     = 120   // 6 intervals * 20 subdivisions each
+const SUBDIVISIONS       = 20
 
 // ── Octave brightness ─────────────────────────────────────────────────────────
 // 25% total delta: ×0.875 at oct 2, ×1.125 at oct 5 (multiplicative on base lightness)
@@ -206,10 +207,6 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   // ── Chord interval connector line ─────────────────────────────────────────
   const chordLineMeshRef = useRef<THREE.Mesh>(null!)
   const lineActiveRef    = useRef(false)
-  const lineSegsRef      = useRef<Array<{
-    ax: number; ay: number; bx: number; by: number
-    cA: THREE.Color; cB: THREE.Color
-  }>>([])
 
   const chordLineMat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
@@ -440,8 +437,7 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   }, [cells, dimColor, scaleGrey])
 
   // ── Chord line geometry builder (called from useFrame on chord change) ──────
-  // Separates the centerline (aCenterPos) from the perpendicular offset (aPerp)
-  // so the vertex shader can pulse only the centerline from the centroid.
+  // Divides each interval-to-interval path into SUBDIVISIONS points (20)
   function updateChordLineGeo() {
     const posAttr = chordLineGeo.attributes.position   as THREE.BufferAttribute
     const cpAttr  = chordLineGeo.attributes.aCenterPos as THREE.BufferAttribute
@@ -449,42 +445,69 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
     const colAttr = chordLineGeo.attributes.aColor     as THREE.BufferAttribute
     const guAttr  = chordLineGeo.attributes.aGlobalU   as THREE.BufferAttribute
     const uvAttr  = chordLineGeo.attributes.uv         as THREE.BufferAttribute
-    const segs    = lineSegsRef.current
-    const S       = segs.length  // actual number of segments (0 when inactive)
-    for (let s = 0; s < MAX_CHORD_SEGS; s++) {
-      const seg  = segs[s]
-      const b    = s * 4
-      if (!seg) {
-        for (let v = 0; v < 4; v++) {
-          posAttr.setXYZ(b+v, 0, 0, 0); cpAttr.setXYZ(b+v, 0, 0, 0)
-          prpAttr.setXYZ(b+v, 0, 0, 0); colAttr.setXYZ(b+v, 0, 0, 0)
-          guAttr.setX(b+v, 0); uvAttr.setXY(b+v, 0, 0)
+    const intervals = chordOutlineActiveRef.current.map(idx => cells[idx]).filter(Boolean)
+    
+    let currentSegIdx = 0
+    const nIntervals = intervals.length
+
+    if (nIntervals >= 2) {
+      for (let i = 0; i < nIntervals - 1; i++) {
+        const start = intervals[i]
+        const end   = intervals[i + 1]
+        
+        for (let s = 0; s < SUBDIVISIONS; s++) {
+          const b = currentSegIdx * 4
+          const t0 = s / SUBDIVISIONS
+          const t1 = (s + 1) / SUBDIVISIONS
+          
+          const ax = start.posX + (end.posX - start.posX) * t0
+          const ay = start.posY + (end.posY - start.posY) * t0
+          const bx = start.posX + (end.posX - start.posX) * t1
+          const by = start.posY + (end.posY - start.posY) * t1
+          
+          const cA = start.color.clone().lerp(end.color, t0)
+          const cB = start.color.clone().lerp(end.color, t1)
+          
+          const dx  = bx - ax
+          const dy  = by - ay
+          const len = Math.sqrt(dx * dx + dy * dy) || 1
+          const px  = -dy / len * CHORD_LINE_HALF_W
+          const py  =  dx / len * CHORD_LINE_HALF_W
+          const z   = 0.001
+
+          // Global U across the entire chord sequence
+          const totalPoints = (nIntervals - 1) * SUBDIVISIONS
+          const gu0 = currentSegIdx / totalPoints
+          const gu1 = (currentSegIdx + 1) / totalPoints
+
+          cpAttr.setXYZ(b+0, ax, ay, z);  cpAttr.setXYZ(b+1, ax, ay, z)
+          cpAttr.setXYZ(b+2, bx, by, z);  cpAttr.setXYZ(b+3, bx, by, z)
+          prpAttr.setXYZ(b+0, -px, -py, 0); prpAttr.setXYZ(b+1, px, py, 0)
+          prpAttr.setXYZ(b+2, -px, -py, 0); prpAttr.setXYZ(b+3, px, py, 0)
+          posAttr.setXYZ(b+0, ax-px, ay-py, z); posAttr.setXYZ(b+1, ax+px, ay+py, z)
+          posAttr.setXYZ(b+2, bx-px, by-py, z); posAttr.setXYZ(b+3, bx+px, by+py, z)
+          guAttr.setX(b+0, gu0); guAttr.setX(b+1, gu0)
+          guAttr.setX(b+2, gu1); guAttr.setX(b+3, gu1)
+          uvAttr.setXY(b+0, 0, 0); uvAttr.setXY(b+1, 0, 1)
+          uvAttr.setXY(b+2, 1, 0); uvAttr.setXY(b+3, 1, 1)
+          colAttr.setXYZ(b+0, cA.r, cA.g, cA.b); colAttr.setXYZ(b+1, cA.r, cA.g, cA.b)
+          colAttr.setXYZ(b+2, cB.r, cB.g, cB.b); colAttr.setXYZ(b+3, cB.r, cB.g, cB.b)
+          
+          currentSegIdx++
         }
-        continue
       }
-      const { ax, ay, bx, by, cA, cB } = seg
-      const dx  = bx - ax
-      const dy  = by - ay
-      const len = Math.sqrt(dx * dx + dy * dy) || 1
-      const px  = -dy / len * CHORD_LINE_HALF_W
-      const py  =  dx / len * CHORD_LINE_HALF_W
-      const z   = 0.001
-      // Global U: maps this segment's start/end into [0,1] across the entire path
-      const u0  = S > 0 ? s / S : 0
-      const u1  = S > 0 ? (s + 1) / S : 1
-      cpAttr.setXYZ(b+0, ax, ay, z);  cpAttr.setXYZ(b+1, ax, ay, z)
-      cpAttr.setXYZ(b+2, bx, by, z);  cpAttr.setXYZ(b+3, bx, by, z)
-      prpAttr.setXYZ(b+0, -px, -py, 0);  prpAttr.setXYZ(b+1, px, py, 0)
-      prpAttr.setXYZ(b+2, -px, -py, 0);  prpAttr.setXYZ(b+3, px, py, 0)
-      posAttr.setXYZ(b+0, ax-px, ay-py, z);  posAttr.setXYZ(b+1, ax+px, ay+py, z)
-      posAttr.setXYZ(b+2, bx-px, by-py, z);  posAttr.setXYZ(b+3, bx+px, by+py, z)
-      guAttr.setX(b+0, u0);  guAttr.setX(b+1, u0)
-      guAttr.setX(b+2, u1);  guAttr.setX(b+3, u1)
-      uvAttr.setXY(b+0, 0, 0);  uvAttr.setXY(b+1, 0, 1)
-      uvAttr.setXY(b+2, 1, 0);  uvAttr.setXY(b+3, 1, 1)
-      colAttr.setXYZ(b+0, cA.r, cA.g, cA.b);  colAttr.setXYZ(b+1, cA.r, cA.g, cA.b)
-      colAttr.setXYZ(b+2, cB.r, cB.g, cB.b);  colAttr.setXYZ(b+3, cB.r, cB.g, cB.b)
     }
+
+    // Hide remaining unused segments
+    for (let s = currentSegIdx; s < MAX_CHORD_SEGS; s++) {
+      const b = s * 4
+      for (let v = 0; v < 4; v++) {
+        posAttr.setXYZ(b+v, 0, 0, 0); cpAttr.setXYZ(b+v, 0, 0, 0)
+        prpAttr.setXYZ(b+v, 0, 0, 0); colAttr.setXYZ(b+v, 0, 0, 0)
+        guAttr.setX(b+v, 0); uvAttr.setXY(b+v, 0, 0)
+      }
+    }
+
     posAttr.needsUpdate = true;  cpAttr.needsUpdate  = true
     prpAttr.needsUpdate = true;  colAttr.needsUpdate = true
     guAttr.needsUpdate  = true;  uvAttr.needsUpdate  = true
@@ -617,19 +640,6 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       // Build connector-line segments from the newly active chord cells
       const lineCells = chordOutlineActiveRef.current.map(idx => cells[idx]).filter(Boolean)
       lineActiveRef.current = lineCells.length >= 2
-      if (lineActiveRef.current) {
-        lineSegsRef.current = []
-        for (let i = 0; i < lineCells.length - 1; i++) {
-          lineSegsRef.current.push({
-            ax: lineCells[i].posX,     ay: lineCells[i].posY,
-            bx: lineCells[i + 1].posX, by: lineCells[i + 1].posY,
-            cA: lineCells[i].color.clone(),
-            cB: lineCells[i + 1].color.clone(),
-          })
-        }
-      } else {
-        lineSegsRef.current = []
-      }
       updateChordLineGeo()
     }
 
