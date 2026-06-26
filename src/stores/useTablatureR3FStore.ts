@@ -40,8 +40,9 @@ interface State {
   deleteNote:            (id: string) => void
   addChordGroup:         (noteIds: string[], chordName: string) => string
   removeChordGroup:      (id: string) => void
-  addProgressionGroup:   (chordGroupIds: string[], name: string) => string
-  removeProgressionGroup:(id: string) => void
+  addProgressionGroup:    (chordGroupIds: string[], name: string) => string
+  updateProgressionGroup: (id: string, patch: Partial<Pick<ProgressionGroup, 'name' | 'chordGroupIds'>>) => void
+  removeProgressionGroup: (id: string) => void
 
   pushHistory: () => void
   undo: () => void
@@ -99,8 +100,23 @@ export const useTablatureR3FStore = create<State>((set) => ({
     return id
   },
 
+  updateProgressionGroup: (id, patch) =>
+    set(s => ({
+      progressionGroups: s.progressionGroups.map(p => p.id === id ? { ...p, ...patch } : p),
+    })),
+
   removeProgressionGroup: (id) =>
-    set(s => ({ progressionGroups: s.progressionGroups.filter(p => p.id !== id) })),
+    set(s => {
+      const prog = s.progressionGroups.find(p => p.id === id)
+      if (!prog) return s
+      const gIds = new Set(prog.chordGroupIds)
+      const nIds = new Set(s.chordGroups.filter(g => gIds.has(g.id)).flatMap(g => g.noteIds))
+      return {
+        notes: s.notes.filter(n => !nIds.has(n.id)),
+        chordGroups: s.chordGroups.filter(g => !gIds.has(g.id)),
+        progressionGroups: s.progressionGroups.filter(p => p.id !== id),
+      }
+    }),
 
   pushHistory: () =>
     set(s => ({

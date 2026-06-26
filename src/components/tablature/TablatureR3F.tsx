@@ -48,19 +48,16 @@ const gridBottom = -gridTop
 const INFO_LANE_GAP = 0.20
 const INFO_LANE_H   = LANE_H
 const infoLaneY     = gridBottom - INFO_LANE_GAP - INFO_LANE_H / 2
-// Progression lane — sits below info lane
-const PROG_LANE_GAP = 0.12
-const PROG_LANE_H   = LANE_H * 0.75
-const progLaneY     = infoLaneY - INFO_LANE_H / 2 - PROG_LANE_GAP - PROG_LANE_H / 2
-// Asymmetric frustum: top = symmetric, bottom extended to include both lanes + margin
+// Asymmetric frustum: top = symmetric, bottom extended to include info lane + margin
 const CAM_HALF_H_TOP = gridTop + STRING_H * 0.35
-const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + PROG_LANE_GAP + PROG_LANE_H + 0.30
+const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + 0.30
 
 // Progression pod style
 const PROG_BORDER_COL = '#5B8EE8'
-const PROG_COL        = '#1a2440'
-const PROG_PAD_H      = 0.45   // extra horizontal padding beyond chord pod range
-const PROG_PAD_V      = 0.20   // extra vertical padding above/below chord pods
+const PROG_FILL_COL   = BG_COL
+const PROG_FILL_HOV   = '#4a4a4a'
+const PROG_PAD_H      = 1.20   // extra padding beyond chord pod edges on each side
+const PROG_PAD_V      = 0.55
 
 const CHORD_DUR       = BEATS_PER_MEAS   // 4 beats per chord slot when dropping a progression
 const CHORD_PAD_H     = 0.25            // horizontal padding around chord pod (WU ≈ 5px)
@@ -172,23 +169,43 @@ function nextFretSamePc(openNote: string, currentFret: number): number {
   return matches[(matches.indexOf(currentFret) + 1) % matches.length]
 }
 
-// Returns the maximum allowed dBeat for a chord group move (no overlap with external notes)
+// Returns the maximum allowed dBeat for a chord group move (no overlap with external notes or other groups)
 function constrainChordGroupMove(
   origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>,
-  groupIds: Set<string>,
+  movingNoteIds: Set<string>,
   dBeat: number
 ): number {
-  const all = useTablatureR3FStore.getState().notes
+  const state  = useTablatureR3FStore.getState()
+  const all    = state.notes
+  const groups = state.chordGroups
   let lo = -1e9, hi = 1e9
+
+  const gMin = Math.min(...origNotes.map(n => n.startBeat))
+  const gMax = Math.max(...origNotes.map(n => n.startBeat + n.duration))
+
+  // 1. Per-string collision (standard piano roll)
   for (const gn of origNotes) {
     for (const n of all) {
-      if (groupIds.has(n.id) || n.string !== gn.string) continue
+      if (movingNoteIds.has(n.id) || n.string !== gn.string) continue
       if (n.startBeat + n.duration <= gn.startBeat)
         lo = Math.max(lo, n.startBeat + n.duration - gn.startBeat)
       else if (n.startBeat >= gn.startBeat + gn.duration)
         hi = Math.min(hi, n.startBeat - (gn.startBeat + gn.duration))
     }
   }
+
+  // 2. Monolithic chord-chord collision (chords block each other as units)
+  for (const other of groups) {
+    if (other.noteIds.some(id => movingNoteIds.has(id))) continue
+    const otherNotes = all.filter(n => other.noteIds.includes(n.id))
+    if (!otherNotes.length) continue
+    const oMin = Math.min(...otherNotes.map(n => n.startBeat))
+    const oMax = Math.max(...otherNotes.map(n => n.startBeat + n.duration))
+
+    if (oMax <= gMin) lo = Math.max(lo, oMax - gMin)
+    else if (oMin >= gMax) hi = Math.min(hi, oMin - gMax)
+  }
+
   return Math.max(lo, Math.min(hi, dBeat))
 }
 
@@ -255,10 +272,20 @@ type ClipGroup = { noteIndices: number[]; chordName: string }
 type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
 type DragProgGroup = {
   kind: 'prog-group'
+  type: 'move'|'resize-left'|'resize-right'
   progId: string
   startX: number
+  origProgStart: number
+  origProgEnd: number
   origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>
   didMove: boolean
+}
+type DragNewProg = {
+  kind: 'new-prog'
+  startBeat: number
+  endBeat: number
+  fromGroupId?: string
+  ctrlKey?: boolean
 }
 
 // ── BlinkMaterial: 0.5 Hz pulse, imperative ShaderMaterial to avoid colorspace issues ──
@@ -290,7 +317,7 @@ interface SceneProps { onStringYPcts: (pcts: number[]) => void }
 // ── Scene ───────────────────────────────────────────────────────────────────────
 function TablatureScene({ onStringYPcts }: SceneProps) {
   const { camera, gl, size, scene } = useThree()
-  const { notes, chordGroups, progressionGroups, addNote, updateNote, deleteNote, addChordGroup, removeChordGroup, addProgressionGroup, removeProgressionGroup, pushHistory, undo, redo } = useTablatureR3FStore()
+  const { notes, chordGroups, progressionGroups, addNote, updateNote, deleteNote, addChordGroup, removeChordGroup, addProgressionGroup, updateProgressionGroup, removeProgressionGroup, pushHistory, undo, redo } = useTablatureR3FStore()
 
   const userScale  = useMainStore(s => s.userScale)
   const modeObject = useMainStore(s => s.modeObject)
@@ -424,9 +451,11 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const beat   = Math.max(0, snapBeat(worldX / BEAT_W))
       const scalePc = Note.pitchClass(userScale)
 
-      const { addNote: add, addChordGroup: addGrp, pushHistory: ph } = useTablatureR3FStore.getState()
+      const { addNote: add, addChordGroup: addGrp, addProgressionGroup: addProg, pushHistory: ph } = useTablatureR3FStore.getState()
       ph()
       const tuning = useTablatureStore.getState().tuning.split(',')
+      const addedGroupIds: string[] = []
+
       prog.numerals.split('-').forEach((numeral, ci) => {
         const startBeat = beat + ci * CHORD_DUR
         const chordName = numeralToChordName(numeral, scalePc)
@@ -438,8 +467,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           const fret = findFretForPc(tuning[targetSi], pc)
           addedIds.push(add({ string: targetSi, startBeat, duration: CHORD_DUR, fret }))
         })
-        if (addedIds.length > 0) addGrp(addedIds, chordName)
+        if (addedIds.length > 0) {
+          const gId = addGrp(addedIds, chordName)
+          addedGroupIds.push(gId)
+        }
       })
+
+      if (addedGroupIds.length > 0) {
+        addProg(addedGroupIds, prog.name || 'Progression')
+      }
     }
 
     canvas.addEventListener('dragover',  onDragOver)
@@ -465,12 +501,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   const [rectBox, setRectBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
-  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | null>(null)
+  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | null>(null)
+  const [newProgDrag, setNewProgDrag] = useState<{ startBeat: number; endBeat: number } | null>(null)
   const [hoveredGroupId,      setHoveredGroupId]      = useState<string | null>(null)
   const [labelHoveredGroupId, setLabelHoveredGroupId] = useState<string | null>(null)
   const [hoveredProgId,       setHoveredProgId]       = useState<string | null>(null)
   const [labelHoveredProgId,  setLabelHoveredProgId]  = useState<string | null>(null)
   const [selectedChordGroupIds, setSelectedChordGroupIds] = useState<Set<string>>(new Set())
+  const [editingProgId,   setEditingProgId]   = useState<string | null>(null)
+  const [editingProgName, setEditingProgName] = useState('')
   const selectedChordGroupIdsRef = useRef<Set<string>>(new Set())
   useEffect(() => { selectedChordGroupIdsRef.current = selectedChordGroupIds }, [selectedChordGroupIds])
 
@@ -555,6 +594,36 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
             updateNote(n.id, { startBeat: Math.max(0, d.origGroupEnd - relFromRight * newW - newDur), duration: newDur })
           }
         }
+      } else if (d?.kind === 'prog-group') {
+        const worldX = wx(e.clientX)
+        const origW  = d.origProgEnd - d.origProgStart
+        if (!d.didMove) { pushHistory(); (drag.current as DragProgGroup).didMove = true }
+        if (d.type === 'move') {
+          const rawDelta = snapBeat((worldX - d.startX) / BEAT_W)
+          const groupNoteIds = new Set(d.origNotes.map(n => n.id))
+          const dBeat = constrainChordGroupMove(d.origNotes, groupNoteIds, rawDelta)
+          for (const n of d.origNotes)
+            updateNote(n.id, { startBeat: Math.max(0, n.startBeat + dBeat) })
+        } else if (d.type === 'resize-right') {
+          const newEnd = Math.max(d.origProgStart + MIN_DUR, snapBeat(worldX / BEAT_W))
+          const newW   = newEnd - d.origProgStart
+          for (const n of d.origNotes) {
+            const relStart = (n.startBeat - d.origProgStart) / origW
+            updateNote(n.id, { startBeat: d.origProgStart + relStart * newW, duration: Math.max(MIN_DUR, (n.duration / origW) * newW) })
+          }
+        } else {
+          const newStart = Math.max(0, Math.min(d.origProgEnd - MIN_DUR, snapBeat(worldX / BEAT_W)))
+          const newW     = d.origProgEnd - newStart
+          for (const n of d.origNotes) {
+            const relFromRight = (d.origProgEnd - (n.startBeat + n.duration)) / origW
+            const newDur  = Math.max(MIN_DUR, (n.duration / origW) * newW)
+            updateNote(n.id, { startBeat: Math.max(0, d.origProgEnd - relFromRight * newW - newDur), duration: newDur })
+          }
+        }
+      } else if (d?.kind === 'new-prog') {
+        const endBeat = wx(e.clientX) / BEAT_W
+        ;(drag.current as DragNewProg).endBeat = endBeat
+        setNewProgDrag({ startBeat: d.startBeat, endBeat })
       } else if (d?.kind === 'rect') {
         const upd = { ...d, x1: wx(e.clientX), y1: wy(e.clientY) }
         drag.current = upd
@@ -585,6 +654,34 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           .map(n => n.id)
         setSelectedIds(new Set(hits))
         setRectBox(null)
+      } else if (d?.kind === 'new-prog') {
+        setNewProgDrag(null)
+        const beatMin = Math.min(d.startBeat, d.endBeat)
+        const beatMax = Math.max(d.startBeat, d.endBeat)
+        if (beatMax - beatMin > 0.1) {
+          const state = useTablatureR3FStore.getState()
+          const matching = state.chordGroups.filter(g => {
+            const gNotes = state.notes.filter(n => g.noteIds.includes(n.id))
+            if (!gNotes.length) return false
+            const gMin = Math.min(...gNotes.map(n => n.startBeat))
+            const gMax = Math.max(...gNotes.map(n => n.startBeat + n.duration))
+            return gMin < beatMax && gMax > beatMin
+          })
+          if (matching.length > 0) {
+            pushHistory()
+            state.addProgressionGroup(matching.map(g => g.id), 'Progression')
+          }
+        } else if (d.fromGroupId) {
+          const gId = d.fromGroupId
+          setSelectedChordGroupIds(prev => {
+            if (d.ctrlKey) {
+              const s = new Set(prev)
+              s.has(gId) ? s.delete(gId) : s.add(gId)
+              return s
+            }
+            return new Set([gId])
+          })
+        }
       }
       // lanePend click-only → create note handled in onDblClickLane (R3F)
 
@@ -644,6 +741,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           if (groupNoteIds.length) addChordGroup(groupNoteIds, cg.chordName)
         }
         setSelectedIds(new Set(newIds))
+      }
+
+      // Ctrl+G: create progression from selected chord groups → open inline name editor
+      if (ctrl && e.key === 'g' && !e.shiftKey && selectedChordGroupIdsRef.current.size > 0) {
+        e.preventDefault()
+        pushHistory()
+        useTablatureR3FStore.getState().addProgressionGroup([...selectedChordGroupIdsRef.current], 'Progression')
+        setSelectedChordGroupIds(new Set())
+        return
       }
 
       // Ctrl+B: duplicate to the right, pushing collisions
@@ -743,6 +849,52 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     }
   }
 
+  // ── Progression group bounds ─────────────────────────────────────────────────
+  function getProgBounds(prog: ProgressionGroup) {
+    const allNotes: TablatureNote[] = []
+    for (const cgId of prog.chordGroupIds) {
+      const cg = chordGroups.find(g => g.id === cgId)
+      if (!cg) continue
+      for (const nId of cg.noteIds) {
+        const n = notes.find(n => n.id === nId)
+        if (n) allNotes.push(n)
+      }
+    }
+    if (!allNotes.length) return null
+    return {
+      beatMin: Math.min(...allNotes.map(n => n.startBeat)),
+      beatMax: Math.max(...allNotes.map(n => n.startBeat + n.duration)),
+      siMin:   Math.min(...allNotes.map(n => n.string)),
+      siMax:   Math.max(...allNotes.map(n => n.string)),
+    }
+  }
+
+  // ── Progression pod pointer-down ──────────────────────────────────────────────
+  function onProgPodDown(e: ThreeEvent<PointerEvent>, prog: ProgressionGroup) {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    const bounds = getProgBounds(prog)
+    if (!bounds) return
+    const podW = (bounds.beatMax - bounds.beatMin) * BEAT_W + CHORD_PAD_H * 2 + PROG_PAD_H * 2
+    const podLeft = bounds.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H
+    const lx = e.point.x - podLeft
+    const type = noteZone(lx, podW)
+
+    const origNotes = prog.chordGroupIds.flatMap(cgId => {
+      const cg = useTablatureR3FStore.getState().chordGroups.find(g => g.id === cgId)
+      if (!cg) return []
+      return useTablatureR3FStore.getState().notes
+        .filter(n => cg.noteIds.includes(n.id))
+        .map(n => ({ id: n.id, startBeat: n.startBeat, duration: n.duration, string: n.string }))
+    })
+    drag.current = {
+      kind: 'prog-group', type, progId: prog.id, startX: e.point.x,
+      origProgStart: bounds.beatMin, origProgEnd: bounds.beatMax,
+      origNotes, didMove: false
+    }
+    gl.domElement.style.cursor = type === 'move' ? 'grabbing' : zoneCursor(type)
+  }
+
   // ── Chord pod pointer-down ────────────────────────────────────────────────────
   function onChordPodDown(e: ThreeEvent<PointerEvent>, group: ChordGroup, podLeft: number, podW: number) {
     if (e.button !== 0) return
@@ -793,6 +945,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     e.stopPropagation()
     if (editingId) { confirmEdit(editingId, inputVal); return }
     setSelectedIds(new Set())
+    setSelectedChordGroupIds(new Set())
     const beat = Math.max(0, snapBeat(e.point.x / BEAT_W))
     lanePend.current = { si, beat, startCX: e.clientX, startCY: e.clientY, startWX: e.point.x, startWY: e.point.y }
   }
@@ -866,8 +1019,106 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         )
       })}
 
-      {/* Info lane — below low E, reserved for labels; no pods/notes overlap it */}
-      <mesh position={[0, infoLaneY, -0.04]} geometry={laneBgGeo} material={laneBgMat} />
+      {/* Info lane — drag on empty space to draw a progression range */}
+      <mesh position={[0, infoLaneY, -0.04]} geometry={laneBgGeo} material={laneBgMat}
+        onPointerDown={e => {
+          if (e.button !== 0) return
+          e.stopPropagation()
+          const startBeat = e.point.x / BEAT_W
+          drag.current = { kind: 'new-prog', startBeat, endBeat: startBeat }
+          setNewProgDrag({ startBeat, endBeat: startBeat })
+          gl.domElement.style.cursor = 'crosshair'
+        }}
+        onPointerEnter={() => { if (!drag.current) gl.domElement.style.cursor = 'crosshair' }}
+        onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
+      />
+
+      {/* Drag preview — blue band in info lane while drawing progression range */}
+      {newProgDrag && (() => {
+        const beatMin = Math.min(newProgDrag.startBeat, newProgDrag.endBeat)
+        const beatMax = Math.max(newProgDrag.startBeat, newProgDrag.endBeat)
+        const w  = (beatMax - beatMin) * BEAT_W
+        const cx = (beatMin + beatMax) / 2 * BEAT_W
+        return (
+          <mesh position={[cx, infoLaneY, -0.038]}>
+            <planeGeometry args={[Math.max(w, 0.01), INFO_LANE_H]} />
+            <meshBasicMaterial color={PROG_BORDER_COL} transparent opacity={0.3} depthWrite={false} />
+          </mesh>
+        )
+      })()}
+
+      {/* Progression pods — sit behind chord pods in the grid */}
+      {progressionGroups.map(prog => {
+        const b = getProgBounds(prog)
+        if (!b) return null
+        const podW  = (b.beatMax - b.beatMin) * BEAT_W + CHORD_PAD_H * 2 + PROG_PAD_H * 2
+        const podH  = (b.siMax - b.siMin + 1) * STRING_H - GAP_WU + (CHORD_PAD_V + PROG_PAD_V) * 2
+        const podCX = (b.beatMin + b.beatMax) / 2 * BEAT_W
+        const podCY = (stringY(b.siMin) + stringY(b.siMax)) / 2
+        const isHov = hoveredProgId === prog.id || labelHoveredProgId === prog.id
+        const bCol  = isHov ? SEL_COL : PROG_BORDER_COL
+        return (
+          <group key={prog.id} position={[podCX, podCY, -0.034]}>
+            {/* Border — forces draw after grid lines (z=-0.035); depth test keeps it behind chord pods */}
+            <mesh geometry={getChordPodGeo(podW, podH, true)}>
+              <meshBasicMaterial color={bCol} />
+            </mesh>
+            {/* Fill — same reasoning; chord pods at z≈-0.027 already wrote depth so this fails their pixels */}
+            <mesh position={[0, 0, 0.001]} geometry={getChordPodGeo(podW, podH)}>
+              <meshBasicMaterial color={isHov ? PROG_FILL_HOV : PROG_FILL_COL} />
+            </mesh>
+            {/* Hit area — z chosen to be behind chord pod hit areas (-0.02) */}
+            <mesh position={[0, 0, 0.009]}
+              onPointerDown={e => onProgPodDown(e, prog)}
+              onPointerEnter={() => { setHoveredProgId(prog.id); if (!drag.current) gl.domElement.style.cursor = 'grab' }}
+              onPointerLeave={() => { setHoveredProgId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
+              onPointerMove={e => {
+                if (drag.current) return
+                const lx = e.point.x - (b.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H)
+                gl.domElement.style.cursor = zoneCursor(noteZone(lx, podW))
+              }}
+              onContextMenu={e => { e.stopPropagation(); pushHistory(); removeProgressionGroup(prog.id) }}
+            >
+              <planeGeometry args={[podW, podH]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+            {/* Label in info lane (aligned with chord labels) */}
+            <Html center position={[0, infoLaneY - podCY, 0.1]} style={{ pointerEvents: 'auto' }}>
+              {editingProgId === prog.id ? (
+                <input
+                  className="tab-r3f-fret-input"
+                  style={{ width: '90px', color: PROG_BORDER_COL, borderColor: PROG_BORDER_COL, background: 'rgba(0,0,0,0.85)' }}
+                  value={editingProgName}
+                  autoFocus
+                  onChange={ev => setEditingProgName(ev.target.value)}
+                  onKeyDown={ev => {
+                    ev.stopPropagation()
+                    if (ev.key === 'Enter' || ev.key === 'Escape') {
+                      if (ev.key === 'Enter') updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
+                      setEditingProgId(null)
+                    }
+                  }}
+                  onBlur={() => {
+                    updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
+                    setEditingProgId(null)
+                  }}
+                />
+              ) : (
+                <span
+                  style={{ fontSize: '11px', fontWeight: 800, color: PROG_BORDER_COL,
+                    userSelect: 'none', whiteSpace: 'nowrap', cursor: 'default',
+                    background: 'rgba(20,20,20,0.7)', padding: '2px 6px', borderRadius: '4px' }}
+                  onMouseEnter={() => setLabelHoveredProgId(prog.id)}
+                  onMouseLeave={() => setLabelHoveredProgId(null)}
+                  onDoubleClick={() => { setEditingProgId(prog.id); setEditingProgName(prog.name) }}
+                >
+                  {prog.name}
+                </span>
+              )}
+            </Html>
+          </group>
+        )
+      })}
 
       {/* Chord pods — rendered behind notes */}
       {chordGroups.map(group => {
@@ -880,7 +1131,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const podLeft = b.beatMin * BEAT_W - CHORD_PAD_H
         const isHovered     = hoveredGroupId === group.id
         const isLabelHover  = labelHoveredGroupId === group.id
-        const borderCol     = isLabelHover ? SEL_COL : CHORD_BORDER_COL
+        const isSelForProg  = selectedChordGroupIds.has(group.id)
+        const borderCol     = isLabelHover ? SEL_COL : isSelForProg ? '#7BA7E8' : CHORD_BORDER_COL
         return (
           <group key={group.id} position={[podCX, podCY, -0.03]}>
             {/* Border (back) — orange on label hover, green otherwise */}
@@ -910,18 +1162,32 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               <planeGeometry args={[podW, podH]} />
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
-            {/* Chord name in info lane — centered on pod X, hover turns pod border orange */}
-            <Html center position={[0, infoLaneY - podCY, 0.1]}>
+            {/* Chord name in info lane — display only; interactions handled by Three.js hit area below */}
+            <Html center position={[0, infoLaneY - podCY, 0.1]} style={{ pointerEvents: 'none' }}>
               <h2
                 style={{ margin: 0, padding: 0, fontSize: '12px', fontWeight: 700,
                   color: CHORD_BORDER_COL, userSelect: 'none', whiteSpace: 'nowrap',
                   lineHeight: 1, cursor: 'default' }}
-                onMouseEnter={() => setLabelHoveredGroupId(group.id)}
-                onMouseLeave={() => setLabelHoveredGroupId(null)}
               >
                 {group.chordName}
               </h2>
             </Html>
+            {/* Info lane Three.js hit area — handles hover + click-to-select + drag-to-create-progression */}
+            <mesh
+              position={[0, infoLaneY - podCY, 0.005]}
+              onPointerDown={e => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                const startBeat = e.point.x / BEAT_W
+                drag.current = { kind: 'new-prog', startBeat, endBeat: startBeat, fromGroupId: group.id, ctrlKey: e.ctrlKey || e.metaKey }
+                setNewProgDrag({ startBeat, endBeat: startBeat })
+              }}
+              onPointerEnter={() => { setLabelHoveredGroupId(group.id); if (!drag.current) gl.domElement.style.cursor = 'crosshair' }}
+              onPointerLeave={() => { setLabelHoveredGroupId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
+            >
+              <planeGeometry args={[podW, INFO_LANE_H]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
           </group>
         )
       })}
