@@ -11,6 +11,7 @@ import type { ChordProgression } from '../../composables/progressions'
 import { useTablatureStore } from '../../stores/useTablatureStore'
 import { useMainStore } from '../../stores/useMainStore'
 import { getNoteName, getNoteDegree } from '../../composables/useNoteHelpers'
+import { playNote, playFullChord, stopAllSounds } from '../../composables/useAudio'
 import './TablatureR3F.scss'
 
 const BEHAVIORS: Record<LegatoBehavior, { name: string, icon: string }> = {
@@ -53,6 +54,7 @@ const OFF_COL       = '#606060'
 const SEL_COL       = '#FF9500'
 const PEND_COL      = '#3d8de0'
 const LEGATO_COL    = '#FFD700'   // gold for legato bubbles
+const APPLE_GREEN   = '#88FF00'
 
 const gridTop    = ((N_STRINGS - 1) / 2) * STRING_H + LANE_H / 2 + 0.12
 const gridBottom = -gridTop
@@ -483,6 +485,7 @@ type DragNewProg = {
   fromGroupId?: string
   ctrlKey?: boolean
 }
+type DragPlayback = { kind: 'playback-beat' }
 
 // ── BlinkMaterial: 0.5 Hz pulse, imperative ShaderMaterial to avoid colorspace issues ──
 const BLINK_VERT = `void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`
@@ -519,8 +522,80 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     addChordGroup, removeChordGroup, 
     addProgressionGroup, updateProgressionGroup, 
     removeProgressionGroup, 
-    setLegato, setLegatoBehavior, addLegatoIntermediate, pushHistory, undo, redo 
+    setLegato, setLegatoBehavior, addLegatoIntermediate, syncLegato, pushHistory, undo, redo,
+    isPlaying, playbackBeat, setPlaybackBeat, tempo, isLooping, setLooping, togglePlayback
   } = useTablatureR3FStore()
+
+  const userScale  = useMainStore(s => s.userScale)
+  const modeObject = useMainStore(s => s.modeObject)
+  const tuning     = useTablatureStore(s => s.tuning)
+
+  const tuningArr  = useMemo(() => tuning.split(','), [tuning])
+  const scaleNotes = useMemo(
+    () => (modeObject.intervals as string[]).map(iv => Note.transpose(userScale, iv)),
+    [userScale, modeObject]
+  )
+
+  const lastBeatRef = useRef(playbackBeat)
+
+  // ── Playback Logic ──────────────────────────────────────────────────────────
+  useFrame((_, delta) => {
+    if (isPlaying) {
+      const beatsPerSecond = tempo / 60
+      let newBeat = playbackBeat + delta * beatsPerSecond
+      
+      // Auto-reset / Loop check
+      const maxBeat = notes.length > 0 
+        ? Math.max(...notes.map(n => n.startBeat + n.duration)) 
+        : 0
+
+      if (notes.length > 0 && newBeat >= maxBeat) {
+        if (isLooping) {
+          newBeat = 0
+          lastBeatRef.current = 0
+        } else {
+          newBeat = 0 // Auto-reset to start when reaching the end
+          togglePlayback()
+          stopAllSounds()
+        }
+      }
+
+      // Sound triggering
+      const start = lastBeatRef.current
+      const end = newBeat
+      
+      if (end >= start) {
+        const toPlay = notes.filter(n => n.startBeat >= start && n.startBeat < end)
+        
+        if (toPlay.length > 0) {
+          const groups = new Map<number, TablatureNote[]>()
+          toPlay.forEach(n => {
+            const list = groups.get(n.startBeat) || []
+            list.push(n)
+            groups.set(n.startBeat, list)
+          })
+
+          groups.forEach((noteList) => {
+            const pitches = noteList.map(n => {
+              const openNote = tuningArr[n.string] ?? 'E2'
+              return getNoteName(openNote, n.fret)
+            })
+            const durSec = Math.max(0.1, noteList[0].duration * (60 / tempo))
+            if (pitches.length > 1) {
+              playFullChord(pitches, durSec)
+            } else {
+              playNote(pitches[0], durSec)
+            }
+          })
+        }
+      }
+
+      lastBeatRef.current = newBeat
+      setPlaybackBeat(newBeat)
+    } else {
+      lastBeatRef.current = playbackBeat
+    }
+  })
 
   const [legatoSourceId, setLegatoSourceId] = useState<string | null>(null)
   const [popoverLegatoId, setPopoverLegatoId] = useState<string | null>(null)
@@ -532,16 +607,6 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     // Immediately sync with behavior (default 'demi-tons')
     syncLegato(sourceId, tuningArr, scaleNotes)
   }
-
-  const userScale  = useMainStore(s => s.userScale)
-  const modeObject = useMainStore(s => s.modeObject)
-  const tuning     = useTablatureStore(s => s.tuning)
-
-  const tuningArr  = useMemo(() => tuning.split(','), [tuning])
-  const scaleNotes = useMemo(
-    () => (modeObject.intervals as string[]).map(iv => Note.transpose(userScale, iv)),
-    [userScale, modeObject]
-  )
 
   useEffect(() => {
     scene.background = new THREE.Color(BG_COL)
@@ -573,25 +638,39 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   useEffect(() => {
     const o = camera as THREE.OrthographicCamera
-    // Init zoom once from aspect ratio, clamped to [ZOOM_MIN, ZOOM_MAX]
+    const aspect = size.width / size.height
+    const camH   = CAM_HALF_H_TOP + CAM_HALF_H_BOT
+
+    // Initial horizontal zoom if not set
     if (visibleMeasRef.current === 0) {
-      const avgHalfH = (CAM_HALF_H_TOP + CAM_HALF_H_BOT) / 2
-      const autoHalfW = avgHalfH * (size.width / size.height)
+      const autoHalfW = (camH * aspect) / 2
       visibleMeasRef.current = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, (autoHalfW * 2) / MEASURE_W))
     }
+    
     const halfW = (visibleMeasRef.current * MEASURE_W) / 2
+    
     // Asymmetric frustum: extra space at bottom for info lane
-    o.top = CAM_HALF_H_TOP; o.bottom = -CAM_HALF_H_BOT; o.zoom = 1
+    o.top    = CAM_HALF_H_TOP
+    o.bottom = -CAM_HALF_H_BOT
+    o.left   = -halfW
+    o.right  = +halfW
+    o.zoom   = 1
+    
+    // Vertical center to align world y=0 correctly
+    o.position.y = 0
     if (!o.position.x || o.position.x < halfW) o.position.x = halfW
-    o.position.y = 0; o.position.z = 10
-    applyCameraW(o, halfW)
+    o.position.z = 10
+    
+    o.updateProjectionMatrix()
+    setScrollX(o.position.x)
+    halfWRef.current = halfW
+
     // Screen % from top: (camTop - worldY) / totalCamH
-    const camH = CAM_HALF_H_TOP + CAM_HALF_H_BOT
     const pcts = Array.from({ length: N_STRINGS }, (_, si) => {
-      const wy = stringY(si); return (CAM_HALF_H_TOP - wy) / camH * 100
+      const wy = stringY(si); return (o.top - wy) / camH * 100
     })
     onStringYPcts(pcts)
-  }, [camera, size, onStringYPcts])
+  }, [camera, size, onStringYPcts, tuningArr])
 
   useEffect(() => {
     const canvas = gl.domElement
@@ -715,7 +794,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   const [rectBox, setRectBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
-  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | null>(null)
+  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | DragPlayback | null>(null)
   const [newProgDrag, setNewProgDrag] = useState<{ startBeat: number; endBeat: number } | null>(null)
   const [hoveredGroupId,      setHoveredGroupId]      = useState<string | null>(null)
   const [labelHoveredGroupId, setLabelHoveredGroupId] = useState<string | null>(null)
@@ -758,9 +837,11 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
     function onMove(e: PointerEvent) {
       const d = drag.current
-      if (!d) return
 
-      if (d.kind === 'note') {
+      if (d?.kind === 'playback-beat') {
+        const beat = wx(e.clientX) / BEAT_W
+        setPlaybackBeat(Math.max(0, Math.min(totalMeasures * BEATS_PER_MEAS, beat)))
+      } else if (d?.kind === 'note') {
         if (d.type === 'bubble-next' || d.type === 'bubble-prev') return
         const dB = (wx(e.clientX) - d.startX) / BEAT_W
         const n  = useTablatureR3FStore.getState().notes.find(n => n.id === d.noteId)
@@ -911,7 +992,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup',   onUp)
     return () => { canvas.removeEventListener('pointermove', onMove); canvas.removeEventListener('pointerup', onUp) }
-  }, [camera, gl, updateNote])
+  }, [camera, gl, updateNote, totalMeasures, setPlaybackBeat, pushHistory, addProgressionGroup, deleteNote, undo, redo, tuningArr, scaleNotes, notes, chordGroups, progressionGroups])
 
   // ── Keyboard ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1631,6 +1712,38 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         )
       })()}
 
+      {/* Playback Indicator */}
+      <group position={[playbackBeat * BEAT_W, 0, 0.2]} 
+        renderOrder={10}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          // Start dragging playback beat
+          drag.current = { kind: 'playback-beat' }
+          // @ts-ignore
+          gl.domElement.setPointerCapture(e.pointerId)
+        }}
+        onPointerEnter={() => { if (!drag.current) gl.domElement.style.cursor = 'pointer' }}
+        onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
+      >
+        {/* Hit area (invisible) */}
+        <mesh>
+          <planeGeometry args={[0.6, gridTop - gridBottom + 1]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+        
+        {/* Vertical Bar */}
+        <mesh position={[0, (gridTop + gridBottom) / 2, -0.1]}>
+          <planeGeometry args={[3 / 100, gridTop - gridBottom + 0.5]} />
+          <meshBasicMaterial color={APPLE_GREEN} transparent opacity={0.6} blending={THREE.AdditiveBlending} />
+        </mesh>
+        
+        {/* Playback Arrow (Triangle pointing down) */}
+        <mesh position={[0, gridTop - 0.15, 0.1]} rotation={[0, 0, Math.PI]}>
+          <coneGeometry args={[0.2, 0.3, 3]} />
+          <meshBasicMaterial color={APPLE_GREEN} />
+        </mesh>
+      </group>
+
       {/* Legato Behavior Popover */}
       {popoverLegatoId && (() => {
         const note = notes.find(n => n.id === popoverLegatoId)
@@ -1677,20 +1790,75 @@ export default function TablatureR3F() {
   const tuning    = useTablatureStore(s => s.tuning)
   const tuningArr = useMemo(() => tuning.split(','), [tuning])
 
+  const { 
+    notes,
+    isPlaying, playbackBeat, togglePlayback, setPlaybackBeat, tempo, setTempo, 
+    isLooping, setLooping 
+  } = useTablatureR3FStore()
+
+  const maxBeat = notes.length > 0 
+    ? Math.max(...notes.map(n => n.startBeat + n.duration)) 
+    : 0
+
   return (
-    <div className="tab-r3f-wrap">
-      <div className="tab-r3f-sidebar">
-        {tuningArr.map((_, si) => (
-          <span key={si} className="tab-r3f-string-label"
-            style={{ top: `${stringYPcts[si] ?? (si + 1) / (N_STRINGS + 1) * 100}%` }}>
-            {stringLabel(tuningArr, si)}
-          </span>
-        ))}
+    <div className="tab-r3f-main-container">
+      <div className="tab-r3f-top-content">
+        <div className="tab-r3f-sidebar">
+          {tuningArr.map((_, si) => (
+            <span key={si} className="tab-r3f-string-label"
+              style={{ top: `${stringYPcts[si] ?? (si + 1) / (N_STRINGS + 1) * 100}%` }}>
+              {stringLabel(tuningArr, si)}
+            </span>
+          ))}
+        </div>
+        <div className="tab-r3f-canvas-area">
+          <Canvas orthographic camera={{ zoom: 1, position: [0, 0, 10] }} gl={{ antialias: true }}>
+            <TablatureScene onStringYPcts={setStringYPcts} />
+          </Canvas>
+        </div>
       </div>
-      <div className="tab-r3f-canvas-area">
-        <Canvas orthographic camera={{ zoom: 1, position: [0, 0, 10] }} gl={{ antialias: true }}>
-          <TablatureScene onStringYPcts={setStringYPcts} />
-        </Canvas>
+
+      {/* Playback Controls Footer */}
+      <div className="tab-playback-footer">
+        <div className="playback-btns">
+          <button className="ctrl-btn play-btn" onClick={() => {
+            if (isPlaying) {
+              stopAllSounds()
+            } else {
+              // If we are at the end, restart from 0
+              if (playbackBeat >= maxBeat - 0.01) {
+                setPlaybackBeat(0)
+              }
+            }
+            togglePlayback()
+          }}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="ctrl-btn stop-btn" onClick={() => {
+            if (isPlaying) togglePlayback()
+            stopAllSounds()
+            setPlaybackBeat(0)
+          }}>
+            ⏹
+          </button>
+          <button 
+            className={`ctrl-btn loop-btn${isLooping ? ' active' : ''}`} 
+            onClick={() => setLooping(!isLooping)}
+            title="Loop"
+          >
+            🔁
+          </button>
+        </div>
+
+        <div className="tempo-section">
+          <input 
+            type="number" 
+            className="tempo-input" 
+            value={tempo} 
+            onChange={e => setTempo(Math.max(1, parseInt(e.target.value) || 1))} 
+          />
+          <span className="bpm-label">BPM</span>
+        </div>
       </div>
     </div>
   )

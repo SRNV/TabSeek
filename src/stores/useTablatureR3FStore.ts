@@ -44,6 +44,16 @@ interface State {
   past:             HistoryEntry[]
   future:           HistoryEntry[]
 
+  // Playback
+  isPlaying: boolean
+  playbackBeat: number
+  tempo: number
+  isLooping: boolean
+  togglePlayback: () => void
+  setPlaybackBeat: (beat: number) => void
+  setTempo: (tempo: number) => void
+  setLooping: (loop: boolean) => void
+
   addNote:               (n: Omit<TablatureNote, 'id'>) => string
   updateNote: (id: string, patch: Partial<Omit<TablatureNote, 'id'>>, tuning?: string[], scaleNotes?: string[]) => void
   deleteNote:            (id: string) => void
@@ -179,6 +189,15 @@ function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: stri
 
 export const useTablatureR3FStore = create<State>((set) => ({
   notes: [], chordGroups: [], progressionGroups: [], past: [], future: [],
+  isPlaying: false,
+  playbackBeat: 0,
+  tempo: 120,
+  isLooping: true,
+
+  togglePlayback: () => set(s => ({ isPlaying: !s.isPlaying })),
+  setPlaybackBeat: (beat) => set({ playbackBeat: beat }),
+  setTempo: (tempo) => set({ tempo }),
+  setLooping: (isLooping) => set({ isLooping }),
 
   addNote: (n) => {
     const id = uid()
@@ -219,15 +238,33 @@ export const useTablatureR3FStore = create<State>((set) => ({
         .filter(g => g.noteIds.length > 0)
       const validGroupIds = new Set(newGroups.map(g => g.id))
       
-      return {
-        notes: s.notes
-          .filter(n => n.id !== id && !intermediateToRemove.has(n.id))
-          .map(n => ({
+      const finalNotes = s.notes
+        .filter(n => n.id !== id && !intermediateToRemove.has(n.id))
+        .map(n => {
+          const isSource = n.legatoNext === id
+          const newIntermediateIds = isSource ? [] : n.intermediateNoteIds?.filter(inid => inid !== id)
+          // If it was a legato source and now has no intermediate notes, break the legato
+          const shouldBreakLegato = n.legatoNext && n.intermediateNoteIds && n.intermediateNoteIds.length > 0 && newIntermediateIds?.length === 0
+          
+          return {
             ...n,
-            legatoNext: n.legatoNext === id ? undefined : n.legatoNext,
+            legatoNext: (isSource || shouldBreakLegato) ? undefined : n.legatoNext,
             legatoPrev: n.legatoPrev === id ? undefined : n.legatoPrev,
-            intermediateNoteIds: n.legatoNext === id ? [] : n.intermediateNoteIds?.filter(inid => inid !== id)
-          })),
+            intermediateNoteIds: newIntermediateIds
+          }
+        })
+
+      // Final cleanup: ensure no orphaned legatoPrev
+      const sourceIds = new Set(finalNotes.filter(n => n.legatoNext).map(n => n.id))
+      const cleanedNotes = finalNotes.map(n => {
+        if (n.legatoPrev && !sourceIds.has(n.legatoPrev)) {
+          return { ...n, legatoPrev: undefined }
+        }
+        return n
+      })
+
+      return {
+        notes: cleanedNotes,
         chordGroups: newGroups,
         progressionGroups: s.progressionGroups
           .map(p => ({ ...p, chordGroupIds: p.chordGroupIds.filter(gid => validGroupIds.has(gid)) }))

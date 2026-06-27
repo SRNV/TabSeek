@@ -143,21 +143,39 @@ interface SceneProps {
 }
 
 function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: SceneProps) {
-  const { camera } = useThree()
+  const { camera, size } = useThree()
 
   // ── Camera: frustum covers content exactly → fills canvas edge-to-edge ────
   useEffect(() => {
     const ortho = camera as THREE.OrthographicCamera
-    const hw = ((nSlots - 1) * CELL_W + PLANE_W) / 2
-    const hh = ((N_STRINGS - 1) * CELL_H + PLANE_H) / 2
-    ortho.left   = -hw
-    ortho.right  = +hw
-    ortho.top    = +hh
-    ortho.bottom = -hh
-    ortho.zoom   = 1
+    const contentW = (nSlots - 1) * CELL_W + PLANE_W
+    const contentH = (N_STRINGS - 1) * CELL_H + PLANE_H
+    
+    const canvasAspect  = size.width / size.height
+    const contentAspect = contentW / contentH
+
+    if (canvasAspect > contentAspect) {
+      // Canvas is wider than content -> fit height, expand width frustum to avoid stretch
+      const hw = (contentH * canvasAspect) / 2
+      const hh = contentH / 2
+      ortho.left   = -hw
+      ortho.right  = +hw
+      ortho.top    = +hh
+      ortho.bottom = -hh
+    } else {
+      // Canvas is narrower than content -> fit width, expand height frustum to avoid stretch
+      const hw = contentW / 2
+      const hh = (contentW / canvasAspect) / 2
+      ortho.left   = -hw
+      ortho.right  = +hw
+      ortho.top    = +hh
+      ortho.bottom = -hh
+    }
+
+    ortho.zoom = 1
     ortho.position.set((nSlots - 1) / 2 * CELL_W, 0, 10)
     ortho.updateProjectionMatrix()
-  }, [nSlots, camera])
+  }, [nSlots, camera, size.width, size.height])
 
   // ── Stable geometry + material refs ──────────────────────────────────────
   // NOTE: no vertexColors:true — PlaneGeometry has no color attribute and would
