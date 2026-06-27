@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import './CompiledProgressionItem.scss'
-import { Note } from 'tonal'
 import type { ChordProgression } from '../../composables/progressions'
+import { numeralToChordName } from '../../utils/chordUtils'
 
 interface CompiledProgressionItemProps {
   item: ChordProgression
@@ -13,20 +13,6 @@ interface CompiledProgressionItemProps {
   onMoveUp: () => void
   onMoveDown: () => void
   onRemove: () => void
-}
-
-function getMajorScaleNotes(rootNote: string): string[] {
-  const intervals = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"]
-  return intervals.map(interval => Note.transpose(rootNote, interval))
-}
-
-function romanToDegree(roman: string): number {
-  const map: Record<string, number> = {
-    'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7,
-    'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7
-  }
-  const baseRoman = roman.match(/^([IVXivx]+)/)?.[1] || ''
-  return map[baseRoman] || 1
 }
 
 export default function CompiledProgressionItem({
@@ -41,24 +27,8 @@ export default function CompiledProgressionItem({
   onRemove,
 }: CompiledProgressionItemProps) {
   const chordNotes = useMemo(() => {
-    const scaleNotes = getMajorScaleNotes(rootNote)
     const numerals = item.numerals.split('-')
-    return numerals.map(numeral => {
-      const degree = romanToDegree(numeral)
-      const chordRoot = scaleNotes[(degree - 1) % 7]
-      const isMajor = numeral[0] === numeral[0].toUpperCase()
-      const baseRoman = numeral.match(/^([IVXivx]+)/)?.[1] || ''
-      const modifiers = numeral.substring(baseRoman.length)
-      let chordName = chordRoot
-      if (modifiers.includes('°') || modifiers.includes('dim')) chordName = chordRoot + 'dim'
-      else if (modifiers.includes('+') || modifiers.includes('aug')) chordName = chordRoot + 'aug'
-      else if (modifiers.includes('maj7')) chordName = chordRoot + (isMajor ? 'maj7' : 'mMaj7')
-      else if (modifiers.includes('7')) chordName = chordRoot + (isMajor ? '7' : 'm7')
-      else if (modifiers.includes('6')) chordName = chordRoot + (isMajor ? '6' : 'm6')
-      else if (modifiers.includes('m7b5') || modifiers.includes('Ø')) chordName = chordRoot + 'm7b5'
-      else if (!isMajor) chordName = chordRoot + 'm'
-      return chordName
-    })
+    return numerals.map(numeral => numeralToChordName(numeral, rootNote))
   }, [item, rootNote])
 
   return (

@@ -81,3 +81,63 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+// Mini popover for legato behavior
+.legato-popover {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 15px 15px;
+  white-space: nowrap;
+  pointer-events: auto;
+  opacity: 0;
+  transform: scaleY(0.7) translateY(10px);
+  transform-origin: bottom center;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+
+  &.visible {
+    transform: scaleY(1) translateY(0);
+    opacity: 1;
+  }
+
+  .pop-nav {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    border-radius: 3px;
+    transition: color 0.15s, background-color 0.15s;
+    line-height: 1;
+
+    &:hover {
+      color: #e0e0e0;
+      background: rgba(255, 255, 255, 0.06);
+    }
+  }
+
+  .pop-behavior-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 54px;
+    padding: 0 4px;
+  }
+
+  .pop-icon {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .pop-name {
+    font-size: 0.68rem;
+    color: #e0e0e0;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+}

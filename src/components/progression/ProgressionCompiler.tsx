@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import './ProgressionCompiler.scss'
 import { useMainStore } from '../../stores/useMainStore'
 import { playFullChord } from '../../composables/useAudio'
-import { Note, Chord } from 'tonal'
+import { Chord } from 'tonal'
+import { romanToDegree, getMajorScaleNotes } from '../../utils/chordUtils'
 import ProgressionsList from '../sidebars/ProgressionsList'
 import ProgressionDropZone from './ProgressionDropZone'
 import eventBus from '../../eventBus'
@@ -31,43 +32,24 @@ export default function ProgressionCompiler() {
     }
   }
 
-  function getMajorScaleNotes(rootNote: string): string[] {
-    const intervals = ["1P", "2M", "3M", "4P", "5P", "6M", "7M"]
-    return intervals.map(interval => Note.transpose(rootNote, interval))
-  }
-
-  function romanToDegree(roman: string): number {
-    const map: Record<string, number> = {
-      'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7,
-      'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7
-    }
-    const baseRoman = roman.match(/^([IVXivx]+)/)?.[1] || ''
-    return map[baseRoman] || 1
-  }
-
-  function getChordTypeFromNumeral(numeral: string, degree: number): string {
-    const baseRoman = numeral.match(/^([IVXivx]+)/)?.[1] || ''
-    const modifiers = numeral.substring(baseRoman.length)
-    const isMajor = baseRoman === baseRoman.toUpperCase()
-    const defaultChordTypes: Record<number, string> = {
-      1: "major", 2: "minor", 3: "minor", 4: "major", 5: "major", 6: "minor", 7: "diminished"
-    }
-    if (modifiers.includes('°') || modifiers.includes('dim')) return 'diminished'
-    if (modifiers.includes('+') || modifiers.includes('aug')) return 'augmented'
-    if (modifiers.includes('maj7')) return isMajor ? 'maj7' : 'minMaj7'
-    if (modifiers.includes('7')) return isMajor ? '7' : 'min7'
-    if (modifiers.includes('6')) return isMajor ? '6' : 'min6'
-    if (modifiers.includes('m7b5') || modifiers.includes('Ø')) return 'min7b5'
-    if (!isMajor) return 'minor'
-    return defaultChordTypes[degree] || 'major'
+  function getChordTypeFromNumeral(numeral: string, isMajor: boolean, base: string): string {
+    const modifiers = numeral.substring(base.length)
+    if (modifiers.includes('°') || modifiers.includes('dim')) return 'dim'
+    if (modifiers.includes('+') || modifiers.includes('aug')) return 'aug'
+    if (modifiers.includes('maj7')) return isMajor ? 'maj7' : 'mMaj7'
+    if (modifiers.includes('m7b5') || modifiers.includes('Ø')) return 'm7b5'
+    if (modifiers.includes('7')) return isMajor ? '7' : 'm7'
+    if (modifiers.includes('6')) return isMajor ? '6' : 'm6'
+    if (!isMajor) return 'm'
+    return ''
   }
 
   function getChordNotes(rootNote: string, chordType: string): string[] {
     try {
       const chord = Chord.get(`${rootNote}${chordType}`)
-      if (chord.empty) return [rootNote]
+      if (chord.empty) return [`${rootNote}4`]
       return chord.notes.map(note => `${note}4`)
-    } catch { return [rootNote] }
+    } catch { return [`${rootNote}4`] }
   }
 
   function stopCompiledProgression() {
@@ -122,9 +104,9 @@ export default function ProgressionCompiler() {
 
     const numeral = numerals[chordIdx]
     const scaleNotes = getMajorScaleNotes(s.userScale)
-    const degree = romanToDegree(numeral)
+    const { degree, isMajor, base } = romanToDegree(numeral)
     const chordRoot = scaleNotes[(degree - 1) % 7]
-    const chordType = getChordTypeFromNumeral(numeral, degree)
+    const chordType = getChordTypeFromNumeral(numeral, isMajor, base)
     const chordNotes = getChordNotes(chordRoot, chordType)
 
     playFullChord(chordNotes, beatDuration, 'sine').then(() => {

@@ -1,9 +1,10 @@
-import { useRef, useState, useEffect, useMemo } from 'react'
-import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Canvas, useThree, useFrame, extend } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, Line, shaderMaterial } from '@react-three/drei'
 import * as THREE from 'three'
 import { Note, Chord } from 'tonal'
+import { numeralToChordName } from '../../utils/chordUtils'
 import { useTablatureR3FStore } from '../../stores/useTablatureR3FStore'
 import type { TablatureNote, ChordGroup, ProgressionGroup } from '../../stores/useTablatureR3FStore'
 import type { ChordProgression } from '../../composables/progressions'
@@ -11,6 +12,17 @@ import { useTablatureStore } from '../../stores/useTablatureStore'
 import { useMainStore } from '../../stores/useMainStore'
 import { getNoteName, getNoteDegree } from '../../composables/useNoteHelpers'
 import './TablatureR3F.scss'
+
+const BEHAVIORS: Record<LegatoBehavior, { name: string, icon: string }> = {
+  'demi-tons': { name: 'Demi-tons', icon: '🎹' },
+  'tierces':   { name: 'Tierces',   icon: '3️⃣' },
+  'quintes':   { name: 'Quintes',   icon: '5️⃣' },
+  'septiemes': { name: 'Septièmes', icon: '7️⃣' },
+  'octaves':   { name: 'Octaves',   icon: '8️⃣' },
+  'free':      { name: 'Free',      icon: '➰' },
+  'gamme':     { name: 'Gamme',     icon: '🎼' },
+}
+const BEHAVIOR_KEYS = Object.keys(BEHAVIORS) as LegatoBehavior[]
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const N_STRINGS      = 6
@@ -40,6 +52,7 @@ const MEAS_LINE_COL = '#505050'
 const OFF_COL       = '#606060'
 const SEL_COL       = '#FF9500'
 const PEND_COL      = '#3d8de0'
+const LEGATO_COL    = '#FFD700'   // gold for legato bubbles
 
 const gridTop    = ((N_STRINGS - 1) / 2) * STRING_H + LANE_H / 2 + 0.12
 const gridBottom = -gridTop
@@ -68,33 +81,6 @@ const CHORD_COL       = '#404040'       // chord pod fill
 const CHORD_BORDER_COL = '#4caf50'      // green border
 
 // ── Progression / chord helpers ───────────────────────────────────────────────
-function romanToDegree(roman: string): number {
-  const map: Record<string, number> = {
-    'I':1,'II':2,'III':3,'IV':4,'V':5,'VI':6,'VII':7,
-    'i':1,'ii':2,'iii':3,'iv':4,'v':5,'vi':6,'vii':7,
-  }
-  const base = roman.match(/^([IVXivx]+)/)?.[1] ?? ''
-  return map[base] ?? 1
-}
-function numeralToChordName(numeral: string, scalePc: string): string {
-  const scaleNotes = ['1P','2M','3M','4P','5P','6M','7M'].map(iv =>
-    Note.pitchClass(Note.transpose(scalePc, iv))
-  )
-  const degree = romanToDegree(numeral)
-  const root   = scaleNotes[(degree - 1) % 7]
-  const base   = numeral.match(/^([IVXivx]+)/)?.[1] ?? ''
-  const mods   = numeral.slice(base.length)
-  const isMaj  = base === base.toUpperCase()
-  let name = root
-  if (mods.includes('°') || mods.includes('dim'))       name += 'dim'
-  else if (mods.includes('+') || mods.includes('aug'))  name += 'aug'
-  else if (mods.includes('maj7'))  name += isMaj ? 'maj7' : 'mMaj7'
-  else if (mods.includes('m7b5') || mods.includes('Ø')) name += 'm7b5'
-  else if (mods.includes('7'))     name += isMaj ? '7' : 'm7'
-  else if (mods.includes('6'))     name += isMaj ? '6' : 'm6'
-  else if (!isMaj)                 name += 'm'
-  return name
-}
 function findFretForPc(openNote: string, targetPc: string): number {
   for (let f = 0; f <= 24; f++)
     if (Note.pitchClass(getNoteName(openNote, f)) === targetPc) return f
@@ -106,13 +92,22 @@ function siFromWorldY(y: number) {
   return Math.max(0, Math.min(N_STRINGS - 1, Math.round(y / STRING_H + (N_STRINGS - 1) / 2)))
 }
 function snapBeat(v: number) { return Math.round(v / SNAP) * SNAP }
-function noteZone(lx: number, w: number): 'resize-left' | 'move' | 'resize-right' {
-  if (lx < w * 0.13) return 'resize-left'
-  if (lx > w * 0.87) return 'resize-right'
+const BUBBLE_W = 0.25
+function noteZone(lx: number, w: number): 'resize-left' | 'bubble-prev' | 'fret' | 'name' | 'move' | 'bubble-next' | 'resize-right' {
+  const p = lx / w
+  if (p < 0.05) return 'resize-left'
+  if (p < 0.10) return 'bubble-prev'
+  if (p < 0.20) return 'fret'
+  if (p < 0.30) return 'name'
+  if (p > 0.95) return 'resize-right'
+  if (p > 0.90) return 'bubble-next'
   return 'move'
 }
 function zoneCursor(z: ReturnType<typeof noteZone>) {
-  return z === 'resize-left' ? 'w-resize' : z === 'resize-right' ? 'e-resize' : 'grab'
+  if (z === 'resize-left' || z === 'resize-right') return z === 'resize-left' ? 'w-resize' : 'e-resize'
+  if (z === 'bubble-prev' || z === 'bubble-next')  return 'crosshair'
+  if (z === 'fret' || z === 'name') return 'text'
+  return 'grab'
 }
 function noteInRect(n: TablatureNote, x0: number, y0: number, x1: number, y1: number) {
   const rx0 = Math.min(x0, x1), rx1 = Math.max(x0, x1)
@@ -254,8 +249,209 @@ function buildMeasGeo(n: number) {
   g.setAttribute('position', new THREE.BufferAttribute(pts, 3)); return g
 }
 
+// ── Legato Material ──────────────────────────────────────────────────────────
+const LegatoMaterial = shaderMaterial(
+  { uTime: 0 },
+  // Vertex Shader
+  `
+  attribute vec3 aCenterPos;
+  attribute vec3 aPerp;
+  attribute vec3 aColor;
+  attribute float aGlobalU;
+  uniform float uTime;
+  varying float vV;
+  varying float vGlobalU;
+  varying vec3 vColor;
+  void main() {
+    vV = uv.y;
+    vGlobalU = aGlobalU;
+    vColor = aColor;
+    // Traveling wave traveling from start→end at 0.8 Hz (matching Fretboard)
+    float wavePos = fract(uTime * 0.8);
+    float dist    = abs(aGlobalU - wavePos);
+    float bell    = max(0.0, 1.0 - dist * 6.0);  // non-zero over ~1/6 of path
+    float wScale  = 1.0 + 0.9 * bell * bell;     // 1.0 → 1.9 at wave peak
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(aCenterPos + aPerp * wScale, 1.0);
+  }
+  `,
+  // Fragment Shader
+  `
+  varying float vV;
+  varying vec3 vColor;
+  void main() {
+    float edge = abs(vV - 0.5) * 2.0;        // 0 = centre, 1 = outer edge
+    // Orange border matching Fretboard style
+    float borderT = smoothstep(0.55, 0.80, edge);
+    vec3  orange  = vec3(1.0, 0.584, 0.0);      // #FF9500
+    vec3  color   = mix(vColor, orange, borderT);
+    // Glow effect: stronger in the middle, fades at edges
+    float alpha   = (1.0 - smoothstep(0.82, 1.0, edge)) * 0.92;
+    gl_FragColor  = vec4(color, alpha);
+  }
+  `
+)
+extend({ LegatoMaterial })
+
+function LegatoLine({ sourceId, destId, noteColor, legatoSourceId }: { 
+  sourceId: string; 
+  destId: string;
+  noteColor: (n: TablatureNote) => string;
+  legatoSourceId: string | null;
+}) {
+  const notes = useTablatureR3FStore(s => s.notes)
+  const source = notes.find(n => n.id === sourceId)
+  const dest = notes.find(n => n.id === destId)
+  const meshRef = useRef<THREE.Mesh>(null!)
+
+  useFrame((state) => {
+    if (meshRef.current?.material) {
+      (meshRef.current.material as any).uTime = state.clock.getElapsedTime()
+    }
+  })
+
+  const geo = useMemo(() => {
+    if (!source || !dest) return null
+    
+    // Collect all waypoints and their colors
+    const chain: THREE.Vector3[] = []
+    const chainColors: THREE.Color[] = []
+    const getC = (n: TablatureNote) => new THREE.Color(noteColor(n))
+
+    const addPoint = (p: THREE.Vector3, col: THREE.Color) => {
+      const last = chain[chain.length - 1]
+      if (!last || last.distanceTo(p) > 0.05) {
+        chain.push(p)
+        chainColors.push(col)
+      }
+    }
+
+    // 1. Source Bubble Next
+    addPoint(new THREE.Vector3((source.startBeat + source.duration * 0.925) * BEAT_W, stringY(source.string), 0), getC(source))
+    
+    // 2. Intermediate notes
+    if (source.intermediateNoteIds) {
+      // Ensure sorted order for the line
+      const sortedInt = source.intermediateNoteIds
+        .map(id => notes.find(x => x.id === id))
+        .filter(Boolean)
+        .sort((a, b) => a!.startBeat - b!.startBeat)
+
+      for (const n of sortedInt) {
+        const nw = n!.duration * BEAT_W
+        const ncx = n!.startBeat * BEAT_W + nw / 2
+        const ny = stringY(n!.string)
+        const col = getC(n!)
+        addPoint(new THREE.Vector3(ncx - nw/2 + 0.075 * nw, ny, 0), col)
+        addPoint(new THREE.Vector3(ncx + nw/2 - 0.075 * nw, ny, 0), col)
+      }
+    }
+    
+    // 3. Destination Bubble Prev
+    const dw = dest.duration * BEAT_W
+    const dcx = dest.startBeat * BEAT_W + dw / 2
+    addPoint(new THREE.Vector3(dcx - dw/2 + 0.075 * dw, stringY(dest.string), 0), getC(dest))
+    
+    if (chain.length < 2) return null
+    const curve = new THREE.CatmullRomCurve3(chain, false, 'centripetal')
+    const SUBDIVISIONS = Math.max(40, chain.length * 10)
+    const nV = (SUBDIVISIONS + 1) * 2
+    const geometry = new THREE.BufferGeometry()
+    
+    const pos = new Float32Array(nV * 3)
+    const centerPos = new Float32Array(nV * 3)
+    const perp = new Float32Array(nV * 3)
+    const colorAttr = new Float32Array(nV * 3)
+    const globalU = new Float32Array(nV)
+    const uvs = new Float32Array(nV * 2)
+    const indices: number[] = []
+    
+    const halfW = 0.12
+    const tmpCol = new THREE.Color()
+
+    for (let i = 0; i <= SUBDIVISIONS; i++) {
+      const t = i / SUBDIVISIONS
+      const p = curve.getPoint(t)
+      const tangent = curve.getTangent(t).normalize()
+      
+      // Color interpolation along the chain
+      const colorT = t * (chainColors.length - 1)
+      const cIdx = Math.min(chainColors.length - 2, Math.floor(colorT))
+      const cFrac = colorT - cIdx
+      tmpCol.copy(chainColors[cIdx]).lerp(chainColors[cIdx + 1], cFrac)
+
+      const ux = -tangent.y
+      const uy = tangent.x
+
+      const base = i * 2
+      for (let j = 0; j < 2; j++) {
+        const side = j === 0 ? -1 : 1
+        const vIdx = base + j
+        pos.set([p.x + ux * halfW * side, p.y + uy * halfW * side, -0.02], vIdx * 3)
+        centerPos.set([p.x, p.y, -0.02], vIdx * 3)
+        perp.set([ux * halfW * side, uy * halfW * side, 0], vIdx * 3)
+        colorAttr.set([tmpCol.r, tmpCol.g, tmpCol.b], vIdx * 3)
+        globalU[vIdx] = t
+        uvs.set([t, j], vIdx * 2)
+      }
+    }
+
+    for (let i = 0; i < SUBDIVISIONS; i++) {
+      const b = i * 2
+      indices.push(b, b+1, b+2, b+2, b+1, b+3)
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geometry.setAttribute('aCenterPos', new THREE.BufferAttribute(centerPos, 3))
+    geometry.setAttribute('aPerp', new THREE.BufferAttribute(perp, 3))
+    geometry.setAttribute('aColor', new THREE.BufferAttribute(colorAttr, 3))
+    geometry.setAttribute('aGlobalU', new THREE.BufferAttribute(globalU, 1))
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+    geometry.setIndex(indices)
+    return geometry
+  }, [source, dest, notes, legatoSourceId, noteColor])
+
+  if (!geo) return null
+
+  return (
+    <mesh ref={meshRef} geometry={geo} renderOrder={6}>
+      {/* @ts-ignore */}
+      <legatoMaterial transparent depthWrite={false} depthTest={false} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+// ── Legato Behavior Bubble with Pulse ─────────────────────────────────────────
+function LegatoBehaviorBubble({ color, onClick }: { color: string; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  
+  return (
+    <Html position={[0, 0.7, 0]} center>
+      <div 
+        style={{
+          width: '12px',
+          height: '12px',
+          borderRadius: '50%',
+          backgroundColor: color,
+          border: '1.5px solid #888',
+          cursor: 'pointer',
+          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease',
+          transform: hovered ? 'scale(1.44)' : 'scale(1.2)', // 1.2 base scale, 1.2 * 1.2 = 1.44 on hover
+          boxShadow: hovered ? '0 0 10px rgba(0,0,0,0.5)' : 'none',
+          pointerEvents: 'auto'
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+      />
+    </Html>
+  )
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
-type DragNote = { kind: 'note'; noteId: string; type: 'move'|'resize-left'|'resize-right'; startX: number; origBeat: number; origDur: number; origSi: number; origFret: number }
+type DragNote = { kind: 'note'; noteId: string; type: ReturnType<typeof noteZone>; startX: number; origBeat: number; origDur: number; origSi: number; origFret: number }
 type DragRect = { kind: 'rect'; x0: number; y0: number; x1: number; y1: number }
 type DragChordGroup = {
   kind: 'chord-group'
@@ -317,7 +513,25 @@ interface SceneProps { onStringYPcts: (pcts: number[]) => void }
 // ── Scene ───────────────────────────────────────────────────────────────────────
 function TablatureScene({ onStringYPcts }: SceneProps) {
   const { camera, gl, size, scene } = useThree()
-  const { notes, chordGroups, progressionGroups, addNote, updateNote, deleteNote, addChordGroup, removeChordGroup, addProgressionGroup, updateProgressionGroup, removeProgressionGroup, pushHistory, undo, redo } = useTablatureR3FStore()
+  const { 
+    notes, chordGroups, progressionGroups, 
+    addNote, updateNote, deleteNote, 
+    addChordGroup, removeChordGroup, 
+    addProgressionGroup, updateProgressionGroup, 
+    removeProgressionGroup, 
+    setLegato, setLegatoBehavior, addLegatoIntermediate, pushHistory, undo, redo 
+  } = useTablatureR3FStore()
+
+  const [legatoSourceId, setLegatoSourceId] = useState<string | null>(null)
+  const [popoverLegatoId, setPopoverLegatoId] = useState<string | null>(null)
+  const [popoverVisible, setPopoverVisible] = useState(false)
+
+  function addLegato(sourceId: string, destId: string) {
+    pushHistory()
+    setLegato(sourceId, destId, 2, tuningArr)
+    // Immediately sync with behavior (default 'demi-tons')
+    syncLegato(sourceId, tuningArr, scaleNotes)
+  }
 
   const userScale  = useMainStore(s => s.userScale)
   const modeObject = useMainStore(s => s.modeObject)
@@ -526,6 +740,9 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   // ── DOM pointer handlers ──────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = gl.domElement
+    const state = useTablatureR3FStore.getState()
+    const { addNote, updateNote, deleteNote, setLegato, pushHistory } = state
+
     function wx(cx: number) {
       const rect = canvas.getBoundingClientRect()
       const ndc = ((cx - rect.left) / rect.width) * 2 - 1
@@ -536,14 +753,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const rect = canvas.getBoundingClientRect()
       const ndc = -((cy - rect.top) / rect.height) * 2 + 1
       const o   = camera as THREE.OrthographicCamera
-      // Correct for asymmetric frustum: add frustum-center offset
       return o.position.y + (o.top + o.bottom) / 2 + ndc * (o.top - o.bottom) / 2
     }
 
     function onMove(e: PointerEvent) {
       const d = drag.current
+      if (!d) return
 
-      if (d?.kind === 'note') {
+      if (d.kind === 'note') {
+        if (d.type === 'bubble-next' || d.type === 'bubble-prev') return
         const dB = (wx(e.clientX) - d.startX) / BEAT_W
         const n  = useTablatureR3FStore.getState().notes.find(n => n.id === d.noteId)
         if (!n) return
@@ -561,12 +779,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               newFret = found !== null ? found : d.origFret
             }
           }
-          updateNote(d.noteId, { startBeat: newBeat, string: newSi, ...(newFret !== undefined && { fret: newFret }) })
+          updateNote(d.noteId, { startBeat: newBeat, string: newSi, ...(newFret !== undefined && { fret: newFret }) }, tuningArr, scaleNotes)
         } else if (d.type === 'resize-right') {
-          updateNote(d.noteId, { duration: constrainRight(d.origBeat, snapBeat(d.origDur + dB), n.string, d.noteId) })
+          updateNote(d.noteId, { duration: constrainRight(d.origBeat, snapBeat(d.origDur + dB), n.string, d.noteId) }, tuningArr, scaleNotes)
         } else {
           const { beat, dur } = constrainLeft(d.origBeat + d.origDur, snapBeat(d.origBeat + dB), n.string, d.noteId)
-          updateNote(d.noteId, { startBeat: beat, duration: dur })
+          updateNote(d.noteId, { startBeat: beat, duration: dur }, tuningArr, scaleNotes)
         }
       } else if (d?.kind === 'chord-group') {
         const worldX = wx(e.clientX)
@@ -577,13 +795,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           const groupIds = new Set(d.origNotes.map(n => n.id))
           const dBeat    = constrainChordGroupMove(d.origNotes, groupIds, rawDelta)
           for (const n of d.origNotes)
-            updateNote(n.id, { startBeat: Math.max(0, n.startBeat + dBeat) })
+            updateNote(n.id, { startBeat: Math.max(0, n.startBeat + dBeat) }, tuningArr, scaleNotes)
         } else if (d.type === 'resize-right') {
           const newEnd = Math.max(d.origGroupStart + MIN_DUR * d.origNotes.length, snapBeat(worldX / BEAT_W))
           const newW   = newEnd - d.origGroupStart
           for (const n of d.origNotes) {
             const relStart = (n.startBeat - d.origGroupStart) / origW
-            updateNote(n.id, { startBeat: d.origGroupStart + relStart * newW, duration: Math.max(MIN_DUR, (n.duration / origW) * newW) })
+            updateNote(n.id, { startBeat: d.origGroupStart + relStart * newW, duration: Math.max(MIN_DUR, (n.duration / origW) * newW) }, tuningArr, scaleNotes)
           }
         } else {
           const newStart = Math.max(0, Math.min(d.origGroupEnd - MIN_DUR, snapBeat(worldX / BEAT_W)))
@@ -591,7 +809,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           for (const n of d.origNotes) {
             const relFromRight = (d.origGroupEnd - (n.startBeat + n.duration)) / origW
             const newDur  = Math.max(MIN_DUR, (n.duration / origW) * newW)
-            updateNote(n.id, { startBeat: Math.max(0, d.origGroupEnd - relFromRight * newW - newDur), duration: newDur })
+            updateNote(n.id, { startBeat: Math.max(0, d.origGroupEnd - relFromRight * newW - newDur), duration: newDur }, tuningArr, scaleNotes)
           }
         }
       } else if (d?.kind === 'prog-group') {
@@ -603,13 +821,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           const groupNoteIds = new Set(d.origNotes.map(n => n.id))
           const dBeat = constrainChordGroupMove(d.origNotes, groupNoteIds, rawDelta)
           for (const n of d.origNotes)
-            updateNote(n.id, { startBeat: Math.max(0, n.startBeat + dBeat) })
+            updateNote(n.id, { startBeat: Math.max(0, n.startBeat + dBeat) }, tuningArr, scaleNotes)
         } else if (d.type === 'resize-right') {
           const newEnd = Math.max(d.origProgStart + MIN_DUR, snapBeat(worldX / BEAT_W))
           const newW   = newEnd - d.origProgStart
           for (const n of d.origNotes) {
             const relStart = (n.startBeat - d.origProgStart) / origW
-            updateNote(n.id, { startBeat: d.origProgStart + relStart * newW, duration: Math.max(MIN_DUR, (n.duration / origW) * newW) })
+            updateNote(n.id, { startBeat: d.origProgStart + relStart * newW, duration: Math.max(MIN_DUR, (n.duration / origW) * newW) }, tuningArr, scaleNotes)
           }
         } else {
           const newStart = Math.max(0, Math.min(d.origProgEnd - MIN_DUR, snapBeat(worldX / BEAT_W)))
@@ -617,7 +835,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           for (const n of d.origNotes) {
             const relFromRight = (d.origProgEnd - (n.startBeat + n.duration)) / origW
             const newDur  = Math.max(MIN_DUR, (n.duration / origW) * newW)
-            updateNote(n.id, { startBeat: Math.max(0, d.origProgEnd - relFromRight * newW - newDur), duration: newDur })
+            updateNote(n.id, { startBeat: Math.max(0, d.origProgEnd - relFromRight * newW - newDur), duration: newDur }, tuningArr, scaleNotes)
           }
         }
       } else if (d?.kind === 'new-prog') {
@@ -702,6 +920,11 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const ids  = selectedIdsRef.current
       const ctrl = e.ctrlKey || e.metaKey
 
+      if (e.key === 'Escape') {
+        if (legatoSourceId) { setLegatoSourceId(null); e.preventDefault(); return }
+        if (selectedIds.size > 0) { setSelectedIds(new Set()); e.preventDefault(); return }
+      }
+
       // Undo / Redo
       if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return }
       if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return }
@@ -765,7 +988,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           const toPush   = useTablatureR3FStore.getState().notes.filter(
             o => o.string === n.string && o.startBeat >= copyBeat
           )
-          for (const o of toPush) updateNote(o.id, { startBeat: o.startBeat + n.duration })
+          for (const o of toPush) updateNote(o.id, { startBeat: o.startBeat + n.duration }, tuningArr, scaleNotes)
           newIds.push(addNote({ string: n.string, fret: n.fret, duration: n.duration, startBeat: copyBeat }))
         }
         setSelectedIds(new Set(newIds))
@@ -773,7 +996,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editingId, deleteNote, addNote, pushHistory, undo, redo])
+  }, [editingId, deleteNote, addNote, pushHistory, undo, redo, tuningArr, scaleNotes, legatoSourceId])
 
   // ── Edit helpers ──────────────────────────────────────────────────────────────
   function confirmEdit(id: string, val: string) {
@@ -781,19 +1004,47 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     newNoteIds.current.delete(id)
     if (val !== '') {
       const fret = parseInt(val, 10)
-      if (!isNaN(fret) && fret >= 0 && fret <= 24) { pushHistory(); updateNote(id, { fret }) }
+      if (!isNaN(fret) && fret >= 0 && fret <= 24) { pushHistory(); updateNote(id, { fret }, tuningArr, scaleNotes) }
       else if (isNew) { pushHistory(); deleteNote(id) }
     } else if (isNew) { pushHistory(); deleteNote(id) }
     setEditingId(null); setInputVal('')
   }
 
+  const intermediateIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const n of notes) {
+      if (n.intermediateNoteIds) {
+        for (const id of n.intermediateNoteIds) s.add(id)
+      }
+    }
+    return s
+  }, [notes])
+
   // ── Color — selected notes keep degree fill; border added via separate mesh ────
-  function noteColor(note: TablatureNote): string {
-    if (note.id === editingId) return PEND_COL
-    const open = tuningArr[note.string]
-    const deg  = open ? getNoteDegree(getNoteName(open, note.fret), scaleNotes) : null
-    return deg ? SCALE_COLORS[deg - 1] : OFF_COL
-  }
+  const getNoteColor = React.useCallback((note: TablatureNote, skipDarken = false): string => {
+    let hex = OFF_COL
+    if (legatoSourceId) {
+      if (legatoSourceId === note.id) hex = LEGATO_COL
+      else hex = OFF_COL
+    } else if (note.id === editingId) {
+      hex = PEND_COL
+    } else {
+      const open = tuningArr[note.string]
+      const deg  = open ? getNoteDegree(getNoteName(open, note.fret), scaleNotes) : null
+      hex = deg ? SCALE_COLORS[deg - 1] : OFF_COL
+    }
+
+    // Generated (intermediate) notes are 50% darker and 30% desaturated
+    if (!skipDarken && intermediateIds.has(note.id) && hex !== LEGATO_COL && hex !== PEND_COL) {
+      const c = new THREE.Color(hex)
+      const hsl = { h: 0, s: 0, l: 0 }
+      c.getHSL(hsl)
+      c.setHSL(hsl.h, hsl.s * 0.7, hsl.l * 0.5)
+      return '#' + c.getHexString()
+    }
+
+    return hex
+  }, [legatoSourceId, editingId, tuningArr, scaleNotes, intermediateIds])
 
   // ── Geometry caches ───────────────────────────────────────────────────────────
   const NOTE_R_MAX  = NOTE_H * 0.35           // max corner radius (capped by half-width below)
@@ -823,6 +1074,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   // ── Chord pod geometry cache ──────────────────────────────────────────────────
   const chordPodCache = useRef(new Map<string, THREE.ShapeGeometry>())
+  const bubbleGeo     = useMemo(() => new THREE.CircleGeometry(0.12, 16), [])
   useEffect(() => () => { chordPodCache.current.forEach(g => g.dispose()) }, [])
   function getChordPodGeo(w: number, h: number, border = false) {
     const key = `${border?'b':'f'}_${w.toFixed(2)}_${h.toFixed(2)}`
@@ -870,12 +1122,11 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   }
 
   // ── Progression pod pointer-down ──────────────────────────────────────────────
-  function onProgPodDown(e: ThreeEvent<PointerEvent>, prog: ProgressionGroup) {
+  function onProgPodDown(e: ThreeEvent<PointerEvent>, prog: ProgressionGroup, podW: number) {
     if (e.button !== 0) return
     e.stopPropagation()
     const bounds = getProgBounds(prog)
     if (!bounds) return
-    const podW = (bounds.beatMax - bounds.beatMin) * BEAT_W + CHORD_PAD_H * 2 + PROG_PAD_H * 2
     const podLeft = bounds.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H
     const lx = e.point.x - podLeft
     const type = noteZone(lx, podW)
@@ -971,11 +1222,27 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     e.stopPropagation()
     lanePend.current = null
     if (editingId && editingId !== note.id) confirmEdit(editingId, inputVal)
-    pushHistory()   // one undo step per drag gesture
-    setSelectedIds(new Set([note.id]))
+
     const w  = note.duration * BEAT_W
     const lx = e.point.x - note.startBeat * BEAT_W
     const tp = noteZone(lx, w)
+
+    // Legato Click-to-Click logic
+    if (legatoSourceId) {
+      if (legatoSourceId !== note.id) {
+        addLegato(legatoSourceId, note.id)
+      }
+      setLegatoSourceId(null)
+      return
+    }
+
+    if (tp === 'bubble-prev' || tp === 'bubble-next') {
+      setLegatoSourceId(note.id)
+      return
+    }
+
+    pushHistory()   // one undo step per drag gesture
+    setSelectedIds(new Set([note.id]))
     drag.current = { kind: 'note', noteId: note.id, type: tp, startX: e.point.x, origBeat: note.startBeat, origDur: note.duration, origSi: note.string, origFret: note.fret }
     gl.domElement.style.cursor = tp === 'move' ? 'grabbing' : zoneCursor(tp)
   }
@@ -987,7 +1254,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   const measLabelY = gridTop + 0.20
 
   return (
-    <>
+    <group onPointerDown={() => { if (legatoSourceId) setLegatoSourceId(null) }}>
       {/* Lane backgrounds + drag-hover highlight */}
       {Array.from({ length: N_STRINGS }, (_, si) => (
         <group key={si}>
@@ -1024,6 +1291,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         onPointerDown={e => {
           if (e.button !== 0) return
           e.stopPropagation()
+          if (legatoSourceId) setLegatoSourceId(null)
           const startBeat = e.point.x / BEAT_W
           drag.current = { kind: 'new-prog', startBeat, endBeat: startBeat }
           setNewProgDrag({ startBeat, endBeat: startBeat })
@@ -1059,17 +1327,17 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const bCol  = isHov ? SEL_COL : PROG_BORDER_COL
         return (
           <group key={prog.id} position={[podCX, podCY, -0.034]}>
-            {/* Border — forces draw after grid lines (z=-0.035); depth test keeps it behind chord pods */}
-            <mesh geometry={getChordPodGeo(podW, podH, true)}>
+            {/* Border (back) */}
+            <mesh geometry={getChordPodGeo(podW, podH, true)} renderOrder={2}>
               <meshBasicMaterial color={bCol} />
             </mesh>
-            {/* Fill — same reasoning; chord pods at z≈-0.027 already wrote depth so this fails their pixels */}
-            <mesh position={[0, 0, 0.001]} geometry={getChordPodGeo(podW, podH)}>
-              <meshBasicMaterial color={isHov ? PROG_FILL_HOV : PROG_FILL_COL} />
+            {/* Fill (front) — using BG_COL as requested */}
+            <mesh position={[0, 0, 0.001]} geometry={getChordPodGeo(podW, podH)} renderOrder={3}>
+              <meshBasicMaterial color={isHov ? PROG_FILL_HOV : BG_COL} />
             </mesh>
-            {/* Hit area — z chosen to be behind chord pod hit areas (-0.02) */}
+            {/* Hit area */}
             <mesh position={[0, 0, 0.009]}
-              onPointerDown={e => onProgPodDown(e, prog)}
+              onPointerDown={e => onProgPodDown(e, prog, podW)}
               onPointerEnter={() => { setHoveredProgId(prog.id); if (!drag.current) gl.domElement.style.cursor = 'grab' }}
               onPointerLeave={() => { setHoveredProgId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
               onPointerMove={e => {
@@ -1082,7 +1350,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               <planeGeometry args={[podW, podH]} />
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
-            {/* Label in info lane (aligned with chord labels) */}
+            {/* Label in info lane */}
             <Html center position={[0, infoLaneY - podCY, 0.1]} style={{ pointerEvents: 'auto' }}>
               {editingProgId === prog.id ? (
                 <input
@@ -1135,12 +1403,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const borderCol     = isLabelHover ? SEL_COL : isSelForProg ? '#7BA7E8' : CHORD_BORDER_COL
         return (
           <group key={group.id} position={[podCX, podCY, -0.03]}>
-            {/* Border (back) — orange on label hover, green otherwise */}
-            <mesh position={[0, 0, 0]} geometry={getChordPodGeo(podW, podH, true)}>
+            {/* Border (back) */}
+            <mesh position={[0, 0, 0]} geometry={getChordPodGeo(podW, podH, true)} renderOrder={4}>
               <meshBasicMaterial color={borderCol} />
             </mesh>
             {/* Grey fill (front) */}
-            <mesh position={[0, 0, 0.003]} geometry={getChordPodGeo(podW, podH)}>
+            <mesh position={[0, 0, 0.003]} geometry={getChordPodGeo(podW, podH)} renderOrder={5}>
               <meshBasicMaterial color={isHovered ? '#4a4a4a' : CHORD_COL} />
             </mesh>
             {/* Hit area */}
@@ -1196,88 +1464,149 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       {notes.map(note => {
         const w          = note.duration * BEAT_W
         const cx         = note.startBeat * BEAT_W + w / 2
-        const y          = stringY(note.string)
-        const color      = noteColor(note)
-        // Sticky-left label: clamp to camera left edge so number stays visible
+        const color      = getNoteColor(note)
         const noteLeftX  = note.startBeat * BEAT_W
         const noteRightX = noteLeftX + w
         const camLeft    = scrollX - halfW
         const camRight   = scrollX + halfW
         const labelVisible   = noteRightX > camLeft && noteLeftX < camRight
         const podWidthPx     = w / (2 * halfW) * gl.domElement.clientWidth
-        const showNoteName   = podWidthPx >= 50
-        // Local X inside the group: max of note's left edge or camera left edge, + small padding
-        const labelLocalX  = Math.max(noteLeftX, camLeft) - cx + 0.15
+        const showNoteName   = podWidthPx >= 60
+        
+        // Check if intermediate note of a legato
+        const isIntermediate = intermediateIds.has(note.id)
+        const sourceNote = isIntermediate ? notes.find(n => n.intermediateNoteIds?.includes(note.id)) : null
+        
+        const y = stringY(note.string)
+
+        const isEditing = editingId === note.id
+        const isSelected = selectedIds.has(note.id)
+        const isLegatoSource = legatoSourceId === note.id
+
+        const labelColor = darkenPodColor(color)
 
         return (
-          <group key={note.id} position={[cx, y, 0]}>
-            {/* Orange border behind body when selected (not while editing) */}
-            {selectedIds.has(note.id) && note.id !== editingId && (
-              <mesh geometry={getBorderGeo(w)} position={[0, 0, -0.005]}>
-                <meshBasicMaterial color={SEL_COL} />
-              </mesh>
+          <group key={note.id} renderOrder={8}>
+            {note.legatoNext && (
+              <LegatoLine sourceId={note.id} destId={note.legatoNext} noteColor={(n) => getNoteColor(n, true)} legatoSourceId={legatoSourceId} />
             )}
-            <mesh geometry={getNoteGeo(w)}>
-              {rootNoteIds.has(note.id)
-                ? <BlinkMaterial color={color} />
-                : <meshBasicMaterial color={color} />}
-            </mesh>
+            <group position={[cx, y, 0]}>
+              {/* Selection Border */}
+              {isSelected && !isEditing && (
+                <mesh geometry={getBorderGeo(w)} position={[0, 0, -0.005]}>
+                  <meshBasicMaterial color={SEL_COL} />
+                </mesh>
+              )}
 
-            <mesh position={[0, 0, 0.02]}
-              onPointerDown={e => onNoteDown(e, note)}
-              onPointerMove={e => {
-                if (drag.current) return
-                gl.domElement.style.cursor = zoneCursor(noteZone(e.point.x - note.startBeat * BEAT_W, w))
-              }}
-              onPointerEnter={e => {
-                gl.domElement.style.cursor = zoneCursor(noteZone(e.point.x - note.startBeat * BEAT_W, w))
-              }}
-              onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
-              onDoubleClick={e => {
-                e.stopPropagation()
-                const inGroup = chordGroups.some(g => g.noteIds.includes(note.id))
-                if (inGroup) {
-                  const newFret = nextFretSamePc(tuningArr[note.string], note.fret)
-                  if (newFret !== note.fret) { pushHistory(); updateNote(note.id, { fret: newFret }) }
-                } else {
-                  setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
-                }
-              }}
-              onContextMenu={e => {
-                e.stopPropagation()
-                if (editingId === note.id) { setEditingId(null); setInputVal('') }
-                pushHistory()
-                deleteNote(note.id)
-                setSelectedIds(prev => { const s = new Set(prev); s.delete(note.id); return s })
-              }}
-            >
-              <planeGeometry args={[w, LANE_H]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
+              {/* Main Body mesh (covers entire width for background) */}
+              <mesh geometry={getNoteGeo(w)} renderOrder={8}>
+                <meshBasicMaterial color={color} />
+              </mesh>
 
-            {editingId === note.id ? (
-              <Html center style={{ pointerEvents: 'auto' }}>
-                <input className="tab-r3f-fret-input" value={inputVal} autoFocus maxLength={2}
-                  onChange={ev => setInputVal(ev.target.value.replace(/\D/g, ''))}
-                  onKeyDown={ev => {
-                    ev.stopPropagation()
-                    if (ev.key === 'Enter')  confirmEdit(note.id, inputVal)
-                    if (ev.key === 'Escape') { setEditingId(null); setInputVal('') }
-                  }}
-                  onBlur={() => confirmEdit(note.id, inputVal)} />
-              </Html>
-            ) : labelVisible ? (
-              <Html position={[labelLocalX, 0, 0.03]} style={{ pointerEvents: 'none', transform: 'translateY(-50%)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span className="tab-r3f-fret-label" style={{ color: darkenPodColor(color) }}>{note.fret}</span>
-                  {showNoteName && (
-                    <span className="tab-r3f-fret-label" style={{ color: darkenPodColor(color), opacity: 0.4 }}>
-                      {Note.pitchClass(getNoteName(tuningArr[note.string], note.fret))}
-                    </span>
+              {/* Anatomy Elements */}
+              {!isIntermediate && (
+                <>
+                  {/* Bubble Prev */}
+                  <mesh 
+                    position={[-w/2 + 0.075 * w, 0, 0.01]} 
+                    geometry={bubbleGeo}
+                    renderOrder={9}
+                  >
+                    <meshBasicMaterial color={isLegatoSource ? SEL_COL : labelColor} transparent opacity={0.9} />
+                  </mesh>
+
+                  {/* Bubble Next */}
+                  <mesh 
+                    position={[w/2 - 0.075 * w, 0, 0.01]} 
+                    geometry={bubbleGeo}
+                    renderOrder={9}
+                  >
+                    <meshBasicMaterial color={isLegatoSource ? SEL_COL : labelColor} transparent opacity={0.9} />
+                  </mesh>
+
+                  {/* Stem and Top Bubble for choosing Behavior */}
+                  {note.legatoNext && (
+                    <group position={[w/2 - 0.075 * w, 0, 0.01]}>
+                      {/* Stem hidden as requested */}
+                      <LegatoBehaviorBubble 
+                        color={color} 
+                        onClick={() => {
+                          setPopoverLegatoId(note.id)
+                          setPopoverVisible(true)
+                        }}
+                      />
+                    </group>
                   )}
-                </span>
+                </>
+              )}
+
+              {/* Fret Label */}
+              <Html position={[-w/2 + 0.15 * w, 0, 0.02]} center style={{ pointerEvents: 'none' }}>
+                <span className="tab-r3f-fret-label" style={{ color: labelColor }}>{note.fret}</span>
               </Html>
-            ) : null}
+
+              {/* Note Name */}
+              {showNoteName && (
+                <Html position={[-w/2 + 0.25 * w, 0, 0.02]} center style={{ pointerEvents: 'none' }}>
+                  <span className="tab-r3f-fret-label" style={{ color: labelColor, opacity: 0.6 }}>
+                    {Note.pitchClass(getNoteName(tuningArr[note.string], note.fret))}
+                  </span>
+                </Html>
+              )}
+
+              {/* Interaction Overlay */}
+              <mesh position={[0, 0, 0.05]}
+                onPointerDown={e => onNoteDown(e, note)}
+                onPointerMove={e => {
+                  if (drag.current) return
+                  const lx = e.point.x - note.startBeat * BEAT_W
+                  gl.domElement.style.cursor = zoneCursor(noteZone(lx, w))
+                }}
+                onPointerEnter={e => {
+                  const lx = e.point.x - note.startBeat * BEAT_W
+                  gl.domElement.style.cursor = zoneCursor(noteZone(lx, w))
+                }}
+                onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
+                onDoubleClick={e => {
+                  e.stopPropagation()
+                  if (isIntermediate && sourceNote) {
+                    pushHistory()
+                    addLegatoIntermediate(note.id, tuningArr, scaleNotes)
+                    return
+                  }
+                  const inGroup = chordGroups.some(g => g.noteIds.includes(note.id))
+                  if (inGroup) {
+                    const newFret = nextFretSamePc(tuningArr[note.string], note.fret)
+                    if (newFret !== note.fret) { pushHistory(); updateNote(note.id, { fret: newFret }, tuningArr, scaleNotes) }
+                  } else {
+                    setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
+                  }
+                }}
+                onContextMenu={e => {
+                  e.stopPropagation()
+                  if (editingId === note.id) { setEditingId(null); setInputVal('') }
+                  pushHistory()
+                  deleteNote(note.id)
+                  setSelectedIds(prev => { const s = new Set(prev); s.delete(note.id); return s })
+                }}
+              >
+                <planeGeometry args={[w, LANE_H]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+              </mesh>
+
+              {isEditing && (
+                <Html center style={{ pointerEvents: 'auto' }}>
+                  <input className="tab-r3f-fret-input" value={inputVal} autoFocus maxLength={2}
+                    onChange={ev => setInputVal(ev.target.value.replace(/\D/g, ''))}
+                    onKeyDown={ev => {
+                      ev.stopPropagation()
+                      if (ev.key === 'Enter')  confirmEdit(note.id, inputVal)
+                      if (ev.key === 'Escape') { setEditingId(null); setInputVal('') }
+                    }}
+                    onBlur={() => confirmEdit(note.id, inputVal)} />
+                </Html>
+              )}
+            </group>
           </group>
         )
       })}
@@ -1301,7 +1630,40 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           </group>
         )
       })()}
-    </>
+
+      {/* Legato Behavior Popover */}
+      {popoverLegatoId && (() => {
+        const note = notes.find(n => n.id === popoverLegatoId)
+        if (!note) return null
+        const behavior = note.legatoBehavior || 'demi-tons'
+        const curIdx = BEHAVIOR_KEYS.indexOf(behavior)
+        const y = stringY(note.string)
+        const x = (note.startBeat + note.duration * (1 - 0.075)) * BEAT_W
+        
+        return (
+          <Html position={[x, y + 0.7, 0.2]} center style={{ pointerEvents: 'none' }}>
+             <div 
+               className={`legato-popover${popoverVisible ? ' visible' : ''}`}
+               style={{ pointerEvents: popoverVisible ? 'auto' : 'none' }}
+               onMouseLeave={() => setPopoverVisible(false)}
+             >
+               <button className="pop-nav" onClick={() => {
+                 const nextIdx = (curIdx - 1 + BEHAVIOR_KEYS.length) % BEHAVIOR_KEYS.length
+                 setLegatoBehavior(note.id, BEHAVIOR_KEYS[nextIdx], tuningArr, scaleNotes)
+               }}>◀</button>
+               <div className="pop-behavior-info">
+                  <span className="pop-icon">{BEHAVIORS[behavior].icon}</span>
+                  <span className="pop-name">{BEHAVIORS[behavior].name}</span>
+               </div>
+               <button className="pop-nav" onClick={() => {
+                 const nextIdx = (curIdx + 1) % BEHAVIOR_KEYS.length
+                 setLegatoBehavior(note.id, BEHAVIOR_KEYS[nextIdx], tuningArr, scaleNotes)
+               }}>▶</button>
+             </div>
+          </Html>
+        )
+      })()}
+    </group>
   )
 }
 
