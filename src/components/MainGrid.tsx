@@ -4,6 +4,7 @@ import SmartFretboard from './SmartFretboard'
 import TabGroup from './TabGroup'
 import CurrentModeDisplay from './modes/CurrentModeDisplay'
 import ChordTab from './chords/ChordTab'
+import ChordsList from './chords/ChordsList'
 import ProgressionCompiler from './progression/ProgressionCompiler'
 import ProgressionsList from './sidebars/ProgressionsList'
 import TablatureMain from './tablature/TablatureMain'
@@ -42,7 +43,8 @@ export default function MainGrid() {
       <div className="area-pda">
         <TabGroup tabs={[
           { label: 'Progressions', content: <ProgressionsList /> },
-          { label: 'Accords', content: <ChordTab chordType={chordRootNoteType} chordData={chordRootObject} hideFretboard /> },
+          { label: 'Accords', content: <ChordsList /> },
+          { label: 'Accords Infos', content: <ChordTab chordType={chordRootNoteType} chordData={chordRootObject} hideFretboard /> },
         ]} />
       </div>
 

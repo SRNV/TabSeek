@@ -7,15 +7,15 @@ export function getNoteName(cord: string, fret: number): string {
 }
 
 export function getNoteDegree(noteName: string, collection: string[]): number | null {
-  const noteData = Note.get(noteName);
-  const midi = noteData.midi;
-  if (midi == null) return null;
-  const notePc = midi % 12;
-  const scaleNotes = collection.map(n => {
-    const m = Note.get(n).midi;
-    return m != null ? m % 12 : null;
-  });
-  const index = scaleNotes.indexOf(notePc);
+  if (!noteName) return null;
+  const notePc = Note.chroma(noteName);
+  if (notePc === undefined || notePc === null) return null;
+  
+  const scaleChroma = collection
+    .map(n => Note.chroma(n))
+    .filter((c): c is number => c !== undefined && c !== null);
+    
+  const index = scaleChroma.indexOf(notePc);
   return index === -1 ? null : index + 1;
 }
 

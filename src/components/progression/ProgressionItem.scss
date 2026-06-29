@@ -47,7 +47,13 @@
         &:hover:not(:disabled) { background-color: #4a8cb5; }
         &:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .play-icon { font-size: 0.8rem; line-height: 1; }
+        .play-icon { 
+          font-size: 1.1rem; 
+          line-height: 1; 
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
       }
 
       .progression-category {

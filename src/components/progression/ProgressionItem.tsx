@@ -34,7 +34,9 @@ export default function ProgressionItem({
             onClick={(e) => { e.stopPropagation(); onPlayProgression() }}
             disabled={isPlaying}
           >
-            <span className="play-icon">{isPlaying ? '⏸' : '▶'}</span>
+            <span className="material-symbols-outlined play-icon">
+              {isPlaying ? 'pause' : 'play_arrow'}
+            </span>
           </button>
           <span className="progression-category">{progression.numerals}</span>
         </div>

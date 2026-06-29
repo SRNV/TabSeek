@@ -36,6 +36,10 @@
           color: #ccc;
           cursor: pointer;
 
+          .material-symbols-outlined {
+            font-size: 1.1rem;
+          }
+
           &:hover:not(:disabled) { background-color: #555; }
           &:disabled { opacity: 0.5; cursor: not-allowed; }
           &.remove { color: #ff9999; &:hover { background-color: #553333; } }

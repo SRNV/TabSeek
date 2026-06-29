@@ -6,7 +6,8 @@ export type ChordProgression = {
   numerals: string;
   description: string;
   compatibleModes: string[];
-  examples?: string[]; // Exemples optionnels de morceaux utilisant cette progression
+  examples?: string[];
+  _chordType?: string; // chord type id (Tonal) when dragging a single chord from ChordsList
 };
 
 // Liste des progressions d'accords communes à exporter

@@ -1,7 +1,9 @@
 import { create } from 'zustand'
-import { Note } from 'tonal'
+import { Note, Chord } from 'tonal'
 
-export type LegatoBehavior = 'demi-tons' | 'tierces' | 'quintes' | 'septiemes' | 'octaves' | 'free' | 'gamme'
+export type LegatoBehavior = 
+  'chromatique' | 'secondes' | 'tierces' | 'quartes' | 'quintes' | 'sixtes' | 'septiemes' | 'octaves' | 
+  'gamme' | 'pentatonique' | 'triade' | 'arp7' | 'blues' | 'free' | 'whole-tone' | 'diminished'
 
 export interface TablatureNote {
   id: string
@@ -15,6 +17,8 @@ export interface TablatureNote {
   legatoBehavior?: LegatoBehavior
   intermediateNoteIds?: string[] // IDs of generated notes
   legatoRatio?: { t: number; stringT: number } // Position relative to source/dest
+  legatoAuto?: boolean  // If true, moving source/dest moves intermediate notes (default true)
+  legatoChain?: boolean // If true, moving an intermediate note syncs the following ones (default false)
 }
 
 export interface ChordGroup {
@@ -41,8 +45,11 @@ interface State {
   notes:            TablatureNote[]
   chordGroups:      ChordGroup[]
   progressionGroups: ProgressionGroup[]
+  legatoSourceId:    string | null
   past:             HistoryEntry[]
   future:           HistoryEntry[]
+
+  setLegatoSourceId: (id: string | null) => void
 
   // Playback
   isPlaying: boolean
@@ -56,7 +63,7 @@ interface State {
 
   addNote:               (n: Omit<TablatureNote, 'id'>) => string
   updateNote: (id: string, patch: Partial<Omit<TablatureNote, 'id'>>, tuning?: string[], scaleNotes?: string[]) => void
-  deleteNote:            (id: string) => void
+  deleteNote:            (id: string, tuning?: string[]) => void
   addChordGroup:         (noteIds: string[], chordName: string) => string
   removeChordGroup:      (id: string) => void
   addProgressionGroup:    (chordGroupIds: string[], name: string) => string
@@ -64,7 +71,12 @@ interface State {
   removeProgressionGroup: (id: string) => void
   setLegato: (sourceId: string, destId: string | undefined, count?: number, tuning?: string[]) => void
   setLegatoBehavior: (sourceId: string, behavior: LegatoBehavior, tuning: string[], scaleNotes: string[]) => void
+  setLegatoAuto: (sourceId: string, enabled: boolean) => void
+  setLegatoChain: (sourceId: string, enabled: boolean) => void
+  addLegatoIntermediate: (noteId: string, tuning: string[], scaleNotes: string[]) => void
+  removeLegatoIntermediate: (noteId: string, tuning: string[], scaleNotes: string[]) => void
   syncLegato: (sourceId: string, tuning: string[], scaleNotes?: string[]) => void
+  renderLegato: (sourceId: string) => void
 
   pushHistory: () => void
   undo: () => void
@@ -73,126 +85,221 @@ interface State {
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
-function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: string[], scaleNotes?: string[]) {
-  const src = notes.find(n => n.id === sourceId)
-  if (!src || !src.legatoNext) return notes
-  const dest = notes.find(n => n.id === src.legatoNext)
+function getNoteName(openNote: string, fret: number): string {
+  const midi = (Note.midi(openNote) ?? 0) + fret
+  return Note.fromMidi(midi)
+}
+
+function detectChordName(noteIds: string[], allNotes: TablatureNote[], tuning: string[]): string | null {
+  const notes = allNotes.filter(n => noteIds.includes(n.id))
+  if (notes.length === 0) return null
+  const pitches = notes.map(n => getNoteName(tuning[n.string] ?? 'E2', n.fret))
+  const detected = Chord.detect(pitches)
+  return detected.length > 0 ? detected[0] : '?'
+}
+
+function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: string[], scaleNotes?: string[], startFromId?: string) {
+  const srcOrig = notes.find(n => n.id === sourceId)
+  if (!srcOrig || !srcOrig.legatoNext) return notes
+  const dest = notes.find(n => n.id === srcOrig.legatoNext)
   if (!dest) return notes
 
-  const ids = new Set(src.intermediateNoteIds ?? [])
-  if (ids.size === 0) return notes
+  const orderedIds = srcOrig.intermediateNoteIds || []
+  const countTotal = orderedIds.length
+  if (countTotal === 0) return notes
+
+  // If startFromId is given, we only sync notes strictly after it
+  let syncIndex = -1
+  if (startFromId) {
+    syncIndex = orderedIds.indexOf(startFromId)
+  }
+
+  // Segment to interpolate: [SegmentSource, Destination]
+  const segmentSource = syncIndex === -1 ? srcOrig : notes.find(n => n.id === startFromId)!
+  const notesToSync = orderedIds.slice(syncIndex + 1)
+  const countSegment = notesToSync.length
+  if (countSegment === 0) return notes
   
-  const behavior = src.legatoBehavior || 'demi-tons'
+  const behavior = srcOrig.legatoBehavior || 'chromatique'
   
   // X positions and Durations
-  const x1 = src.startBeat + src.duration
+  const x1 = segmentSource.startBeat + segmentSource.duration
   const x2 = dest.startBeat
   const totalX = Math.max(0.1, x2 - x1)
-  
-  // Y positions (Strings)
-  const y1 = src.string
-  const y2 = dest.string
-  
+  const duration = Math.max(0.05, totalX / (countSegment + (syncIndex === -1 ? 0 : 0))) // simplistic
+  // Actually, if we are chaining, the duration of subsequent notes should probably be uniform in the remaining space
+  const uniformDur = totalX / countSegment
+
   // MIDI / Pitch Gradient
-  const srcOpenMidi = Note.midi(tuning[src.string] ?? 'E2') ?? 0
+  const srcOpenMidi = Note.midi(tuning[segmentSource.string] ?? 'E2') ?? 0
   const destOpenMidi = Note.midi(tuning[dest.string] ?? 'E2') ?? 0
-  const srcMidi = srcOpenMidi + src.fret
+  const srcMidi = srcOpenMidi + segmentSource.fret
   const destMidi = destOpenMidi + dest.fret
   
-  const orderedIds = src.intermediateNoteIds || []
-  const count = orderedIds.length
-  const duration = Math.max(0.05, totalX / count)
+  const diff = destMidi - srcMidi
+  const dir = diff >= 0 ? 1 : -1
+  
+  // 1. Determine allowed pitch classes (chromas)
+  let allowedChromas: Set<number> | null = null
+  
+  if (scaleNotes && scaleNotes.length > 0) {
+    const scaleChromas = scaleNotes.map(pc => Note.chroma(pc)!)
+    const rootChroma = scaleChromas[0]
+    
+    switch (behavior) {
+      case 'gamme':
+        allowedChromas = new Set(scaleChromas)
+        break
+      case 'triade':
+        allowedChromas = new Set([scaleChromas[0], scaleChromas[2 % scaleChromas.length], scaleChromas[4 % scaleChromas.length]])
+        break
+      case 'arp7':
+        allowedChromas = new Set([scaleChromas[0], scaleChromas[2 % scaleChromas.length], scaleChromas[4 % scaleChromas.length], scaleChromas[6 % scaleChromas.length]])
+        break
+      case 'pentatonique':
+        const pent: number[] = []
+        for (let i = 0; i < 5; i++) {
+          const d = [0, 2, 4, 5, 7][i] % scaleChromas.length 
+          pent.push(scaleChromas[d])
+        }
+        allowedChromas = new Set(pent)
+        break
+      case 'blues':
+        allowedChromas = new Set([0, 3, 5, 6, 7, 10].map(c => (rootChroma + c) % 12))
+        break
+      case 'secondes':
+      case 'tierces':
+      case 'quartes':
+      case 'quintes':
+      case 'sixtes':
+      case 'septiemes':
+        const stepMap: Record<string, number> = { secondes: 1, tierces: 2, quartes: 3, quintes: 4, sixtes: 5, septiemes: 6 }
+        const step = stepMap[behavior] || 1
+        const subset: number[] = []
+        for (let i = 0; i < scaleChromas.length; i += step) subset.push(scaleChromas[i])
+        allowedChromas = new Set(subset)
+        break
+      case 'whole-tone':
+        allowedChromas = new Set([0, 2, 4, 6, 8, 10].map(c => (rootChroma + c) % 12))
+        break
+      case 'diminished':
+        allowedChromas = new Set([0, 1, 3, 4, 6, 7, 9, 10].map(c => (rootChroma + c) % 12))
+        break
+    }
+  }
+
+  // 2. Build the sequence of target MIDIs within [srcMidi, destMidi]
+  const seq: number[] = []
+  const minM = Math.min(srcMidi, destMidi)
+  const maxM = Math.max(srcMidi, destMidi)
+  
+  if (behavior === 'free') {
+    for (let i = 0; i < countSegment; i++) {
+      const t = (i + 1) / (countSegment + 1)
+      seq.push(Math.round(srcMidi + (destMidi - srcMidi) * t))
+    }
+  } else {
+    // Collect ALL valid pitches in range
+    const candidates: number[] = []
+    
+    if (behavior === 'chromatique' || !allowedChromas) {
+      for (let m = minM; m <= maxM; m++) candidates.push(m)
+    } else {
+      for (let m = minM; m <= maxM; m++) {
+        if (allowedChromas.has((m % 12 + 12) % 12)) {
+          candidates.push(m)
+        }
+      }
+    }
+    
+    // Sort candidates according to movement direction
+    if (dir > 0) candidates.sort((a, b) => a - b)
+    else         candidates.sort((a, b) => b - a)
+    
+    // Remove source and destination from candidates to strictly stay BETWEEN (if possible)
+    const filtered = candidates.filter(m => m !== srcMidi && m !== destMidi)
+    
+    if (filtered.length > 0) {
+      // Pick 'countSegment' notes from filtered candidates
+      for (let i = 0; i < countSegment; i++) {
+        const t = (i + 1) / (countSegment + 1)
+        const idx = Math.min(filtered.length - 1, Math.floor(t * filtered.length))
+        seq.push(filtered[idx])
+      }
+    } else {
+      // Fallback: interpolate if no candidates in between
+      for (let i = 0; i < countSegment; i++) {
+        const t = (i + 1) / (countSegment + 1)
+        const val = Math.round(srcMidi + (destMidi - srcMidi) * t)
+        seq.push(Math.max(minM, Math.min(maxM, val)))
+      }
+    }
+  }
+
+  const idsToUpdateSet = new Set(notesToSync)
 
   return notes.map(n => {
-    const idx = orderedIds.indexOf(n.id)
-    if (idx === -1) return n
+    if (!idsToUpdateSet.has(n.id)) return n
+    const idxInSegment = notesToSync.indexOf(n.id)
     
-    // Position based on index to ensure contiguity
-    const startBeat = x1 + idx * duration
-    const t = (idx + 1) / (count + 1)
+    const startBeat = x1 + idxInSegment * uniformDur
+    const tSeg = (idxInSegment + 1) / (countSegment + 1)
+    const tGlobal = (orderedIds.indexOf(n.id) + 1) / (countTotal + 1)
     
-    let string = Math.round(y1 + (y2 - y1) * t)
-    const diff = destMidi - srcMidi
-    const dir = diff > 0 ? 1 : diff < 0 ? -1 : 0
+    const targetMidi = seq[idxInSegment]
     
-    let targetMidi = srcMidi + (destMidi - srcMidi) * t
+    // Physical constraint heuristic: 
+    // We try to stay near the "fret position" defined by linear interpolation between source and dest.
+    // This minimizes unnecessary hand shifts and keeps notes within a playable span.
+    const targetFretPos = segmentSource.fret + (dest.fret - segmentSource.fret) * tSeg
     
-    // Legato Behavior Snapping
-    if (behavior !== 'free' && dir !== 0) {
-      if (behavior === 'demi-tons') {
-        targetMidi = srcMidi + dir * (idx + 1)
-      } else if (behavior === 'octaves') {
-        targetMidi = srcMidi + dir * 12 * (idx + 1)
-      } else if (behavior === 'quintes') {
-        targetMidi = srcMidi + dir * 7 * (idx + 1)
-      } else if (behavior === 'tierces') {
-        targetMidi = srcMidi + dir * 4 * (idx + 1)
-      } else if (scaleNotes && scaleNotes.length > 0) {
-        let allowedChromas: Set<number>
-        
-        if (behavior === 'septiemes') {
-          allowedChromas = new Set([
-            Note.chroma(scaleNotes[0])!,
-            Note.chroma(scaleNotes[Math.min(2, scaleNotes.length - 1)])!,
-            Note.chroma(scaleNotes[Math.min(4, scaleNotes.length - 1)])!,
-            Note.chroma(scaleNotes[Math.min(6, scaleNotes.length - 1)])!
-          ])
-        } else {
-          allowedChromas = new Set(scaleNotes.map(pc => Note.chroma(pc)!))
-        }
+    let string = Math.round(segmentSource.string + (dest.string - segmentSource.string) * tSeg)
+    let fret = Math.round(targetMidi - (Note.midi(tuning[string] ?? 'E2') ?? 0))
+    
+    let bestString = -1
+    let bestFret = -1
+    let minFretDiff = Infinity
 
-        const isAsc = dir > 0
-        const seq: number[] = []
-        let m = srcMidi
-        // Build a sequence of allowed notes starting from src
-        while (seq.length < count) {
-          m += isAsc ? 1 : -1
-          if (allowedChromas.has((m % 12 + 12) % 12)) {
-            seq.push(m)
-          }
-        }
-
-        if (seq.length > 0) {
-          targetMidi = seq[idx]
+    for (let sIdx = 0; sIdx < tuning.length; sIdx++) {
+      const openMidi = Note.midi(tuning[sIdx] ?? 'E2') ?? 0
+      const f = targetMidi - openMidi
+      if (f >= 0 && f <= 24) {
+        const diff = Math.abs(f - targetFretPos)
+        // Bonus: prefer the interpolated string if ties or very close
+        const stringBonus = (sIdx === string) ? -0.1 : 0
+        if (diff + stringBonus < minFretDiff) {
+          minFretDiff = diff + stringBonus
+          bestString = sIdx
+          bestFret = f
         }
       }
     }
 
-      let fret = Math.round(targetMidi - (Note.midi(tuning[string] ?? 'E2') ?? 0))
-      
-      // If fret is invalid (>24 or <0), try to find a better string for this pitch
-      if (fret < 0 || fret > 24) {
-        for (let sIdx = 0; sIdx < tuning.length; sIdx++) {
-          const openM = Note.midi(tuning[sIdx] ?? 'E2') ?? 0
-          const f = Math.round(targetMidi - openM)
-          if (f >= 0 && f <= 24) {
-            string = sIdx
-            fret = f
-            break
-          }
-        }
-      }
-
-      // Final clamp to ensure we never display > 24
-      fret = Math.max(0, Math.min(24, fret))
-      
-      return {
-        ...n,
-        string,
-        fret,
-        startBeat: Math.max(x1, startBeat),
-        duration: Math.max(0.05, duration),
-        legatoRatio: { t, stringT: t }
-      }
+    if (bestString !== -1) {
+      string = bestString
+      fret = bestFret
+    }
+    
+    return {
+      ...n,
+      string,
+      fret: Math.max(0, Math.min(24, fret)),
+      startBeat: Math.max(x1, startBeat),
+      duration: Math.max(0.05, uniformDur),
+      legatoRatio: { t: tGlobal, stringT: tGlobal }
+    }
   })
 }
 
 export const useTablatureR3FStore = create<State>((set) => ({
   notes: [], chordGroups: [], progressionGroups: [], past: [], future: [],
+  legatoSourceId: null,
   isPlaying: false,
   playbackBeat: 0,
   tempo: 120,
   isLooping: true,
+
+  setLegatoSourceId: (id) => set({ legatoSourceId: id }),
 
   togglePlayback: () => set(s => ({ isPlaying: !s.isPlaying })),
   setPlaybackBeat: (beat) => set({ playbackBeat: beat }),
@@ -211,16 +318,43 @@ export const useTablatureR3FStore = create<State>((set) => ({
       const note = newNotes.find(n => n.id === id)
       
       let finalNotes = newNotes
-      if (tuning) {
-        if (note?.legatoNext) finalNotes = syncLegatoHelper(finalNotes, id, tuning, scaleNotes)
-        if (note?.legatoPrev) finalNotes = syncLegatoHelper(finalNotes, note.legatoPrev, tuning, scaleNotes)
+      let finalGroups = s.chordGroups
+
+      if (tuning && note) {
+        // Update chord labels for groups containing this note
+        finalGroups = s.chordGroups.map(g => {
+          if (g.noteIds.includes(id)) {
+            const newName = detectChordName(g.noteIds, finalNotes, tuning)
+            return { ...g, chordName: newName || g.chordName }
+          }
+          return g
+        })
+
+        // 1. If note is a source/destination and Auto is on
+        const source = note.legatoNext ? note : newNotes.find(n => n.id === note.legatoPrev)
+        const isAuto = source?.legatoAuto ?? true
+        
+        if (source && isAuto) {
+          finalNotes = syncLegatoHelper(finalNotes, source.id, tuning, scaleNotes)
+        }
+        
+        // 2. If note is an intermediate note and Chain is on
+        if (!source) {
+          const actualSource = newNotes.find(n => n.intermediateNoteIds?.includes(id))
+          if (actualSource && actualSource.legatoChain) {
+            // Reactive only when the note (pitch) changes
+            if (patch.fret !== undefined || patch.string !== undefined) {
+              finalNotes = syncLegatoHelper(finalNotes, actualSource.id, tuning, scaleNotes, id)
+            }
+          }
+        }
       }
-      return { notes: finalNotes }
+      return { notes: finalNotes, chordGroups: finalGroups }
     }),
 
 
   // Cascade: removes note → prunes empty chord groups → prunes empty progression groups
-  deleteNote: (id) =>
+  deleteNote: (id, tuning) =>
     set(s => {
       const note = s.notes.find(n => n.id === id)
       const intermediateToRemove = new Set(note?.intermediateNoteIds ?? [])
@@ -232,11 +366,6 @@ export const useTablatureR3FStore = create<State>((set) => ({
           source.intermediateNoteIds.forEach(inid => intermediateToRemove.add(inid))
         }
       }
-      
-      const newGroups = s.chordGroups
-        .map(g => ({ ...g, noteIds: g.noteIds.filter(nid => nid !== id && !intermediateToRemove.has(nid)) }))
-        .filter(g => g.noteIds.length > 0)
-      const validGroupIds = new Set(newGroups.map(g => g.id))
       
       const finalNotes = s.notes
         .filter(n => n.id !== id && !intermediateToRemove.has(n.id))
@@ -254,6 +383,20 @@ export const useTablatureR3FStore = create<State>((set) => ({
           }
         })
 
+      const newGroups = s.chordGroups
+        .map(g => {
+          const remainingNoteIds = g.noteIds.filter(nid => nid !== id && !intermediateToRemove.has(nid))
+          if (remainingNoteIds.length === 0) return null
+          if (tuning && remainingNoteIds.length < g.noteIds.length) {
+            const newName = detectChordName(remainingNoteIds, finalNotes, tuning)
+            return { ...g, noteIds: remainingNoteIds, chordName: newName || g.chordName }
+          }
+          return { ...g, noteIds: remainingNoteIds }
+        })
+        .filter((g): g is ChordGroup => g !== null)
+
+      const validGroupIds = new Set(newGroups.map(g => g.id))
+      
       // Final cleanup: ensure no orphaned legatoPrev
       const sourceIds = new Set(finalNotes.filter(n => n.legatoNext).map(n => n.id))
       const cleanedNotes = finalNotes.map(n => {
@@ -383,12 +526,42 @@ export const useTablatureR3FStore = create<State>((set) => ({
       return { notes: finalNotes }
     }),
 
-  syncLegato: (sourceId, tuning, scaleNotes) =>
+  syncLegato: (sourceId: string, tuning: string[], scaleNotes?: string[]) =>
     set(s => ({
       notes: syncLegatoHelper(s.notes, sourceId, tuning, scaleNotes)
     })),
 
-  addLegatoIntermediate: (noteId, tuning, scaleNotes) =>
+  renderLegato: (sourceId: string) =>
+    set(s => {
+      const source = s.notes.find(n => n.id === sourceId)
+      if (!source?.legatoNext) return s
+      const intermediateIds = new Set(source.intermediateNoteIds ?? [])
+      return {
+        notes: s.notes.map(n => {
+          if (n.id === sourceId)
+            return { ...n, legatoNext: undefined, intermediateNoteIds: [], legatoCount: 0 }
+          if (n.id === source.legatoNext)
+            return { ...n, legatoPrev: undefined }
+          if (intermediateIds.has(n.id)) {
+            const { legatoRatio, ...rest } = n
+            return rest
+          }
+          return n
+        })
+      }
+    }),
+
+  setLegatoAuto: (sourceId: string, enabled: boolean) =>
+    set(s => ({
+      notes: s.notes.map(n => n.id === sourceId ? { ...n, legatoAuto: enabled } : n)
+    })),
+
+  setLegatoChain: (sourceId: string, enabled: boolean) =>
+    set(s => ({
+      notes: s.notes.map(n => n.id === sourceId ? { ...n, legatoChain: enabled } : n)
+    })),
+
+  addLegatoIntermediate: (noteId: string, tuning: string[], scaleNotes: string[]) =>
     set(s => {
       const source = s.notes.find(n => n.intermediateNoteIds?.includes(noteId))
       if (!source || !source.legatoNext) return s
@@ -399,22 +572,50 @@ export const useTablatureR3FStore = create<State>((set) => ({
       const newIntermediateIds = [...source.intermediateNoteIds!]
       newIntermediateIds.splice(newIntermediateIds.indexOf(noteId) + 1, 0, id)
 
-      // 1. First, create the new state with the added note and updated source count/ids
-      // This ensures syncLegatoHelper sees the correct total count.
-      const baseNotes = [
-        ...s.notes.map(n => n.id === source.id ? { ...n, legatoCount: (n.legatoCount || 0) + 1, intermediateNoteIds: newIntermediateIds } : n),
-        {
-          id,
-          string: clickedNote.string,
-          fret: clickedNote.fret,
-          startBeat: clickedNote.startBeat + clickedNote.duration / 2,
-          duration: clickedNote.duration / 2,
-        }
-      ]
+      // Split the clicked note in two
+      const baseNotes = s.notes.map(n => {
+        if (n.id === source.id) return { ...n, legatoCount: (n.legatoCount || 0) + 1, intermediateNoteIds: newIntermediateIds }
+        if (n.id === noteId) return { ...n, duration: n.duration / 2 }
+        return n
+      })
+      baseNotes.push({
+        id,
+        string: clickedNote.string,
+        fret: clickedNote.fret,
+        startBeat: clickedNote.startBeat + clickedNote.duration / 2,
+        duration: clickedNote.duration / 2,
+      })
       
-      // 2. Then sync the entire legato chain
       const syncedNotes = syncLegatoHelper(baseNotes, source.id, tuning, scaleNotes)
+      return { notes: syncedNotes }
+    }),
+
+  removeLegatoIntermediate: (noteId: string, tuning: string[], scaleNotes: string[]) =>
+    set(s => {
+      const source = s.notes.find(n => n.intermediateNoteIds?.includes(noteId))
+      if (!source || !source.legatoNext) return s
+
+      const newIds = source.intermediateNoteIds!.filter(id => id !== noteId)
       
+      if (newIds.length === 0) {
+        // Break the legato entirely
+        const destId = source.legatoNext
+        return {
+          notes: s.notes
+            .filter(n => n.id !== noteId)
+            .map(n => {
+              if (n.id === source.id) return { ...n, legatoNext: undefined, legatoCount: 0, intermediateNoteIds: [] }
+              if (n.id === destId) return { ...n, legatoPrev: undefined }
+              return n
+            })
+        }
+      }
+
+      const baseNotes = s.notes
+        .filter(n => n.id !== noteId)
+        .map(n => n.id === source.id ? { ...n, legatoCount: newIds.length, intermediateNoteIds: newIds } : n)
+
+      const syncedNotes = syncLegatoHelper(baseNotes, source.id, tuning, scaleNotes)
       return { notes: syncedNotes }
     }),
 

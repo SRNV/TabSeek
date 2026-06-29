@@ -62,7 +62,7 @@ $icon-size:   20px;
     width $dur $ease,
     min-width $dur $ease;
 
-  svg { flex-shrink: 0; width: $icon-size; height: $icon-size; }
+  svg, .material-symbols-outlined { flex-shrink: 0; width: $icon-size; height: $icon-size; font-size: $icon-size; }
 
   .label {
     font-size: 0.82rem;

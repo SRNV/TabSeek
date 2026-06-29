@@ -37,9 +37,15 @@ export default function CompiledProgressionItem({
         <div className="item-header">
           <span className="item-name">{item.name}</span>
           <div className="item-actions">
-            <button className="action-btn move-up" onClick={onMoveUp} disabled={index === 0} title="Déplacer vers le haut">&#8593;</button>
-            <button className="action-btn move-down" onClick={onMoveDown} disabled={index === maxIndex} title="Déplacer vers le bas">&#8595;</button>
-            <button className="action-btn remove" onClick={onRemove} title="Supprimer">&#10005;</button>
+            <button className="action-btn move-up" onClick={onMoveUp} disabled={index === 0} title="Déplacer vers le haut">
+              <span className="material-symbols-outlined">arrow_upward</span>
+            </button>
+            <button className="action-btn move-down" onClick={onMoveDown} disabled={index === maxIndex} title="Déplacer vers le bas">
+              <span className="material-symbols-outlined">arrow_downward</span>
+            </button>
+            <button className="action-btn remove" onClick={onRemove} title="Supprimer">
+              <span className="material-symbols-outlined">close</span>
+            </button>
           </div>
         </div>
         <div className="item-numerals">{item.numerals}</div>

@@ -1,6 +1,6 @@
 # TabSeek — Documentation interne & règles de développement
 
-> Fichier de référence vivant : il réunit l'architecture, les règles UI/UX, le flux de données, les commentaires importants trouvés dans le code et les points à nettoyer.
+> Fichier de référence vivant : il réunion l'architecture, les règles UI/UX, le flux de données, les commentaires importants trouvés dans le code et les points à nettoyer.
 
 ---
 
@@ -31,7 +31,7 @@ npm run format   # Prettier src/
 
 | Fichier | Rôle |
 |---|---|
-| `Dockerfile` | Multi-stage : `deps` → `builder` → `nginx:alpine` (~25 MB final) |
+| `Dockerfile` | Multi-stage : `deps` → `builder` | `nginx:alpine` (~25 MB final) |
 | `nginx.conf` | SPA fallback, gzip, cache 1 an assets hashés, **`no-store` sur `sw.js`** |
 | `docker-compose.yml` | Production, port 80 |
 | `docker-compose.dev.yml` | Dev HMR, port 5173 |
@@ -74,6 +74,7 @@ overflow: hidden;
 - **Extensible** : oui, via bouton toggle (chevron)
 - **z-index** : 1000 avec `position: relative`
 - **Props React** : `expanded: boolean` + `onExpandedChange: (v: boolean) => void`
+- **Icônes** : Utiliser `material-symbols-outlined`.
 
 ### 4.3 ConfigSidebar (`src/components/ConfigSidebar.tsx`)
 
@@ -121,247 +122,133 @@ overflow: hidden;
 ### 6.1 Store principal (`src/stores/useMainStore.ts`)
 
 ```ts
-// Importation : import { useMainStore } from '../stores/useMainStore'
-// Utilisation : const store = useMainStore()
-// Ou sélecteur : const scale = useMainStore(s => s.userScale)
-// Hors composant : useMainStore.getState().setSelectedMidi(midi)
-
 state: {
-  userScale: 'C4',          // note fondamentale de la gamme
-  selectedMidi: null,        // note MIDI sélectionnée
-  selectedMode: 'ionian',    // nom du mode courant
-  modeObject: defaultMode,   // objet ModeGuitar complet
-  chordRootNote: 'C4',      // fondamentale pour les accords
-  chordRootObject: null,     // ChordsCompleteDef | null
-  chordRootNoteType: 'major'
+  userScale: 'C4',
+  selectedMidi: null,
+  selectedMode: 'ionian',
+  modeObject: defaultMode,
+  chordRootNote: 'C4',
+  chordRootObject: null,
+  chordRootNoteType: 'major',
+  fretboardHighlights: [] // [{ si, fret, color? }]
 }
-
-// Computed (fonctions dans le store, pas des getters Zustand) :
-modeNotes()   // intervals.map(i => Note.transpose(userScale, i))
-modeTriad()
-modeSeventh()
 ```
-
-> **Page `/chords` : charge A Majeur par défaut** dans `ChordsTabsDisplay` si `chordRootObject === null`.
 
 ### 6.2 Store tablature (`src/stores/useTablatureStore.ts`)
+Store pour la vue grille standard (non-R3F).
 
-```ts
-// Rhythm subdivision values: 0=none, 1=whole, 2=half, 4=quarter,
-// 8=eighth, 16=16th, 32=32nd, 64=64th
-// BEAM_COUNTS: { 8: 1, 16: 2, 32: 3, 64: 4 }
-
-state: {
-  measures: TabMeasure[],
-  columns: 32,              // 8 * 4 colonnes par mesure
-  tuning: 'E2,A2,D3,G3,C3,E4',
-  tempo: 120,
-  filterByScaleEnabled: true,
-  currentPlayingColumn: -1,  // -1 = pas de lecture
-}
-// Les getters "flat*" convertissent colonne globale → (mesure, col locale)
-```
-
-> **Tuning non-standard** : `G3` avant `C3` — à vérifier si intentionnel.
-
-### 6.3 Store UI (`src/composables/useUIState.ts`)
-
-```ts
-// Zustand store — singleton partagé entre tous les composants
-import { useUIStore } from '../composables/useUIState'
-
-const { activePanel, togglePanel, closePanel } = useUIStore()
-// ou
-const activePanel = useUIStore(s => s.activePanel)
-
-// Quand la route change → closePanelIfUnavailable(pathname)
-```
-
-### 6.4 EventBus (`src/eventBus.ts`)
-
-```ts
-// mitt — framework agnostic, fonctionne identiquement en Vue et React
-Events: {
-  noteSelected: number,     // MIDI → main.tsx → store.setSelectedMidi()
-  notePlayed: number,
-  midiSelected: number[],
-  showTooltip: { title, content, x, y },
-  hideTooltip: void,
-  playProgression: any,
-  progressionDragStart: any,
-}
-```
+### 6.3 Store Tablature R3F (`src/stores/useTablatureR3FStore.ts`)
+Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
 
 ---
 
-## 7. Composables → Hooks React
-
-Les composables Vue ont été conservés comme hooks purs TypeScript (pas de Vue reactivity).
+## 7. Composables & Services
 
 | Fichier | Rôle |
 |---|---|
-| `useAudio.ts` | Web Audio API — `playNote(note, duration, type, onEnd)` |
+| `useAudio.ts` | Web Audio API — `playNote`, `playFullChord`, `stopAllSounds` |
 | `useGuitarNotes.ts` | Calculs de notes sur le manche |
-| `useGuitarChords.ts` | Formes d'accords sur le manche |
 | `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
-| `useMidiUtils.ts` | `notesToMidi()` |
-| `chord-charts.ts` | Rendu SVG des diagrammes d'accord |
-| `useUIState.ts` | Store Zustand pour activePanel |
+| `TablatureDropService.ts`| Logique métier pour le Drag & Drop d'accords/progressions |
+| `TablatureMoveService.ts`| Logique métier pour le déplacement/redimensionnement (collisions incluses) |
+| `FretboardHighlightService.ts`| Gestion centralisée des highlights sur le manche |
 
 ---
 
-## 8. Données statiques (fichiers lourds)
+## 8. UI Iconography — RÈGLE ABSOLUE
 
-| Fichier | Lignes | Contenu |
+> **Toutes les icônes de l'application doivent utiliser Google Material Symbols.**
+
+- **HTML** : `<span className="material-symbols-outlined">icon_name</span>`
+- **SCSS** : `@import` dans `index.html`, stylisé via `.material-symbols-outlined`
+- **Z-index** : Faire attention aux conflits entre `Html` de `@react-three/drei` et le canvas. Utiliser `zIndexRange`.
+
+---
+
+## 9. Fretboard WebGL — R3F (`Tab.tsx`)
+
+- Composant `Tab.tsx` pour visualiser les gammes/accords sur un manche.
+- Utilise `InstancedMesh` pour les performances.
+- Pop-over interactif pour changer d'accord.
+
+---
+
+## 10. Tablature R3F (Piano Roll) — Implémenté Juin 2026
+
+`TablatureR3F.tsx` est un éditeur de style piano roll pour guitare.
+
+### 10.1 Hiérarchie des Pods & Profondeur
+La profondeur est gérée par `renderOrder` et la position Z pour éviter le z-fighting.
+
+| Élément | renderOrder | Position Z |
 |---|---|---|
-| `tonalChordsMapping.ts` | ~1430 | `CHORD_TYPES_BY_CATEGORY` avec descriptions |
-| `extraModes.ts` | ~963 | `EXTRA_MODES: ModeGuitar[]` — 40+ modes |
-| `progressions.ts` | ~956 | `chordProgressions[]` — 100+ progressions |
-| `chords.ts` | ~896 | `CHORDS` (positions de frettes) + interfaces |
+| Grille (Beats/Measures) | 1 | -0.04 |
+| Progression Pods (Contour bleu, fond gris) | 2–3 | -0.035 |
+| Chord Pods (Contour vert, fond gris foncé) | 4–5 | -0.03 |
+| Legato Lines (Shader animé, contour orange) | 6 | -0.02 |
+| Note Pods (Couleur dynamique) | 8–9 | 0.0 |
+| Labels Html (Fret, Note Name) | auto | 0.02 |
+
+### 10.2 Anatomie d'un Note Pod
+Un pod de note est divisé en zones interactives (`noteZone`) :
+`[ Resize L | Bubble Prev | Fret Label | Note Name | Move | Bubble Next | Resize R ]`
+
+- **Intermediate Notes** : Les notes générées par un legato sont 50% plus sombres, 30% désaturées et n'ont pas de bulles de legato.
+
+### 10.3 Legato Engine
+- **Création** : Drag depuis une bulle (Next/Prev) vers une autre note.
+- **Behaviors** : `chromatique`, `secondes`, `tierces`, `quartes`, `quintes`, `sixtes`, `septiemes`, `octaves`, `gamme`, `pentatonique`, `triade`, `arp7`, `blues`, `whole-tone` (par tons), `diminished` (diminué), `free`.
+- **Sync Modes** : 
+  - **Auto** (activé par défaut) : Recalcule tout le segment quand la source ou destination bouge.
+  - **Chain** : Recalcule uniquement les notes *suivantes* dans le segment quand on déplace une note intermédiaire.
+- **Interaction** : 
+  - Bulle de comportement avec **pulse animation** (scale 1.2) et hit area agrandie (32px).
+  - Pop-over avec icônes Material Symbols pour choisir le comportement et activer les modes Auto/Chain.
+  - **DblClick** sur un pod intermédiaire : Divise le pod en deux (ajoute une note).
+  - **Suppression** : Supprimer une source/destination supprime tout le legato. Supprimer le dernier pod intermédiaire casse le lien legato.
+- **Algorithme d'interpolation** : Respecte strictement la gamme (`scaleNotes`) et l'intervalle de pitch entre [source, destination]. Les notes sont uniformément réparties en durée sur l'espace disponible.
+- **Ergonomie** : L'algorithme privilégie les cordes adjacentes et un span de frettes restreint (max 4-6) pour assurer la jouabilité.
 
 ---
 
-## 9. Styles globaux — RÈGLES
+## 11. Workflow de Drag & Drop (Accords / Progressions)
 
-### 9.1 Scrollbar
-```css
-/* Défini UNE SEULE FOIS dans src/assets/base.css */
-::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-```
-> **Ne jamais redéfinir les scrollbar styles dans les composants.**
+Le service `TablatureDropService.ts` gère l'intelligence musicale lors du dépôt d'éléments sur la tablature.
 
-### 9.2 SCSS par composant
-Chaque composant a son propre fichier `.scss` importé directement :
-```tsx
-import './ComponentName.scss'  // pas de CSS modules
-```
+### 11.1 Restrictions
+- **Interdit** de déposer sur un pod appartenant déjà à un accord (`ChordGroup`).
+- **Interdit** de déposer sur un pod faisant partie d'une chaîne legato (source, destination ou intermédiaire).
 
-### 9.3 Body / HTML
-```css
-html, body { height: 100%; overflow: hidden; }
-```
+### 11.2 Comportement non-destructif ("Shift")
+Lorsqu'un accord est déposé sur une note simple :
+1. La note cible devient l'**ancre** (fondamentale) de l'accord.
+2. La durée de l'accord s'adapte à celle du pod d'ancrage.
+3. Toutes les notes présentes sur les mêmes beats que le nouvel accord sont **décalées vers l'avant** (leur `startBeat` augmente de la durée totale de la progression) au lieu d'être supprimées.
 
 ---
 
-## 10. Correspondances Vue → React
+## 12. Playback & Highlighting
 
-| Vue | React |
-|---|---|
-| `ref(x)` | `useState(x)` |
-| `computed(() => x)` | `useMemo(() => x, [deps])` |
-| `watch(src, cb)` | `useEffect(() => { cb() }, [deps])` |
-| `onMounted(cb)` | `useEffect(cb, [])` |
-| `onBeforeUnmount` | cleanup dans `useEffect` |
-| `v-if="cond"` | `{cond && <JSX>}` |
-| `v-for="item in list"` | `{list.map(item => <JSX key={...}/>)}` |
-| `v-model="x"` | `value={x} onChange={e => setX(e.target.value)}` |
-| `@click="fn"` | `onClick={fn}` |
-| `:class="{ a: b }"` | `className={b ? 'a' : ''}` |
-| `defineModel` | `props.value + props.onChange` |
-| `useRoute().path` | `useLocation().pathname` |
-| `<RouterLink to="/">` | `<Link to="/">` |
-| Pinia store | Zustand store |
-| `<Transition>` | CSS classes conditionnelles |
+### 12.1 Playback Audio
+- **Playback Indicator** : Barre verticale verte (`APPLE_GREEN`) avec flèche. Draggable pour changer la position.
+- **Auto-Reset** : Si `isLooping` est faux, la lecture revient à 0 à la fin du morceau.
+- **Audio** : Utilise `playFullChord` et `playNote`. `stopAllSounds()` est appelé au Stop ou pause.
+
+### 12.2 Fretboard Highlight (`FretboardHighlightService.ts`)
+Le manche (`Tab.tsx`) réagit dynamiquement aux événements de la tablature :
+- **Lecture** : Seules les notes **activement jouées** (selon le curseur de lecture) sont mises en avant sur le manche. Les autres notes de la gamme sont grisées.
+- **Hover** : Survoler une note ou un label d'accord dans la tablature met en surbrillance instantanément les positions correspondantes sur le manche.
+- **Priorité** : Dès qu'un highlight spécifique est actif, l'affichage par défaut de la gamme est masqué pour éviter toute confusion visuelle.
 
 ---
 
-## 11. Composants à refactoriser (dette technique)
-
-| Composant | Lignes | Problème |
-|---|---|---|
-| `TabContent.tsx` | ~600 | Trois zones (rythme, cordes, index) dans un fichier. Candidat : `RhythmRow`, `StringRow`, `IndexRow` |
-| `ProgressionCompiler.tsx` | ~240 | Logique playback mélangée avec UI de compilation |
-| `TabPlayback.tsx` | ~196 | Logique audio à extraire vers `useTabPlayback` hook |
-| `ChordTab.tsx` | ~153 | SVG + sélection + calcul mélangés |
-
----
-
-## 12. Console.log à supprimer
-
-| Fichier | Contenu |
-|---|---|
-| `src/main.tsx` | `console.log(midi)` dans le listener noteSelected |
-| `src/components/chords/ChordTab.tsx` | `console.log(store.chordRootObject?.intervals)` |
-| `src/components/sidebars/ChordsDetailsSideBar.tsx` | `console.log(store)` |
-
----
-
-## 13. Types principaux (`src/types.ts`)
-
-```ts
-interface ModeGuitar {
-  name: string        // ex: "dorian"
-  aliases: string[]
-  modeNum: number
-  mode: number
-  intervals: string[] // ex: ["1P", "2M", "3m", "4P", "5P", "6M", "7m"]
-  alt: string[]
-  triad: string       // "major" | "minor" | "diminished" | "augmented"
-  seventh: string
-  description?: string
-  culture?: string
-  category: string
-}
-```
-
----
-
-## 14. Hiérarchie z-index
+## 13. Hiérarchie z-index Globale
 
 | Élément | z-index | Position |
 |---|---|---|
 | NavSidebar | **1000** | `relative` |
 | ConfigSidebar | **1000** | `relative` |
+| Playback Footer | 100 | — |
+| Html Overlays (R3F) | 10–100 | `Html` `zIndexRange` |
 | Popover config | 500 | `fixed` |
 | Backdrop popover | 499 | `fixed` |
-| Reste du contenu | auto | — |
-
----
-
-## 15. Fretboard WebGL — R3F (implémenté juin 2026)
-
-`Tab.tsx` est désormais un composant **React Three Fiber**. `TabSVGOverlay.tsx` est supprimé.
-
-### Packages
-```
-@react-three/fiber@8   (React 18 — v9 requiert React 19)
-@react-three/drei@9
-three + @types/three
-```
-
-### Architecture interne de Tab.tsx
-```
-Tab (export default)
-  ├── Canvas (orthographic, alpha)
-  │     └── FretboardScene (useThree → zoom fit)
-  │           ├── instancedMesh × MAX_INS — cellules (couleur + octave)
-  │           ├── instancedMesh × 6       — cordes
-  │           ├── mesh                    — nut (séparateur corde à vide)
-  │           ├── instancedMesh × MAX_INS — dots accord (bleu root / orange)
-  │           ├── <Line>*                 — lignes entre notes de l'accord
-  │           └── <Html>*                 — labels note + degré (cellules surligée)
-  └── boutons nav ◀ ▶ (HTML, hors canvas)
-```
-
-### Couleurs et octaves
-- `matchType='multiple'` (gamme) : couleur par degré (`DEGREE_COLORS[deg-1]`) modulée par l'octave
-- `matchType='one'` (accord) : orange `#FF9500` pour les notes de l'accord, modulé par octave
-- Luminosité octave : `l = 0.28 + (oct-2)/3 × 0.66` — oct 2 = très sombre, oct 5 = pleine couleur
-- Corde à vide (fret 0) : multiplicateur supplémentaire ×0.55
-
-### Overlay accord (remplace TabSVGOverlay)
-- Pour chaque corde, prend la 1re case surlignée (fret le plus bas)
-- Dot bleu (`#3355FF`) sur la fondamentale, orange sur les autres
-- `<Line>` orange entre positions consécutives (triées par string index)
-- Tout calculé mathématiquement — plus de `querySelectorAll` DOM
-
-### Règles InstancedMesh
-```ts
-mesh.setMatrixAt(i, matrix)
-mesh.setColorAt(i, color)
-mesh.instanceMatrix.needsUpdate = true
-mesh.instanceColor.needsUpdate  = true
-// Instances inutilisées → setPosition(0, 0, -1000) (hors frustum)
-```

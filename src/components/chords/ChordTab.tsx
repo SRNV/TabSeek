@@ -81,9 +81,13 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
   return (
     <div className="chord-tab-container">
       <div className="chord-header">
-        <button className="chord-nav-btn" onClick={() => navigate(-1)}>◀</button>
+        <button className="chord-nav-btn" onClick={() => navigate(-1)}>
+          <span className="material-symbols-outlined">chevron_left</span>
+        </button>
         <h3 className="chord-title">{formattedChordName}</h3>
-        <button className="chord-nav-btn" onClick={() => navigate(1)}>▶</button>
+        <button className="chord-nav-btn" onClick={() => navigate(1)}>
+          <span className="material-symbols-outlined">chevron_right</span>
+        </button>
       </div>
 
       {!chordData ? (

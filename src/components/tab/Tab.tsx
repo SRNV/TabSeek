@@ -10,8 +10,10 @@ import type { ModeGuitar } from '../../types'
 import { getNoteName } from '../../composables/useNoteHelpers'
 import { playNote, playChord, playFullChord } from '../../composables/useAudio'
 import eventBus from '../../eventBus'
-import { ALL_CHORDS, CHORD_EMOJIS, getReadableChordName } from '../../composables/tonalChordsMapping'
+import { ALL_CHORDS, CHORD_ICONS, getReadableChordName } from '../../composables/tonalChordsMapping'
 import './Tab.scss'
+import { createRibbonMaterial, createRibbonGeometry, fillRibbonGeoLinear } from '../../services/RibbonLineService'
+import { ColorService } from '../../services/ColorService'
 
 // ── Layout constants ───────────────────────────────────────────────────────────
 
@@ -88,6 +90,7 @@ interface CellData {
   isOpen: boolean
   isHighlighted: boolean
   color: THREE.Color
+  naturalColor: THREE.Color  // degree color, independent of fretboardHighlights
   posX: number
   posY: number
   label: string
@@ -187,7 +190,8 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const dotGeo     = useMemo(() => new THREE.CircleGeometry(0.30, 24), [])
   const dotMat     = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72, side: THREE.DoubleSide }), [])
   const outlineGeo = useMemo(() => roundedRectGeo(PLANE_W + OUTLINE_EXTRA, PLANE_H + OUTLINE_EXTRA, PLANE_H * 0.15 + OUTLINE_EXTRA / 2), [])
-  const outlineMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#e57c00', side: THREE.DoubleSide }), [])
+  const outlineMat      = useMemo(() => new THREE.MeshBasicMaterial({ color: '#e57c00', side: THREE.DoubleSide }), [])
+  const legatoOutlineMat = useMemo(() => new THREE.MeshBasicMaterial({ color: CHORD_ORANGE, side: THREE.DoubleSide }), [])
 
   const tmpM  = useMemo(() => new THREE.Matrix4(), [])
   const animM = useMemo(() => new THREE.Matrix4(), [])
@@ -195,9 +199,10 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const offM  = useMemo(() => new THREE.Matrix4().makeScale(0, 0, 0), [])
 
   // ── Animation refs ────────────────────────────────────────────────────────
-  const currentColors  = useRef<THREE.Color[]>([])
-  const targetColors   = useRef<THREE.Color[]>([])
-  const originalColors = useRef<THREE.Color[]>([])
+  const currentColors   = useRef<THREE.Color[]>([])
+  const targetColors    = useRef<THREE.Color[]>([])
+  const originalColors  = useRef<THREE.Color[]>([])
+  const naturalColorsRef = useRef<THREE.Color[]>([])
   const basePosRef     = useRef<Array<[number, number]>>([])
   const playAnims      = useRef<Array<{ idx: number; t: number; pc: number }>>([])
   const playingPCs     = useRef(new Set<number>())
@@ -210,7 +215,8 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const scaleGrey        = useMemo(() => new THREE.Color(DEFAULT_BG).lerp(new THREE.Color('#ffffff'), 0.10), [])
 
   // ── Popover ───────────────────────────────────────────────────────────────
-  const chordRootObject                       = useMainStore(s => s.chordRootObject)
+  const chordRootObject        = useMainStore(s => s.chordRootObject)
+  const legatoFretHighlights   = useMainStore(s => s.legatoFretHighlights)
   const [popoverCell, setPopoverCell]         = useState<CellData | null>(null)
   const [popoverVisible, _setPopoverVisible]  = useState(false)
   const popoverVisibleRef    = useRef(false)
@@ -226,66 +232,22 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   const chordLineMeshRef = useRef<THREE.Mesh>(null!)
   const lineActiveRef    = useRef(false)
 
-  const chordLineMat = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-    },
-    vertexShader: `
-      attribute vec3  aCenterPos;
-      attribute vec3  aPerp;
-      attribute vec3  aColor;
-      attribute float aGlobalU;   // 0 = start of entire chord path, 1 = end
-      uniform float   uTime;
-      varying vec3    vColor;
-      varying float   vV;
-      void main() {
-        vColor = aColor;
-        vV     = uv.y;
-        // Thickness-wave traveling from start→end at 0.8 Hz
-        float wavePos = fract(uTime * 0.8);
-        float dist    = abs(aGlobalU - wavePos);
-        float bell    = max(0.0, 1.0 - dist * 6.0);  // non-zero over ~1/6 of path
-        float wScale  = 1.0 + 0.9 * bell * bell;     // 1.0 → 1.5 at wave peak
-        gl_Position   = projectionMatrix * modelViewMatrix
-                        * vec4(aCenterPos + aPerp * wScale, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec3  vColor;
-      varying float vV;
-      void main() {
-        float edge    = abs(vV - 0.5) * 2.0;        // 0 = centre, 1 = outer edge
-        // Orange border in the outer ~30 % of the half-width
-        float borderT = smoothstep(0.55, 0.80, edge);
-        vec3  orange  = vec3(1.0, 0.584, 0.0);      // #FF9500
-        vec3  color   = mix(vColor, orange, borderT);
-        float alpha   = (1.0 - smoothstep(0.82, 1.0, edge)) * 0.92;
-        gl_FragColor  = vec4(color, alpha);
-      }
-    `,
-    transparent: true,
-    depthTest:   false,
-    depthWrite:  false,
-    side: THREE.DoubleSide,
-  }), [])
+  // ── Legato fret visualization ─────────────────────────────────────────────
+  const legatoOutlineRef       = useRef<THREE.InstancedMesh>(null!)
+  const legatoLineMeshRef      = useRef<THREE.Mesh>(null!)
+  const legatoOutlineActiveRef = useRef<number[]>([])
+  const legatoOutlineDirtyRef  = useRef(false)
+  const legatoLineActiveRef    = useRef(false)
 
-  const chordLineGeo = useMemo(() => {
-    const nV  = MAX_CHORD_SEGS * 4
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position',   new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
-    geo.setAttribute('aCenterPos', new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
-    geo.setAttribute('aPerp',      new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
-    geo.setAttribute('aColor',     new THREE.BufferAttribute(new Float32Array(nV * 3), 3))
-    geo.setAttribute('aGlobalU',   new THREE.BufferAttribute(new Float32Array(nV * 1), 1))
-    geo.setAttribute('uv',         new THREE.BufferAttribute(new Float32Array(nV * 2), 2))
-    const idx: number[] = []
-    for (let s = 0; s < MAX_CHORD_SEGS; s++) {
-      const b = s * 4
-      idx.push(b, b+1, b+2,  b+2, b+1, b+3)
-    }
-    geo.setIndex(idx)
-    return geo
-  }, [])
+  const chordLineMat = useMemo(() => createRibbonMaterial(), [])
+
+  const chordLineGeo = useMemo(() => createRibbonGeometry(MAX_CHORD_SEGS), [])
+
+  const MAX_LEGATO_SEGS = 200
+
+  const legatoLineMat = useMemo(() => createRibbonMaterial(), [])
+
+  const legatoLineGeo = useMemo(() => createRibbonGeometry(MAX_LEGATO_SEGS), [])
 
   const setPopoverVisible = useCallback((v: boolean) => {
     popoverVisibleRef.current = v
@@ -397,7 +359,8 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
     }
 
     const newTargets = cells.map(c => c.color.clone())
-    originalColors.current = newTargets.map(c => c.clone())
+    originalColors.current  = newTargets.map(c => c.clone())
+    naturalColorsRef.current = cells.map(c => c.naturalColor.clone())
     targetColors.current = newTargets
 
     if (currentColors.current.length !== cells.length) {
@@ -454,81 +417,36 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
     }
   }, [cells, dimColor, scaleGrey])
 
-  // ── Chord line geometry builder (called from useFrame on chord change) ──────
-  // Divides each interval-to-interval path into SUBDIVISIONS points (20)
+  // Compute legato outline indices whenever legatoFretHighlights changes.
+  // h.si uses store convention (0 = low E) while c.si is visual (0 = high e),
+  // so we invert: visualSi = (N_STRINGS - 1) - h.si.
+  // h.fret is the actual fret number; c.fretSemi holds the same value.
+  useEffect(() => {
+    const indices = legatoFretHighlights
+      .map(h => cells.findIndex(
+        c => c.si === (N_STRINGS - 1 - h.si) && c.fretSemi === h.fret
+      ))
+      .filter(idx => idx >= 0)
+    legatoOutlineActiveRef.current = indices
+    legatoOutlineDirtyRef.current  = true
+  }, [legatoFretHighlights, cells])
+
   function updateChordLineGeo() {
-    const posAttr = chordLineGeo.attributes.position   as THREE.BufferAttribute
-    const cpAttr  = chordLineGeo.attributes.aCenterPos as THREE.BufferAttribute
-    const prpAttr = chordLineGeo.attributes.aPerp      as THREE.BufferAttribute
-    const colAttr = chordLineGeo.attributes.aColor     as THREE.BufferAttribute
-    const guAttr  = chordLineGeo.attributes.aGlobalU   as THREE.BufferAttribute
-    const uvAttr  = chordLineGeo.attributes.uv         as THREE.BufferAttribute
     const intervals = chordOutlineActiveRef.current.map(idx => cells[idx]).filter(Boolean)
-    
-    let currentSegIdx = 0
-    const nIntervals = intervals.length
+    const waypoints = intervals.map(c => ({ x: c.posX, y: c.posY, z: 0.001, color: c.color }))
+    fillRibbonGeoLinear(chordLineGeo, waypoints, CHORD_LINE_HALF_W, SUBDIVISIONS, MAX_CHORD_SEGS)
+  }
 
-    if (nIntervals >= 2) {
-      for (let i = 0; i < nIntervals - 1; i++) {
-        const start = intervals[i]
-        const end   = intervals[i + 1]
-        
-        for (let s = 0; s < SUBDIVISIONS; s++) {
-          const b = currentSegIdx * 4
-          const t0 = s / SUBDIVISIONS
-          const t1 = (s + 1) / SUBDIVISIONS
-          
-          const ax = start.posX + (end.posX - start.posX) * t0
-          const ay = start.posY + (end.posY - start.posY) * t0
-          const bx = start.posX + (end.posX - start.posX) * t1
-          const by = start.posY + (end.posY - start.posY) * t1
-          
-          const cA = start.color.clone().lerp(end.color, t0)
-          const cB = start.color.clone().lerp(end.color, t1)
-          
-          const dx  = bx - ax
-          const dy  = by - ay
-          const len = Math.sqrt(dx * dx + dy * dy) || 1
-          const px  = -dy / len * CHORD_LINE_HALF_W
-          const py  =  dx / len * CHORD_LINE_HALF_W
-          const z   = 0.001
-
-          // Global U across the entire chord sequence
-          const totalPoints = (nIntervals - 1) * SUBDIVISIONS
-          const gu0 = currentSegIdx / totalPoints
-          const gu1 = (currentSegIdx + 1) / totalPoints
-
-          cpAttr.setXYZ(b+0, ax, ay, z);  cpAttr.setXYZ(b+1, ax, ay, z)
-          cpAttr.setXYZ(b+2, bx, by, z);  cpAttr.setXYZ(b+3, bx, by, z)
-          prpAttr.setXYZ(b+0, -px, -py, 0); prpAttr.setXYZ(b+1, px, py, 0)
-          prpAttr.setXYZ(b+2, -px, -py, 0); prpAttr.setXYZ(b+3, px, py, 0)
-          posAttr.setXYZ(b+0, ax-px, ay-py, z); posAttr.setXYZ(b+1, ax+px, ay+py, z)
-          posAttr.setXYZ(b+2, bx-px, by-py, z); posAttr.setXYZ(b+3, bx+px, by+py, z)
-          guAttr.setX(b+0, gu0); guAttr.setX(b+1, gu0)
-          guAttr.setX(b+2, gu1); guAttr.setX(b+3, gu1)
-          uvAttr.setXY(b+0, 0, 0); uvAttr.setXY(b+1, 0, 1)
-          uvAttr.setXY(b+2, 1, 0); uvAttr.setXY(b+3, 1, 1)
-          colAttr.setXYZ(b+0, cA.r, cA.g, cA.b); colAttr.setXYZ(b+1, cA.r, cA.g, cA.b)
-          colAttr.setXYZ(b+2, cB.r, cB.g, cB.b); colAttr.setXYZ(b+3, cB.r, cB.g, cB.b)
-          
-          currentSegIdx++
-        }
-      }
-    }
-
-    // Hide remaining unused segments
-    for (let s = currentSegIdx; s < MAX_CHORD_SEGS; s++) {
-      const b = s * 4
-      for (let v = 0; v < 4; v++) {
-        posAttr.setXYZ(b+v, 0, 0, 0); cpAttr.setXYZ(b+v, 0, 0, 0)
-        prpAttr.setXYZ(b+v, 0, 0, 0); colAttr.setXYZ(b+v, 0, 0, 0)
-        guAttr.setX(b+v, 0); uvAttr.setXY(b+v, 0, 0)
-      }
-    }
-
-    posAttr.needsUpdate = true;  cpAttr.needsUpdate  = true
-    prpAttr.needsUpdate = true;  colAttr.needsUpdate = true
-    guAttr.needsUpdate  = true;  uvAttr.needsUpdate  = true
+  function updateLegatoLineGeo() {
+    const waypoints = legatoOutlineActiveRef.current
+      .map(idx => {
+        const cell = cells[idx]
+        if (!cell) return null
+        const color = naturalColorsRef.current[idx]?.clone() ?? new THREE.Color(DEFAULT_BG)
+        return { x: cell.posX, y: cell.posY, z: 0.001, color }
+      })
+      .filter((w): w is NonNullable<typeof w> => w !== null)
+    fillRibbonGeoLinear(legatoLineGeo, waypoints, CHORD_LINE_HALF_W, SUBDIVISIONS, MAX_LEGATO_SEGS)
   }
 
   // ── Per-frame: color lerp + scale animation ───────────────────────────────
@@ -666,6 +584,35 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       chordLineMat.uniforms.uTime.value += delta
     }
 
+    // Legato fret visualization: outline + animated line
+    if (legatoOutlineDirtyRef.current && legatoOutlineRef.current) {
+      legatoOutlineDirtyRef.current = false
+      const legatoMesh = legatoOutlineRef.current
+      for (let i = 0; i < MAX_INS; i++) legatoMesh.setMatrixAt(i, offM)
+      legatoOutlineActiveRef.current.forEach(idx => {
+        const pos = basePosRef.current[idx]
+        if (!pos) return
+        animM.makeScale(1, 1, 1)
+        animM.setPosition(pos[0], pos[1], -0.003)
+        legatoMesh.setMatrixAt(idx, animM)
+      })
+      legatoMesh.instanceMatrix.needsUpdate = true
+      legatoLineActiveRef.current = legatoOutlineActiveRef.current.length >= 2
+      updateLegatoLineGeo()
+      if (legatoOutlineActiveRef.current.length > 0) {
+        legatoOutlineActiveRef.current.forEach(idx => {
+          targetColors.current[idx] = naturalColorsRef.current[idx]?.clone()
+            ?? new THREE.Color(DEFAULT_BG)
+        })
+        colorNeedsUpdate.current = true
+      } else {
+        colorRuleTriggerRef.current = true
+      }
+    }
+    if (legatoLineActiveRef.current) {
+      legatoLineMat.uniforms.uTime.value += delta
+    }
+
     // Apply three-tier color rules: outline = highlighted → degree color
     //                                in-scale + no outline → scaleGrey
     //                                not in scale → dimColor
@@ -681,6 +628,12 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
         } else {
           targetColors.current[i] = dimColor.clone()
         }
+      })
+      // Preserve legato cell colors if a chain is currently visualized
+      legatoOutlineActiveRef.current.forEach(idx => {
+        if (!cells[idx]) return
+        targetColors.current[idx] = naturalColorsRef.current[idx]?.clone()
+          ?? new THREE.Color(DEFAULT_BG)
       })
       colorNeedsUpdate.current = true
     }
@@ -810,6 +763,9 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       <mesh ref={chordLineMeshRef} geometry={chordLineGeo} material={chordLineMat} frustumCulled={false} renderOrder={2} />
       {/* Orange outlines — renderOrder=3 so they always appear above the connector line */}
       <instancedMesh ref={outlineRef} args={[outlineGeo, outlineMat, MAX_INS]} raycast={() => undefined} renderOrder={3} />
+      {/* Legato fret visualization: animated line + orange outlines (no fill) */}
+      <mesh ref={legatoLineMeshRef} geometry={legatoLineGeo} material={legatoLineMat} frustumCulled={false} renderOrder={2} />
+      <instancedMesh ref={legatoOutlineRef} args={[outlineGeo, legatoOutlineMat, MAX_INS]} raycast={() => undefined} renderOrder={4} />
       <instancedMesh ref={cellsRef} args={[cellGeo, cellMat, MAX_INS]} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut} />
       <instancedMesh ref={stringsRef} args={[strGeo, strMat, N_STRINGS]} />
 
@@ -850,10 +806,12 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
               }}
               onMouseLeave={() => closePopover()}
             >
-              <button className="pop-nav" onClick={() => navigateChord(-1)} title={prevChord ? getReadableChordName(prevChord.id, 'symbol') : ''}>◀</button>
+              <button className="pop-nav" onClick={() => navigateChord(-1)} title={prevChord ? getReadableChordName(prevChord.id, 'symbol') : ''}>
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
               <div className="pop-chord-info">
                 <span
-                  className="pop-emoji"
+                  className="material-symbols-outlined pop-icon"
                   style={{ cursor: 'pointer' }}
                   onClick={(e) => {
                     if (!chordRootObject || !popoverCell || popoverCell.midi === null) return
@@ -861,10 +819,12 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
                     const notes = (chordRootObject.intervals as string[]).map(iv => Note.transpose(rootNote, iv))
                     e.ctrlKey ? playChord(notes) : playFullChord(notes)
                   }}
-                >{chordRootObject ? (CHORD_EMOJIS[chordRootObject.id] ?? '🎵') : '–'}</span>
+                >{chordRootObject ? (CHORD_ICONS[chordRootObject.id] ?? 'music_note') : 'remove'}</span>
                 <span className="pop-name">{chordLabel}</span>
               </div>
-              <button className="pop-nav" onClick={() => navigateChord(1)} title={nextChord ? getReadableChordName(nextChord.id, 'symbol') : ''}>▶</button>
+              <button className="pop-nav" onClick={() => navigateChord(1)} title={nextChord ? getReadableChordName(nextChord.id, 'symbol') : ''}>
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
             </div>
             </div>
           </Html>
@@ -872,9 +832,7 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       })()}
 
       {cells.map(c => {
-        const hsl = { h: 0, s: 0, l: 0 }
-        c.color.getHSL(hsl)
-        const ink = hsl.l > 0.45 ? '#111' : '#f0f0f0'
+        const ink = ColorService.getContrastColor(`#${c.color.getHexString()}`)
         return (
           <Html
             key={`${c.si}-${c.slotIdx}`}
@@ -914,6 +872,7 @@ export default function Tab({
   const modeObject      = useMainStore(s => s.modeObject)
   const chordRootNote   = useMainStore(s => s.chordRootNote)
   const chordRootObject = useMainStore(s => s.chordRootObject)
+  const fretboardHighlights = useMainStore(s => s.fretboardHighlights)
 
   const [tuning, setTuning] = useState<string[]>(() => cordsProp ?? ['E2', 'A2', 'D3', 'G3', 'C3', 'E4'])
 
@@ -956,6 +915,9 @@ export default function Tab({
   const cells = useMemo((): CellData[] => {
     const result: CellData[] = []
     strings.forEach((str, si) => {
+      // Map visual string index to store string index (0=low E)
+      const storeSi = (N_STRINGS - 1) - si
+
       displayFrets.forEach((fretSemi, slotIdx) => {
         const noteName = getNoteName(str, fretSemi)
         const nd       = Note.get(noteName)
@@ -967,17 +929,30 @@ export default function Tab({
         let colorHex      = DEFAULT_BG
         let degreeLabel   = ''
 
-        if (matchType === 'one') {
-          if (midi !== null && midiSet12.has(midi % 12)) {
-            isHighlighted = true
-            colorHex = CHORD_ORANGE
-          }
+        // 1. Check for specific store-driven highlights (e.g. from playback or hover)
+        const specific = fretboardHighlights.find(h => h.si === storeSi && h.fret === fretSemi)
+
+        if (specific) {
+          isHighlighted = true
+          colorHex = specific.color || CHORD_ORANGE
+        } else if (fretboardHighlights.length > 0) {
+          // If we have specific highlights, we force everything else to be UNHIGHLIGHTED 
+          // (per user request: "only the note corresponding to the pod position should be highlighted")
+          isHighlighted = false
         } else {
-          const deg = noteDegree(noteName, modeNotes)
-          if (deg !== null) {
-            isHighlighted = true
-            colorHex  = DEGREE_COLORS[deg - 1]
-            degreeLabel = `${deg}°`
+          // 2. Default scale/chord matching
+          if (matchType === 'one') {
+            if (midi !== null && midiSet12.has(midi % 12)) {
+              isHighlighted = true
+              colorHex = CHORD_ORANGE
+            }
+          } else {
+            const deg = noteDegree(noteName, modeNotes)
+            if (deg !== null) {
+              isHighlighted = true
+              colorHex  = DEGREE_COLORS[deg - 1]
+              degreeLabel = `${deg}°`
+            }
           }
         }
 
@@ -985,10 +960,22 @@ export default function Tab({
           ? withOctaveBrightness(colorHex, octave, isOpen)
           : new THREE.Color(DEFAULT_BG)
 
+        // Compute degree color independently of fretboardHighlights
+        let naturalHex = DEFAULT_BG
+        if (matchType === 'one') {
+          if (midi !== null && midiSet12.has(midi % 12)) naturalHex = CHORD_ORANGE
+        } else {
+          const deg = noteDegree(noteName, modeNotes)
+          if (deg !== null) naturalHex = DEGREE_COLORS[deg - 1]
+        }
+        const naturalColor = naturalHex !== DEFAULT_BG
+          ? withOctaveBrightness(naturalHex, octave, isOpen)
+          : new THREE.Color(DEFAULT_BG)
+
         result.push({
           si, fretSemi, slotIdx,
           noteName, midi, octave,
-          isOpen, isHighlighted, color,
+          isOpen, isHighlighted, color, naturalColor,
           posX: slotX(slotIdx),
           posY: stringY(si),
           label: nd.pc ?? noteName,
@@ -997,7 +984,7 @@ export default function Tab({
       })
     })
     return result
-  }, [strings, displayFrets, matchType, modeNotes, midiSet12])
+  }, [strings, displayFrets, matchType, modeNotes, midiSet12, fretboardHighlights])
 
   const chordPos = useMemo(() => {
     if (matchType !== 'one') return []
@@ -1046,7 +1033,7 @@ export default function Tab({
           onClick={() => { if (canLeft) { setLocalStart(s => s - 1); setLocalEnd(e => e - 1) } }}
           disabled={!canLeft}
         >
-          <span className="arrow-icon">◀</span>
+          <span className="material-symbols-outlined">chevron_left</span>
         </button>
 
         <div className="tab-gl-wrap">
@@ -1070,7 +1057,7 @@ export default function Tab({
           onClick={() => { if (canRight) { setLocalStart(s => s + 1); setLocalEnd(e => e + 1) } }}
           disabled={!canRight}
         >
-          <span className="arrow-icon">▶</span>
+          <span className="material-symbols-outlined">chevron_right</span>
         </button>
       </div>
 

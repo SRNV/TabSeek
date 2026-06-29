@@ -1,0 +1,152 @@
+import { Note, Chord } from 'tonal'
+import { numeralToChordName, romanToDegree } from '../utils/chordUtils'
+import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
+import { useTablatureStore } from '../stores/useTablatureStore'
+import { useMainStore } from '../stores/useMainStore'
+import { getNoteName } from '../composables/useNoteHelpers'
+import { findBestChordFrets, Voicing } from '../utils/guitarUtils'
+import type { ChordProgression } from '../composables/progressions'
+
+const CHORD_DUR = 4 // Default duration for each chord in a progression
+
+export const TablatureDropService = {
+  handleDrop: (
+    prog: ChordProgression,
+    si: number,
+    beat: number,
+    scaleNotes: string[]
+  ) => {
+    const state = useTablatureR3FStore.getState()
+    const { 
+      addNote: add, addChordGroup: addGrp, addProgressionGroup: addProg, 
+      deleteNote, updateNote, removeChordGroup, setLegatoSourceId, pushHistory: ph 
+    } = state
+    
+    setLegatoSourceId(null) // Clear any pending legato creation
+    
+    const tuning = useTablatureStore.getState().tuning.split(',')
+    const userScale = useMainStore.getState().userScale
+    const scalePc = Note.pitchClass(userScale)
+    
+    // Check if dropped on an existing note pod (within its duration)
+    const dropOnNote = state.notes.find(n => 
+      n.string === si && 
+      beat >= n.startBeat && 
+      beat <= (n.startBeat + n.duration)
+    )
+
+    if (dropOnNote) {
+      const isChordPod = state.chordGroups.some(g => g.noteIds.includes(dropOnNote.id))
+      const isLegatoPod = !!(dropOnNote.legatoNext || dropOnNote.legatoPrev || state.notes.some(n => n.intermediateNoteIds?.includes(dropOnNote.id)))
+      
+      if (isChordPod || isLegatoPod) {
+        return // Forbidden to drop on chord pods or legato-generated pods
+      }
+    }
+    
+    ph()
+    const addedGroupIds: string[] = []
+
+    let effectiveScalePc = scalePc
+    let forcedRoot: Voicing | undefined = undefined
+    let effectiveBeat = beat
+    let dropNoteId: string | undefined = undefined
+    let dur = CHORD_DUR
+
+    if (dropOnNote) {
+      dur = dropOnNote.duration
+      const noteName = getNoteName(tuning[dropOnNote.string], dropOnNote.fret)
+      
+      // Anchoring logic: find the Tonic such that the first chord's root is the note we dropped on
+      const firstNumeral = prog.numerals?.split('-')[0]
+      if (firstNumeral && !prog._chordType) {
+        const { degree } = romanToDegree(firstNumeral)
+        const ivs = ['1P','2M','3M','4P','5P','6M','7M']
+        effectiveScalePc = Note.pitchClass(Note.transpose(noteName, "-" + ivs[degree - 1]))
+      } else {
+        effectiveScalePc = Note.pitchClass(noteName)
+      }
+
+      forcedRoot = { si: dropOnNote.string, fret: dropOnNote.fret }
+      effectiveBeat = dropOnNote.startBeat // Snap to the target pod's position
+      dropNoteId = dropOnNote.id
+      
+      // Update global tonic
+      if (effectiveScalePc) {
+        useMainStore.getState().setUserScale(effectiveScalePc)
+      }
+      
+      // Break any legato connection
+      updateNote(dropNoteId, { 
+        legatoNext: undefined, 
+        legatoPrev: undefined, 
+        intermediateNoteIds: [], 
+        legatoCount: 0 
+      }, tuning, scaleNotes)
+
+      // Clean intermediate notes if it was a source
+      if (dropOnNote.intermediateNoteIds && dropOnNote.intermediateNoteIds.length > 0) {
+        dropOnNote.intermediateNoteIds.forEach(id => deleteNote(id, tuning))
+      }
+
+      // Remove existing groups that contain this note
+      state.chordGroups.forEach(g => {
+        if (g.noteIds.includes(dropNoteId!)) {
+          removeChordGroup(g.id)
+        }
+      })
+    }
+
+    const numChords = prog._chordType ? 1 : prog.numerals.split('-').length
+    const totalProgDur = numChords * dur
+
+    const chordEntries: Array<{ chordName: string; startBeat: number }> = prog._chordType
+      ? [{ chordName: effectiveScalePc + prog._chordType, startBeat: effectiveBeat }]
+      : prog.numerals.split('-').map((numeral, ci) => ({
+          chordName: numeralToChordName(numeral, effectiveScalePc),
+          startBeat: effectiveBeat + ci * dur,
+        }))
+
+    chordEntries.forEach(({ chordName, startBeat }, ci) => {
+      // Re-fetch fresh state for each chord entry to avoid using stale notes array
+      const currentState = useTablatureR3FStore.getState()
+      const notesPc   = Chord.get(chordName).notes
+      const addedIds: string[] = []
+      
+      const voicing = findBestChordFrets(tuning, notesPc, si, ci === 0 ? forcedRoot : undefined)
+      
+      voicing.forEach(v => {
+        const targetSi = v.si
+        
+        const overlapping = currentState.notes.filter(n => 
+          n.string === targetSi && 
+          n.id !== dropNoteId &&
+          n.startBeat < (startBeat + dur) && 
+          (n.startBeat + n.duration) > startBeat
+        )
+
+        // Instead of deleting, we shift overlapping notes forward
+        overlapping.forEach(n => {
+          updateNote(n.id, { startBeat: n.startBeat + totalProgDur }, tuning, scaleNotes)
+        })
+
+        if (ci === 0 && dropNoteId && targetSi === dropOnNote!.string) {
+          // Keep the note we dropped on, update its duration
+          updateNote(dropNoteId, { duration: dur, fret: v.fret }, tuning, scaleNotes)
+          addedIds.push(dropNoteId)
+          return
+        }
+        
+        addedIds.push(add({ string: targetSi, startBeat, duration: dur, fret: v.fret }))
+      })
+      if (addedIds.length > 0) {
+        const gId = addGrp(addedIds, chordName)
+        addedGroupIds.push(gId)
+      }
+    })
+
+    if (addedGroupIds.length > 0 && !prog._chordType) {
+      addProg(addedGroupIds, prog.name || 'Progression')
+    }
+  }
+}

@@ -25,6 +25,8 @@ interface MainState {
   chordRootNoteType: string
   hoveredRootNote: string
   tabHoveredChordName: string | null
+  fretboardHighlights: Array<{ si: number; fret: number; color?: string }>
+  legatoFretHighlights: Array<{ si: number; fret: number }>
   setUserScale: (scale: string) => void
   setSelectedMidi: (midi: number | null) => void
   clearSelectedMidi: () => void
@@ -35,6 +37,8 @@ interface MainState {
   setChordRootNoteType: (type: string) => void
   setHoveredRootNote: (note: string) => void
   setTabHoveredChordName: (name: string | null) => void
+  setFretboardHighlights: (highlights: Array<{ si: number; fret: number; color?: string }>) => void
+  setLegatoFretHighlights: (highlights: Array<{ si: number; fret: number }>) => void
   getModeNotes: () => string[]
   getModeTriad: () => string
   getModeSeventh: () => string
@@ -50,6 +54,8 @@ export const useMainStore = create<MainState>((set, get) => ({
   chordRootNoteType: 'major',
   hoveredRootNote: '',
   tabHoveredChordName: null,
+  fretboardHighlights: [],
+  legatoFretHighlights: [],
 
   getModeNotes: () => {
     const { userScale, modeObject } = get()
@@ -80,4 +86,6 @@ export const useMainStore = create<MainState>((set, get) => ({
   setChordRootNoteType: (type) => set({ chordRootNoteType: type }),
   setHoveredRootNote: (note) => set({ hoveredRootNote: note }),
   setTabHoveredChordName: (name) => set({ tabHoveredChordName: name }),
+  setFretboardHighlights: (highlights) => set({ fretboardHighlights: highlights }),
+  setLegatoFretHighlights: (highlights) => set({ legatoFretHighlights: highlights }),
 }))

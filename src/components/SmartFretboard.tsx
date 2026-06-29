@@ -61,7 +61,7 @@ export default function SmartFretboard() {
       matchType="multiple"
       tabLength={24}
       visibleStart={0}
-      visibleEnd={10}
+      visibleEnd={15}
       cords={cords}
       contextModeObject={contextModeObject}
     />
