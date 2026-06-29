@@ -222,33 +222,20 @@ function LegatoLine({ sourceId, destId, noteColor, legatoSourceId, invStretchX }
   )
 }
 
-// ── Legato Bubble Button (shared by behavior + render) ────────────────────────
-function LegatoBubbleBtn({ color, icon, onClick }: { color: string; icon: string; onClick: () => void }) {
-  const [hovered, setHovered] = useState(false)
+// ── Legato Action Button (shared by behavior + render) ────────────────────────
+function LegatoActionBtn({ color, icon, onClick }: { color: string; icon: string; onClick: () => void }) {
   const ink = ColorService.getContrastColor(color)
   return (
-    <div
-      className={`legato-behavior-bubble${hovered ? ' hovered' : ''}`}
-      style={{
-        width: '32px',
-        height: '32px',
-        backgroundColor: color,
-        cursor: 'pointer',
-        borderRadius: '50%',
-        border: '2px solid #666',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+    <button
+      type="button"
+      className="legato-action-btn"
+      style={{ backgroundColor: color }}
       onClick={(e) => { e.stopPropagation(); onClick() }}
     >
-      <span className="material-symbols-outlined" style={{ fontSize: '1.2rem', color: ink }}>
+      <span className="material-symbols-outlined" style={{ color: ink }}>
         {icon}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -349,6 +336,91 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   const lastBeatRef = useRef(playbackBeat)
   const lastActiveIdsRef = useRef<string>('')
 
+  // ── Minimap ───────────────────────────────────────────────────────────────────
+  const MINIMAP_PX = 56
+
+  const minimapCam = useMemo(() => {
+    const cam = new THREE.OrthographicCamera()
+    cam.position.set(0, 0, 10)
+    cam.near = 0.1
+    cam.far  = 100
+    cam.layers.enable(1) // sees layer 0 (scene) + layer 1 (viewport rect)
+    return cam
+  }, [])
+
+  const viewportRectRef = useRef<THREE.LineLoop>(null)
+  const minimapCursorRef  = useRef<THREE.Mesh>(null)
+  const minimapTargetXRef = useRef<number | null>(null)
+
+  const viewportRectGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 3), 3))
+    return geo
+  }, [])
+
+  useEffect(() => {
+    if (viewportRectRef.current) viewportRectRef.current.layers.set(1)
+    if (minimapCursorRef.current)  minimapCursorRef.current.layers.set(1)
+  }, [])
+
+  // Minimap drag — intercept pointer events in the bottom MINIMAP_PX strip
+  useEffect(() => {
+    const canvas = gl.domElement
+    let dragging = false
+
+    function isInMinimap(e: PointerEvent): boolean {
+      const rect = canvas.getBoundingClientRect()
+      return (e.clientY - rect.top) > (rect.height - MINIMAP_PX)
+    }
+
+    function pointerToWorldX(e: PointerEvent): number {
+      const rect      = canvas.getBoundingClientRect()
+      const frac      = (e.clientX - rect.left) / rect.width
+      const worldLeft  = minimapCam.position.x + minimapCam.left
+      const worldRight = minimapCam.position.x + minimapCam.right
+      return worldLeft + frac * (worldRight - worldLeft)
+    }
+
+    function onPointerDown(e: PointerEvent) {
+      if (!isInMinimap(e)) return
+      e.stopPropagation()
+      dragging = true
+      minimapTargetXRef.current = pointerToWorldX(e)
+      canvas.setPointerCapture(e.pointerId)
+      canvas.style.cursor = 'grabbing'
+    }
+    function onPointerMove(e: PointerEvent) {
+      if (dragging) {
+        e.stopPropagation()
+        minimapTargetXRef.current = pointerToWorldX(e)
+        canvas.style.cursor = 'grabbing'
+      } else if (isInMinimap(e)) {
+        canvas.style.cursor = 'pointer'
+      }
+    }
+    function onPointerUp(e: PointerEvent) {
+      if (!dragging) return
+      dragging = false
+      e.stopPropagation()
+      try { canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+      canvas.style.cursor = isInMinimap(e) ? 'pointer' : 'default'
+    }
+    function onPointerLeave() {
+      if (!dragging) canvas.style.cursor = 'default'
+    }
+
+    canvas.addEventListener('pointerdown',  onPointerDown,  { capture: true })
+    canvas.addEventListener('pointermove',  onPointerMove,  { capture: true })
+    canvas.addEventListener('pointerup',    onPointerUp,    { capture: true })
+    canvas.addEventListener('pointerleave', onPointerLeave)
+    return () => {
+      canvas.removeEventListener('pointerdown',  onPointerDown,  { capture: true })
+      canvas.removeEventListener('pointermove',  onPointerMove,  { capture: true })
+      canvas.removeEventListener('pointerup',    onPointerUp,    { capture: true })
+      canvas.removeEventListener('pointerleave', onPointerLeave)
+    }
+  }, [gl, minimapCam])
+
   // ── Playback Logic ──────────────────────────────────────────────────────────
   useFrame((_, delta) => {
     if (isPlaying) {
@@ -429,6 +501,73 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       }
     }
   })
+
+  // ── Multi-camera render (priority=1 → R3F skips its own auto-render) ─────────
+  useFrame(({ gl, scene, size }) => {
+    const o = camera as THREE.OrthographicCamera
+
+    // Update minimap camera frustum to show all used content
+    const usedBeats  = notes.length > 0 ? Math.max(...notes.map(n => n.startBeat + n.duration)) : 0
+    const usedMeas   = Math.ceil(usedBeats / BEATS_PER_MEAS)
+    const viewRight  = (o.position.x + halfWRef.current) / MEASURE_W
+    const dispMeas   = Math.max(usedMeas + 8, viewRight + 4, 20)
+    const totalWorldW = dispMeas * MEASURE_W
+
+    minimapCam.position.x = totalWorldW / 2
+    minimapCam.left   = -totalWorldW / 2
+    minimapCam.right  = +totalWorldW / 2
+    minimapCam.top    = CAM_HALF_H_TOP
+    minimapCam.bottom = -CAM_HALF_H_BOT
+    minimapCam.updateProjectionMatrix()
+
+    // Update viewport rect geometry (layer 1 — only visible to minimapCam)
+    if (viewportRectRef.current) {
+      const pos = viewportRectRef.current.geometry.attributes.position as THREE.BufferAttribute
+      const vl = o.position.x - halfWRef.current
+      const vr = o.position.x + halfWRef.current
+      pos.setXYZ(0, vl, CAM_HALF_H_TOP,    0.5)
+      pos.setXYZ(1, vr, CAM_HALF_H_TOP,    0.5)
+      pos.setXYZ(2, vr, -CAM_HALF_H_BOT,   0.5)
+      pos.setXYZ(3, vl, -CAM_HALF_H_BOT,   0.5)
+      pos.needsUpdate = true
+    }
+
+    // Apply minimap drag: move main camera to clicked world X
+    if (minimapTargetXRef.current !== null) {
+      const targetX = minimapTargetXRef.current
+      minimapTargetXRef.current = null
+      const halfW = halfWRef.current
+      const maxX  = totalMeasRef.current * MEASURE_W + halfW
+      o.position.x = Math.max(halfW, Math.min(maxX, targetX))
+      o.updateProjectionMatrix()
+      setScrollX(o.position.x)
+    }
+
+    // Update minimap cursor position to track playback beat
+    if (minimapCursorRef.current) {
+      minimapCursorRef.current.position.x = useTablatureR3FStore.getState().playbackBeat * BEAT_W
+    }
+
+    gl.autoClear = false
+
+    // 1. Main camera — full canvas (viewport unchanged → <Html> elements stay correctly positioned)
+    gl.setScissorTest(false)
+    gl.clearColor()
+    gl.clearDepth()
+    gl.render(scene, o)
+
+    // 2. Minimap camera — overwrites bottom strip
+    gl.setScissorTest(true)
+    gl.setViewport(0, 0, size.width, MINIMAP_PX)
+    gl.setScissor(0, 0, size.width, MINIMAP_PX)
+    gl.clearColor()
+    gl.clearDepth()
+    gl.render(scene, minimapCam)
+
+    gl.setScissorTest(false)
+    gl.setViewport(0, 0, size.width, size.height)
+    gl.autoClear = true
+  }, 1)
 
   const legatoSourceId = useTablatureR3FStore(s => s.legatoSourceId)
   const setLegatoSourceId = useTablatureR3FStore(s => s.setLegatoSourceId)
@@ -1438,28 +1577,53 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                     <meshBasicMaterial color={isLegatoSource ? SEL_COL : labelColor} transparent opacity={0.9} />
                   </mesh>
 
-                  {/* Render + Behavior bubbles */}
-                  {note.legatoNext && (
-                    <group position={[w/2 - bubbleOff, 0, 0.1]}>
-                      <Html position={[0, 0.7, 0]} center style={{ pointerEvents: 'auto' }} zIndexRange={[90, 90]}>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <LegatoBubbleBtn
-                            color={color}
-                            icon="merge"
-                            onClick={() => { pushHistory(); renderLegato(note.id) }}
-                          />
-                          <LegatoBubbleBtn
-                            color={color}
-                            icon={BEHAVIORS[note.legatoBehavior || 'chromatique'].icon}
-                            onClick={() => {
-                              setPopoverLegatoId(note.id)
-                              setPopoverVisible(true)
-                            }}
-                          />
-                        </div>
-                      </Html>
-                    </group>
-                  )}
+                  {/* Render + Behavior buttons */}
+                  {note.legatoNext && (() => {
+                    const btnW = (28 * 2 + 4) * (1 / pxPerWUX) // Total width of 2 buttons + gap in WU
+                    const camL = scrollX - halfW
+                    const camR = scrollX + halfW
+                    const podL = note.startBeat * BEAT_W
+                    const podR = podL + w
+                    
+                    // Stick to camera left but stay within pod bounds
+                    // We want the buttons to stay visible if any part of the pod is visible
+                    const targetX = Math.max(podL, Math.min(podR - btnW, camL + 0.1 * invStretchX))
+                    const relativeX = targetX - cx
+
+                    return (
+                      <group position={[relativeX, 0, 0.1]}>
+                        <Html 
+                          position={[0, 0.7, 0]} 
+                          style={{ 
+                            pointerEvents: 'auto',
+                            transform: 'none', // Use standard alignment
+                            display: 'flex',
+                            width: 'max-content'
+                          }} 
+                          zIndexRange={[90, 90]}
+                        >
+                          <div 
+                            style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
+                            onPointerDown={e => e.stopPropagation()} // Block R3F pointer events
+                          >
+                            <LegatoActionBtn
+                              color={color}
+                              icon="merge"
+                              onClick={() => { pushHistory(); renderLegato(note.id) }}
+                            />
+                            <LegatoActionBtn
+                              color={color}
+                              icon={BEHAVIORS[note.legatoBehavior || 'chromatique'].icon}
+                              onClick={() => {
+                                setPopoverLegatoId(note.id)
+                                setPopoverVisible(true)
+                              }}
+                            />
+                          </div>
+                        </Html>
+                      </group>
+                    )
+                  })()}
                 </>
               )}
 
@@ -1607,18 +1771,18 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       </group>
 
       {/* Legato Behavior Popover */}
-      {popoverLegatoId && (() => {
+      {popoverVisible && popoverLegatoId && (() => {
         const note = notes.find(n => n.id === popoverLegatoId)
         if (!note) return null
         const behavior = note.legatoBehavior || 'chromatique'
         const curIdx = BEHAVIOR_KEYS.indexOf(behavior)
         const y = stringY(note.string)
-        const x = note.startBeat * BEAT_W + note.duration * BEAT_W - 0.3 * invStretchX
+        const x = note.startBeat * BEAT_W
         
         return (
-          <Html position={[x, y + 0.7, 0.2]} center style={{ pointerEvents: popoverVisible ? 'auto' : 'none' }} zIndexRange={[100, 100]}>
+          <Html position={[x, y + 0.7, 0.2]} center style={{ pointerEvents: 'auto' }} zIndexRange={[100, 100]}>
              <div 
-               className={`legato-popover${popoverVisible ? ' visible' : ''}`}
+               className="legato-popover visible"
                onMouseLeave={() => setPopoverVisible(false)}
                onPointerDown={e => e.stopPropagation()}
              >
@@ -1659,6 +1823,21 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           </Html>
         )
       })()}
+
+      {/* Viewport rect — layer 1, visible only to minimapCam */}
+      <lineLoop ref={viewportRectRef} geometry={viewportRectGeo} frustumCulled={false}>
+        <lineBasicMaterial color="#FF9500" />
+      </lineLoop>
+
+      {/* Minimap playback cursor — layer 1, wide enough to be visible at minimap scale */}
+      <mesh
+        ref={minimapCursorRef}
+        position={[playbackBeat * BEAT_W, (CAM_HALF_H_TOP - CAM_HALF_H_BOT) / 2, 0.6]}
+        frustumCulled={false}
+      >
+        <planeGeometry args={[1.5, CAM_HALF_H_TOP + CAM_HALF_H_BOT]} />
+        <meshBasicMaterial color={APPLE_GREEN} transparent opacity={0.85} depthWrite={false} />
+      </mesh>
     </group>
   )
 }

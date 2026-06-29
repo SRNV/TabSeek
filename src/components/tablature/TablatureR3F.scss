@@ -9,6 +9,7 @@
   -webkit-user-select: none;
 }
 
+
 .tab-r3f-top-content {
   flex: 1;
   display: flex;
@@ -105,22 +106,27 @@
   text-transform: uppercase;
 }
 
-@keyframes legato-bubble-pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-
-.legato-behavior-bubble {
-  border-radius: 50%;
-  border: 1.5px solid #888;
+.legato-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1.5px solid #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   pointer-events: auto;
-  transition: box-shadow 0.2s ease;
+  padding: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   
   &:hover {
-    animation: legato-bubble-pulse 1s infinite ease-in-out;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    border-color: #888;
+    transform: scale(1.1);
+  }
+
+  .material-symbols-outlined {
+    font-size: 1.15rem;
   }
 }
 
