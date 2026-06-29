@@ -393,8 +393,16 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
 
     function onNote(midi: number) {
       const pc = midi % 12
+      const highlights = useMainStore.getState().fretboardHighlights
+      const hasSpecific = highlights.length > 0
+
       cells.forEach((c, i) => {
         if (c.midi !== null && c.midi % 12 === pc) {
+          if (hasSpecific) {
+            const storeSi = (N_STRINGS - 1) - c.si
+            const isMatch = highlights.some(h => h.si === storeSi && h.fret === c.fretSemi)
+            if (!isMatch) return
+          }
           playAnims.current = playAnims.current.filter(a => a.idx !== i)
           playAnims.current.push({ idx: i, t: 0, pc })
         }

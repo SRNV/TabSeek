@@ -1,171 +1,129 @@
-// src/composables/useAudio.ts mis à jour
-import { Note, Interval } from 'tonal';
+import { Note } from 'tonal';
 import eventBus from '../eventBus';
+import { SoundFontService, getSharedAudioCtx, resumeSharedAudioCtx } from '../services/SoundFontService';
 
-let sharedAudioCtx: AudioContext | null = null;
+// Kick off SF2 loading immediately
+SoundFontService.preload();
+
+// Oscillator fallback (used until SF2 is ready)
 let activeGainNodes: GainNode[] = [];
 
-function getAudioContext() {
-  if (!sharedAudioCtx) {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioContextClass) {
-      sharedAudioCtx = new AudioContextClass();
-    }
-  }
-  return sharedAudioCtx;
+function emitMidi(note: string) {
+  const { midi } = Note.get(note);
+  if (midi != null) eventBus.emit('notePlayed', midi);
 }
 
-export function stopAllSounds() {
-  if (sharedAudioCtx) {
-    const now = sharedAudioCtx.currentTime;
-    activeGainNodes.forEach(gainNode => {
-      try {
-        gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-      } catch (e) {}
-    });
-  }
-  activeGainNodes = [];
-}
-
-/**
- * Calcule la fréquence d'une note en utilisant la formule basée sur le MIDI.
- */
 function getFrequency(note: string): number {
-  const noteData = Note.get(note);
-  if (noteData.midi != null) {
-    const midi = noteData.midi;
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  } else {
-    console.warn(`La note "${note}" est invalide. Utilisation de 440 Hz par défaut.`);
-    return 440;
-  }
+  const { midi } = Note.get(note);
+  return midi != null ? 440 * Math.pow(2, (midi - 69) / 12) : 440;
 }
 
-/**
- * Joue un son correspondant à la note indiquée.
- */
-export async function playNote(
-  note: string,
-  duration: number = 0.5,
-  type: OscillatorType = 'sine',
-  onEnd?: Function,
-): Promise<void> {
-  const noteData = Note.get(note);
-  const frequency = getFrequency(note);
-  
-  if (noteData.midi != null) {
-    eventBus.emit('notePlayed', noteData.midi);
-  }
-  
-  const audioCtx = getAudioContext();
-  if (!audioCtx) return;
+function playOscillator(note: string, duration: number): void {
+  const ctx = getSharedAudioCtx();
+  if (!ctx) return;
 
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
-  }
-  
-  const gainNode = audioCtx.createGain();
-  gainNode.gain.value = 0.3; 
-  gainNode.connect(audioCtx.destination);
-  activeGainNodes.push(gainNode);
-  
-  const oscillator = audioCtx.createOscillator();
-  oscillator.type = type;
-  oscillator.frequency.value = frequency;
-  oscillator.connect(gainNode);
-  
-  oscillator.start();
-  oscillator.stop(audioCtx.currentTime + duration);
-  
-  oscillator.onended = () => {
-    const idx = activeGainNodes.indexOf(gainNode);
-    if (idx !== -1) activeGainNodes.splice(idx, 1);
-    if (onEnd) onEnd();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.3;
+  gain.connect(ctx.destination);
+  activeGainNodes.push(gain);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = getFrequency(note);
+  osc.connect(gain);
+  osc.start();
+  osc.stop(ctx.currentTime + duration);
+  osc.onended = () => {
+    const i = activeGainNodes.indexOf(gain);
+    if (i !== -1) activeGainNodes.splice(i, 1);
   };
 }
 
-/**
- * Joue une séquence de notes (un accord ou une mélodie) de manière séquentielle.
- */
+export function stopAllSounds() {
+  SoundFontService.stopAll();
+
+  const ctx = getSharedAudioCtx();
+  const now = ctx?.currentTime ?? 0;
+  activeGainNodes.forEach(g => {
+    try {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    } catch {}
+  });
+  activeGainNodes = [];
+}
+
+export async function playNote(
+  note: string,
+  duration = 0.5,
+  _type?: OscillatorType,
+  onEnd?: Function,
+): Promise<void> {
+  emitMidi(note);
+
+  if (SoundFontService.isReady) {
+    await SoundFontService.playNote(note, duration);
+  } else {
+    await resumeSharedAudioCtx();
+    playOscillator(note, duration);
+  }
+
+  if (onEnd) setTimeout(() => onEnd(), duration * 1000);
+}
+
 export async function playChord(
   notes: string[],
-  duration: number = 0.5,
-  gap: number = 0.1,
-  type: OscillatorType = 'sine'
+  duration = 0.5,
+  gap = 0.1,
+  _type?: OscillatorType,
 ): Promise<void> {
-  const validNotes = notes.filter(note => {
-    try {
-      Note.get(note);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  });
-  
-  for (const note of validNotes) {
-    playNote(note, duration, type);
-    await new Promise(resolve => setTimeout(resolve, gap * 1000));
+  for (const note of notes) {
+    await playNote(note, duration);
+    await new Promise(r => setTimeout(r, gap * 1000));
   }
 }
 
-/**
- * Joue simultanément toutes les notes d'un accord.
- */
 export async function playFullChord(
   notes: string[],
-  duration: number = 0.5,
-  type: OscillatorType = 'sine'
+  duration = 0.5,
+  _type?: OscillatorType,
 ): Promise<void> {
-  const validNotes = notes.filter(note => {
-    try {
-      const noteObj = Note.get(note);
-      return noteObj.midi !== null;
-    } catch (error) {
-      return false;
-    }
-  });
-  
-  const normalizedNotes = validNotes.map(note => {
-    if (!note.match(/\d/)) {
-      return `${note}4`;
-    }
-    return note;
-  });
-  
-  const audioCtx = getAudioContext();
-  if (!audioCtx) return;
+  const valid = notes
+    .filter(n => Note.get(n).midi != null)
+    .map(n => (n.match(/\d/) ? n : `${n}4`));
 
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
+  valid.forEach(emitMidi);
+
+  if (SoundFontService.isReady) {
+    await SoundFontService.playFullChord(valid, duration);
+    return;
   }
-  
-  const gainNode = audioCtx.createGain();
-  gainNode.gain.value = 0.3 / Math.sqrt(normalizedNotes.length); 
-  gainNode.connect(audioCtx.destination);
-  activeGainNodes.push(gainNode);
-  
-  gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  
-  normalizedNotes.forEach(note => {
-    const frequency = getFrequency(note);
-    const oscillator = audioCtx.createOscillator();
-    oscillator.type = type;
-    oscillator.frequency.value = frequency;
-    oscillator.connect(gainNode);
-    
-    const noteData = Note.get(note);
-    if (noteData.midi !== null) {
-      eventBus.emit('notePlayed', noteData.midi);
-    }
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + duration);
+
+  // Oscillator fallback
+  await resumeSharedAudioCtx();
+  const ctx = getSharedAudioCtx();
+  if (!ctx) return;
+
+  const gain = ctx.createGain();
+  gain.gain.value = 0.3 / Math.sqrt(Math.max(valid.length, 1));
+  gain.connect(ctx.destination);
+  activeGainNodes.push(gain);
+
+  gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+  valid.forEach(n => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = getFrequency(n);
+    osc.connect(gain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
   });
-  
+
   setTimeout(() => {
-    const idx = activeGainNodes.indexOf(gainNode);
-    if (idx !== -1) activeGainNodes.splice(idx, 1);
+    const i = activeGainNodes.indexOf(gain);
+    if (i !== -1) activeGainNodes.splice(i, 1);
   }, duration * 1000);
 }

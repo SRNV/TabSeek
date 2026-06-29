@@ -150,7 +150,7 @@ Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
 
 | Fichier | Rôle |
 |---|---|
-| `useAudio.ts` | Web Audio API — `playNote`, `playFullChord`, `stopAllSounds` |
+| `useAudio.ts` | Façade audio — délègue à `SoundFontService` si prêt, oscillateur sinon. Même API : `playNote`, `playFullChord`, `stopAllSounds`. Lance `SoundFontService.preload()` à l'import. |
 | `useGuitarNotes.ts` | Calculs de notes sur le manche |
 | `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
 | `TablatureDropService.ts` | Logique métier pour le Drag & Drop d'accords/progressions |
@@ -158,10 +158,64 @@ Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
 | `FretboardHighlightService.ts` | Highlights classiques sur le manche (hover/play hors legato) |
 | `LegatoFretVisualizationService.ts` | Visualisation legato sur le manche : `.show(noteId, notes)` et `.clear()`. Alimente `legatoFretHighlights` ET `legatoActiveNoteIds` dans le store. |
 | `RibbonLineService.ts` | **Service partagé** pour tous les line segments animés (shader traveling wave). Exporte : `createRibbonMaterial()`, `createRibbonGeometry(maxSegs)`, `fillRibbonGeoLinear(geo, waypoints, halfW, subdivisions, maxSegs)`, `buildRibbonGeoCatmullRom(chain, colors, halfW, subdivisions, z)`. |
+| `SoundFontService.ts` | **Moteur audio SF2** — parseur RIFF inline (PHDR→PBAG→PGEN→INST→IBAG→IGEN+SHDR), zones par preset, `AudioBufferSourceNode` avec looping SF2. Exporte `SoundFontService` singleton + `getSharedAudioCtx()` / `resumeSharedAudioCtx()`. |
+| `GuitarSelectionService.ts` | Zustand store — preset guitare sélectionné (`selected`, `setSelected()`, `loadPresets()`). Persiste via `PreferencesService`. Appelle `SoundFontService.setPreset()` au changement. |
+| `PreferencesService.ts` | Wrapper localStorage — `get<T>(key, default)`, `set(key, value)`, `remove(key)`. Préfixe `tabseek_`. |
 
 ---
 
-## 8. UI Iconography — RÈGLE ABSOLUE
+## 8. Système Audio SoundFont (SF2)
+
+### 8.1 Architecture
+
+```
+useAudio.ts  →  SoundFontService  ←  GuitarSelectionService  ←  PreferencesService
+                      ↑
+               public/Studio FG460s II Pro Guitar Pack.sf2
+```
+
+- **Pas de dépendance Tone.js** : implémentation directe Web Audio API pour conserver le support des **loop points SF2** (sustain des notes). Tone.Sampler ne supporte pas les boucles SF2.
+- `useAudio.ts` garde le même API public. Fallback oscillateur si SF2 pas encore chargé.
+- `SoundFontService` lit le preset sauvegardé dans localStorage au démarrage → bonne guitare active dès le chargement.
+
+### 8.2 Parseur SF2 inline
+
+Chaîne complète parsée dans `SoundFontService.ts` :
+
+```
+PHDR → PBAG → PGEN (oper=41 instrument) → INST → IBAG → IGEN
+                                                          oper=43  keyRange
+                                                          oper=44  velRange
+                                                          oper=53  sampleID  → SHDR → smpl (PCM Int16)
+                                                          oper=58  overridingRootKey ← CRITIQUE
+```
+
+> **⚠️ `overridingRootKey` (sfGenOper=58) est la vraie note racine du sample**, pas `shdr.originalPitch` (qui vaut 60 pour tous les samples de ce SF2). Utiliser `originalPitch` cause un désaccordage total.
+
+`rootMidi` dans `SampleData` = `overridingRootKey` si ≥ 0, sinon `shdr.originalPitch` (< 128), sinon 60.
+
+### 8.3 Sélection de preset
+
+- `public/guitars.json` — 63 presets, 8 catégories : Acoustique, Méga/Chorus, 12 cordes, Tremolo/Vibrato, Wild, Paddy/Doux, Strums, Arabe, Effets.
+- `GuitarSoundSideBar` — drawer accessible via bouton `music_note` dans `NavSidebar`, disponible sur toutes les routes.
+- `SoundFontService.setPreset(bank, preset)` reconstruit la map MIDI→`SampleData` depuis les zones du preset. `audioBufferCache` évite de re-décoder les PCM.
+- Sélection persistée : clé localStorage `tabseek_selectedGuitar`.
+
+### 8.4 Lecture audio
+
+```ts
+// Pitch correction depuis rootMidi (pas originalPitch)
+src.playbackRate.value = Math.pow(2, (midi - rootMidi + shdr.pitchCorrection / 100) / 12);
+
+// Loop SF2 si points valides (endLoop > startLoop + 32)
+src.loop = true;
+src.loopStart = (shdr.startLoop - shdr.start) / shdr.sampleRate;
+src.loopEnd   = (shdr.endLoop   - shdr.start) / shdr.sampleRate;
+```
+
+---
+
+## 9. UI Iconography — RÈGLE ABSOLUE
 
 > **Toutes les icônes de l'application doivent utiliser Google Material Symbols.**
 
@@ -171,12 +225,12 @@ Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
 
 ---
 
-## 9. Fretboard WebGL — R3F (`Tab.tsx`)
+## 10. Fretboard WebGL — R3F (`Tab.tsx`)
 
 - Composant `Tab.tsx` — manche de guitare WebGL, gammes/accords, `InstancedMesh`.
 - Pop-over interactif pour changer d'accord.
 
-### 9.1 Couleurs des cellules
+### 10.1 Couleurs des cellules
 
 Chaque cellule `CellData` a deux couleurs :
 - `color` : couleur effective (peut être orange si `fretboardHighlights` est actif)
@@ -187,7 +241,7 @@ Chaque cellule `CellData` a deux couleurs :
 DEGREE_COLORS = ['#FFF9B1','#77DD77','#AEC6CF','#CDB4DB','#FFB3B3','#FFD1B3','#FFFFFF']
 ```
 
-### 9.2 Visualisation Legato sur le manche
+### 10.2 Visualisation Legato sur le manche
 
 Déclenchée par `LegatoFretVisualizationService.show()` (hover ou lecture).
 
@@ -199,17 +253,17 @@ Déclenchée par `LegatoFretVisualizationService.show()` (hover ou lecture).
 
 **Shader ribbon** (via `RibbonLineService`) : traveling wave pulse qui scale la largeur du ruban. `uInvStretchX = 1.0` pour le manche (isotrope). Largeur `CHORD_LINE_HALF_W = 0.08`.
 
-### 9.3 Chord line (outline → line segment)
+### 10.3 Chord line (outline → line segment)
 
 Même shader ribbon que le legato. Largeur `CHORD_LINE_HALF_W = 0.08`, segments pré-alloués `MAX_CHORD_SEGS = 120`.
 
 ---
 
-## 10. Tablature R3F (Piano Roll) — Implémenté Juin 2026
+## 11. Tablature R3F (Piano Roll) — Implémenté Juin 2026
 
 `TablatureR3F.tsx` est un éditeur de style piano roll pour guitare.
 
-### 10.1 Hiérarchie des Pods & Profondeur
+### 11.1 Hiérarchie des Pods & Profondeur
 La profondeur est gérée par `renderOrder` et la position Z pour éviter le z-fighting.
 
 | Élément | renderOrder | Position Z |
@@ -223,21 +277,21 @@ La profondeur est gérée par `renderOrder` et la position Z pour éviter le z-f
 | Viewport Rect Minimap (orange, layer 1) | — | 0.5 |
 | Curseur Minimap (vert, layer 1) | — | 0.6 |
 
-### 10.2 Anatomie d'un Note Pod
+### 11.2 Anatomie d'un Note Pod
 Un pod de note est divisé en zones interactives (`noteZone`) :
 `[ Resize L | Bubble Prev | Fret Label | Note Name | Move | Bubble Next | Resize R ]`
 
 - **Intermediate Notes** : Les notes générées par un legato sont 50% plus sombres, 30% désaturées et n'ont pas de bulles de legato.
 - **Pendant la visualisation legato** : Les notes de la chaîne active (`legatoActiveNoteIds`) ne sont **pas** assombries — elles affichent leur couleur de degré pleine (`SCALE_COLORS[deg-1]`).
 
-### 10.3 Line Segment Legato (Tablature)
+### 11.3 Line Segment Legato (Tablature)
 
 Composant `LegatoLine` dans `TablatureR3F.tsx` :
 - Geometry : `buildRibbonGeoCatmullRom(chain, colors, 0.12, subdivisions, -0.02)` — courbe CatmullRom, largeur `halfW = 0.12`
 - Material : `createRibbonMaterial()` depuis `RibbonLineService` — `uInvStretchX` mis à jour chaque frame pour corriger la déformation horizontale du zoom
 - Couleurs : `getNoteColor(n, true)` (skipDarken=true), dégradé source → destination
 
-### 10.4 Legato Engine
+### 11.4 Legato Engine
 - **Création** : Drag depuis une bulle (Next/Prev) vers une autre note.
 - **Behaviors** : `chromatique`, `secondes`, `tierces`, `quartes`, `quintes`, `sixtes`, `septiemes`, `octaves`, `gamme`, `pentatonique`, `triade`, `arp7`, `blues`, `whole-tone` (par tons), `diminished` (diminué), `free`.
 - **Sync Modes** : 
@@ -256,7 +310,7 @@ Composant `LegatoLine` dans `TablatureR3F.tsx` :
 - **Algorithme d'interpolation** : Respecte strictement la gamme (`scaleNotes`) et l'intervalle de pitch entre [source, destination]. Les notes sont uniformément réparties en durée sur l'espace disponible.
 - **Ergonomie** : L'algorithme privilégie les cordes adjacentes et un span de frettes restreint (max 4-6) pour assurer la jouabilité.
 
-### 10.5 Minimap
+### 11.5 Minimap
 
 Bande de **56 px** en bas du canvas WebGL — vue d'ensemble du projet à échelle réduite, style VS Code.
 
@@ -303,15 +357,15 @@ Les deux objets ont leur layer mis à 1 via `useEffect(() => { ref.current.layer
 
 ---
 
-## 11. Workflow de Drag & Drop (Accords / Progressions)
+## 12. Workflow de Drag & Drop (Accords / Progressions)
 
 Le service `TablatureDropService.ts` gère l'intelligence musicale lors du dépôt d'éléments sur la tablature.
 
-### 11.1 Restrictions
+### 12.1 Restrictions
 - **Interdit** de déposer sur un pod appartenant déjà à un accord (`ChordGroup`).
 - **Interdit** de déposer sur un pod faisant partie d'une chaîne legato (source, destination ou intermédiaire).
 
-### 11.2 Comportement non-destructif ("Shift")
+### 12.2 Comportement non-destructif ("Shift")
 Lorsqu'un accord est déposé sur une note simple :
 1. La note cible devient l'**ancre** (fondamentale) de l'accord.
 2. La durée de l'accord s'adapte à celle du pod d'ancrage.
@@ -319,14 +373,14 @@ Lorsqu'un accord est déposé sur une note simple :
 
 ---
 
-## 12. Playback & Highlighting
+## 13. Playback & Highlighting
 
-### 12.1 Playback Audio
+### 13.1 Playback Audio
 - **Playback Indicator** : Barre verticale verte (`APPLE_GREEN`) avec flèche. Draggable pour changer la position.
 - **Auto-Reset** : Si `isLooping` est faux, la lecture revient à 0 à la fin du morceau.
 - **Audio** : Utilise `playFullChord` et `playNote`. `stopAllSounds()` est appelé au Stop ou pause.
 
-### 12.2 Fretboard Highlight
+### 13.2 Fretboard Highlight
 
 Deux services distincts selon le type de note :
 
@@ -341,7 +395,7 @@ Deux services distincts selon le type de note :
 
 ---
 
-## 13. Hiérarchie z-index Globale
+## 14. Hiérarchie z-index Globale
 
 | Élément | z-index | Position |
 |---|---|---|

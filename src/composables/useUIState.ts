@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 
-export type PanelId = 'notes' | 'modes' | 'chords'
+export type PanelId = 'notes' | 'modes' | 'chords' | 'guitar'
 
 export const routePanels: Record<string, PanelId[]> = {
-  '/':             ['notes', 'modes', 'chords'],
-  '/chords':       ['notes', 'chords'],
-  '/progressions': ['notes', 'modes'],
-  '/tablature':    ['notes', 'modes', 'chords'],
+  '/':             ['notes', 'modes', 'chords', 'guitar'],
+  '/chords':       ['notes', 'chords', 'guitar'],
+  '/progressions': ['notes', 'modes', 'guitar'],
+  '/tablature':    ['notes', 'modes', 'chords', 'guitar'],
 }
 
 interface UIState {

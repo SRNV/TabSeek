@@ -5,7 +5,8 @@
       "Bash(grep -r \"router.push\\\\|useRouter\\\\|$route\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" --include=\"*.ts\" --include=\"*.vue\")",
       "Bash(grep -n \"router.push\\\\|useRouter\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.vue \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.ts)",
       "Bash(npx vue-tsc:*)",
-      "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"^$\" } | Select-Object -First 5)"
+      "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"^$\" } | Select-Object -First 5)",
+      "Bash(node -e ' *)"
     ]
   }
 }

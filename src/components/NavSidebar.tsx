@@ -51,6 +51,15 @@ export default function NavSidebar({ expanded, onExpandedChange }: NavSidebarPro
         <span className="material-symbols-outlined icon">grid_view</span>
         <span className="label">Accords</span>
       </button>
+
+      <button
+        className={['sidebar-btn', 'config-link', activePanel === 'guitar' ? 'active' : ''].filter(Boolean).join(' ')}
+        onClick={() => togglePanel('guitar')}
+        title={expanded ? '' : 'Son de guitare'}
+      >
+        <span className="material-symbols-outlined icon">music_note</span>
+        <span className="label">Son</span>
+      </button>
     </nav>
   )
 }

@@ -5,6 +5,7 @@ import NavSidebar from './components/NavSidebar'
 import NotesSideBar from './components/sidebars/NotesSideBar'
 import ModesSideBar from './components/sidebars/ModesSideBar'
 import ChordsDetailsSideBar from './components/sidebars/ChordsDetailsSideBar'
+import GuitarSoundSideBar from './components/sidebars/GuitarSoundSideBar'
 import { useUIStore } from './composables/useUIState'
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
           {activePanel === 'notes'  && <NotesSideBar />}
           {activePanel === 'modes'  && <ModesSideBar />}
           {activePanel === 'chords' && <ChordsDetailsSideBar />}
+          {activePanel === 'guitar' && <GuitarSoundSideBar />}
         </div>
       )}
     </>
