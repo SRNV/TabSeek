@@ -7,6 +7,7 @@ import ChordTab from './chords/ChordTab'
 import ChordsList from './chords/ChordsList'
 import ProgressionCompiler from './progression/ProgressionCompiler'
 import ProgressionsList from './sidebars/ProgressionsList'
+import RhythmList from './sidebars/RhythmList'
 import TablatureMain from './tablature/TablatureMain'
 import { useMainStore } from '../stores/useMainStore'
 import { CHORD_TYPES_BY_CATEGORY } from '../composables/tonalChordsMapping'
@@ -42,8 +43,9 @@ export default function MainGrid() {
       {/* Progressions Disponibles + Accords */}
       <div className="area-pda">
         <TabGroup tabs={[
-          { label: 'Progressions', content: <ProgressionsList /> },
           { label: 'Accords', content: <ChordsList /> },
+          { label: 'Rythmes', content: <RhythmList /> },
+          { label: 'Progressions', content: <ProgressionsList /> },
           { label: 'Accords Infos', content: <ChordTab chordType={chordRootNoteType} chordData={chordRootObject} hideFretboard /> },
         ]} />
       </div>

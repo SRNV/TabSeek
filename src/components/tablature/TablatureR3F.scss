@@ -230,6 +230,65 @@
   }
 }
 
+// Rhythm modifier popover — horizontal pill, same design as legato-popover
+// position: absolute so it never shifts the disc when it opens.
+// Anchored above the disc (bottom: 100%) instead of beside it — growing upward keeps it
+// clear of the note row and the inter-string gap below instead of overlapping them.
+.legato-popover.rhythm-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  border-color: #7c3aed;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.25);
+
+  .pop-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pop-toggle.active {
+    color: #a855f7;
+    background: rgba(124, 58, 237, 0.15);
+  }
+}
+
+// Instruments sub-popover — floats above the tune button
+.rhythm-instr-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid #cc0000;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  white-space: nowrap;
+  pointer-events: auto;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.75rem;
+    color: #ccc;
+    cursor: pointer;
+    user-select: none;
+
+    input[type='checkbox'] {
+      accent-color: #cc0000;
+      cursor: pointer;
+      width: 13px;
+      height: 13px;
+    }
+  }
+}
+
 .tab-playback-footer {
   height: 48px;
   background: #1a1a1a;
@@ -281,6 +340,13 @@
           color: #88ff00;
           background: #333;
           border-color: #88ff00;
+        }
+      }
+      &.follow-btn {
+        &.active {
+          color: #3d8de0;
+          background: #333;
+          border-color: #3d8de0;
         }
       }
     }

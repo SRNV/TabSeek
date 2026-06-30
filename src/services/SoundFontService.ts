@@ -23,6 +23,8 @@ interface KeyZone {
   velHigh: number;
   sampleIdx: number;
   overridingRootKey: number; // sfGenOper=58 ; -1 = use shdr.originalPitch
+  coarseTune: number;        // sfGenOper=51 ; semitones offset
+  fineTune: number;          // sfGenOper=52 ; cents offset
 }
 
 // ── Parser SF2 complet ────────────────────────────────────────────────────────
@@ -180,17 +182,21 @@ function parseSF2(buffer: ArrayBuffer): ParsedSF2 {
           let velLow = 0, velHigh = 127;
           let sampleIdx = -1;
           let overridingRootKey = -1;
+          let coarseTune = 0;
+          let fineTune = 0;
 
           for (let igi = igenStart; igi < igenEnd; igi++) {
             const ig = igens[igi];
-            if (ig.oper === 43) { keyLow = ig.low; keyHigh = ig.high; }
+            if      (ig.oper === 43) { keyLow = ig.low; keyHigh = ig.high; }
             else if (ig.oper === 44) { velLow = ig.low; velHigh = ig.high; }
+            else if (ig.oper === 51) { coarseTune = (ig.low | (ig.high << 8)) << 16 >> 16; }
+            else if (ig.oper === 52) { fineTune   = (ig.low | (ig.high << 8)) << 16 >> 16; }
             else if (ig.oper === 53) { sampleIdx = ig.amountU16; }
             else if (ig.oper === 58) { overridingRootKey = ig.low; }
           }
 
           if (sampleIdx >= 0 && sampleIdx < shdrs.length) {
-            zones.push({ keyLow, keyHigh, velLow, velHigh, sampleIdx, overridingRootKey });
+            zones.push({ keyLow, keyHigh, velLow, velHigh, sampleIdx, overridingRootKey, coarseTune, fineTune });
           }
         }
       }
@@ -226,7 +232,9 @@ export async function resumeSharedAudioCtx(): Promise<void> {
 interface SampleData {
   buffer: AudioBuffer;
   shdr: ShdrEntry;
-  rootMidi: number; // effective root — overridingRootKey ?? shdr.originalPitch (255 → 60)
+  rootMidi: number;   // effective root — overridingRootKey ?? shdr.originalPitch (255 → 60)
+  coarseTune: number; // sfGenOper=51, semitones
+  fineTune: number;   // sfGenOper=52, cents
 }
 
 interface ActiveVoice {
@@ -345,7 +353,7 @@ class SoundFontServiceClass {
         const rootMidi =
           bestZone.overridingRootKey >= 0 ? bestZone.overridingRootKey :
           shdr.originalPitch < 128       ? shdr.originalPitch : 60;
-        newSamples.set(midi, { buffer: buf, shdr, rootMidi });
+        newSamples.set(midi, { buffer: buf, shdr, rootMidi, coarseTune: bestZone.coarseTune, fineTune: bestZone.fineTune });
       }
     }
 
@@ -379,7 +387,7 @@ class SoundFontServiceClass {
     for (const [pitch, idx] of byPitch) {
       const buf = this.getOrCreateAudioBuffer(idx);
       const shdr = this.allShdrs[idx];
-      if (buf) newSamples.set(pitch, { buffer: buf, shdr, rootMidi: pitch });
+      if (buf) newSamples.set(pitch, { buffer: buf, shdr, rootMidi: pitch, coarseTune: 0, fineTune: 0 });
     }
     this.samples = newSamples;
     this._ready = newSamples.size > 0;
@@ -405,7 +413,7 @@ class SoundFontServiceClass {
     const data = this.findSample(midi);
     if (!data) return;
 
-    const { buffer, shdr, rootMidi } = data;
+    const { buffer, shdr, rootMidi, coarseTune, fineTune } = data;
 
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(gainVal, ctx.currentTime);
@@ -415,7 +423,7 @@ class SoundFontServiceClass {
     src.buffer = buffer;
     src.playbackRate.value = Math.pow(
       2,
-      (midi - rootMidi + shdr.pitchCorrection / 100) / 12,
+      (midi - rootMidi + coarseTune) / 12 + (shdr.pitchCorrection + fineTune) / 1200,
     );
 
     if (shdr.endLoop > shdr.startLoop + 32) {

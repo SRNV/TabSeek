@@ -6,7 +6,11 @@
       "Bash(grep -n \"router.push\\\\|useRouter\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.vue \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\"/**/*.ts)",
       "Bash(npx vue-tsc:*)",
       "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"^$\" } | Select-Object -First 5)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(node -e *)",
+      "Bash(node -e \"const t = require\\('./node_modules/tonal'\\); console.log\\(Object.keys\\(t\\).filter\\(k => /rhythm|pattern|duration|meter|time/i.test\\(k\\)\\)\\)\")",
+      "Bash(node -e \"const t = require\\('./node_modules/tonal'\\); console.log\\(Object.keys\\(t\\)\\)\")",
+      "Bash(node -e \"const { RhythmPattern, DurationValue, TimeSignature } = require\\('./node_modules/tonal'\\); console.log\\('RhythmPattern:', JSON.stringify\\(Object.keys\\(RhythmPattern\\), null, 2\\)\\); console.log\\('DurationValue:', JSON.stringify\\(Object.keys\\(DurationValue\\), null, 2\\)\\); console.log\\('TimeSignature:', JSON.stringify\\(Object.keys\\(TimeSignature\\), null, 2\\)\\);\")"
     ]
   }
 }

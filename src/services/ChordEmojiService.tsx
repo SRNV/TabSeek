@@ -108,7 +108,70 @@ export function getChordEmojiByName(chordName: string): string {
   return DEFAULT
 }
 
-// ── React component ──────────────────────────────────────────────────────────
+/** Resolve a :name: shortcode to its emoji character, or return the string unchanged. */
+export function resolveEmojiStr(emojiStr: string): string {
+  if (emojiStr.startsWith(':') && emojiStr.endsWith(':')) {
+    const name = emojiStr.slice(1, -1)
+    const r = emoji.get(name)
+    if (r && !r.startsWith(':')) return r
+  }
+  return emojiStr
+}
+
+// ── React components ─────────────────────────────────────────────────────────
+
+interface EmojiBoxProps {
+  /** Emoji character or name (e.g. "🎸" or ":guitar:") */
+  emojiStr: string
+  /** Emoji size in px (default 50). */
+  size?: number
+  /**
+   * When provided, renders a disc behind the emoji.
+   * Disc diameter = 1.2 × size. Center = emoji center.
+   */
+  disc?: { bgColor: string; borderColor: string }
+  style?: React.CSSProperties
+}
+
+export function EmojiBox({
+  emojiStr,
+  size = 50,
+  disc,
+  style,
+}: EmojiBoxProps) {
+  // Resolve :name: using node-emoji
+  let resolved = emojiStr
+  if (emojiStr.startsWith(':') && emojiStr.endsWith(':')) {
+    const name = emojiStr.slice(1, -1)
+    const r = emoji.get(name)
+    if (r && !r.startsWith(':')) resolved = r
+  }
+
+  const discSize = disc ? Math.round(size * 1.2) : size
+
+  return (
+    <div
+      style={{
+        width: discSize,
+        height: discSize,
+        borderRadius: disc ? '50%' : undefined,
+        backgroundColor: disc?.bgColor,
+        border: disc ? `2px solid ${disc.borderColor}` : undefined,
+        boxSizing: 'border-box',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: size * 0.62,
+        lineHeight: 1,
+        userSelect: 'none',
+        flexShrink: 0,
+        ...style,
+      }}
+    >
+      {resolved}
+    </div>
+  )
+}
 
 interface ChordEmojiBoxProps {
   /** Chord type id from CHORD_TYPES_BY_CATEGORY (e.g. "min7") */
@@ -136,28 +199,7 @@ export function ChordEmojiBox({
     ? getChordEmojiById(chordId)
     : getChordEmojiByName(chordName ?? '')
 
-  const discSize = disc ? Math.round(size * 1.2) : size
-
   return (
-    <div
-      style={{
-        width: discSize,
-        height: discSize,
-        borderRadius: disc ? '50%' : undefined,
-        backgroundColor: disc?.bgColor,
-        border: disc ? `2px solid ${disc.borderColor}` : undefined,
-        boxSizing: 'border-box',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: size * 0.62,
-        lineHeight: 1,
-        userSelect: 'none',
-        flexShrink: 0,
-        ...style,
-      }}
-    >
-      {em}
-    </div>
+    <EmojiBox emojiStr={em} size={size} disc={disc} style={style} />
   )
 }

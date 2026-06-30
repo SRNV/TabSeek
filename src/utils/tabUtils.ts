@@ -1,8 +1,8 @@
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 
 export const N_STRINGS       = 6
-export const STRING_H        = 1.2
-export const GAP_WU          = 0.05
+export const STRING_H        = 1.35
+export const GAP_WU          = 0.20
 export const LANE_H          = STRING_H - GAP_WU
 export const NOTE_H          = LANE_H * 0.87
 export const BEAT_W          = 3.0

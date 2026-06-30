@@ -91,7 +91,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Andalouse (phrygienne)",
-    numerals: "iv-III-II-I",
+    numerals: "iv-bIII-bII-I",
     description: "Progression caractéristique de la musique espagnole et flamenco.",
     compatibleModes: ["Phrygien", "Phrygien dominant", "Mineur"],
     examples: ["Flamenco traditionnel", "Malaguena"]
@@ -119,7 +119,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Passamezzo antico",
-    numerals: "i-VII-i-V-III-VII-i-V",
+    numerals: "i-bVII-i-V-bIII-bVII-i-V",
     description: "Progression de la Renaissance, base de nombreuses variations.",
     compatibleModes: ["Mineur", "Dorien"],
     examples: ["Greensleeves (version traditionnelle)"]
@@ -168,7 +168,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "La Folia",
-    numerals: "i-V-i-VII-III-VII-i-V",
+    numerals: "i-V-i-bVII-bIII-bVII-i-V",
     description: "Une des plus anciennes progressions documentées, utilisée depuis le 15ème siècle.",
     compatibleModes: ["Mineur"],
     examples: ["La Folia (Corelli)", "Variations sur La Folia (Vivaldi)"]
@@ -186,7 +186,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Coltrane Changes",
-    numerals: "I-bIII7-bVI7-I",
+    numerals: "I-III7-bVImaj7-I",
     description: "Progression par tierces majeures rendue célèbre par John Coltrane, créant un sentiment de suspension harmonique.",
     compatibleModes: ["Majeur", "Mineur mélodique"],
     examples: ["Giant Steps", "Countdown"]
@@ -242,7 +242,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Minor Plagal Cascade",
-    numerals: "i-VII-VI-iv-V",
+    numerals: "i-bVII-bVI-iv-V",
     description: "Progression descendante avec une touche mineure plagale créant une tension graduelle.",
     compatibleModes: ["Mineur", "Dorien"],
     examples: ["Mad World", "Space Oddity (David Bowie)"]
@@ -323,7 +323,7 @@ export const chordProgressions: ChordProgression[] = [
   // Progressions metal et rock progressif
   {
     name: "Power Metal",
-    numerals: "i-III-VII-i-VI-VII",
+    numerals: "i-bIII-bVII-i-bVI-bVII",
     description: "Progression mineure avec des mouvements épiques, typique du metal mélodique.",
     compatibleModes: ["Mineur harmonique", "Mineur éolien"],
     examples: ["The Bard's Song (Blind Guardian)", "Master of Puppets (couplet)"]
@@ -351,7 +351,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Symphonic Metal",
-    numerals: "i-VI-III-VII",
+    numerals: "i-bVI-bIII-bVII",
     description: "Progression mineur-majeur avec un sentiment grandiloquent et théâtral.",
     compatibleModes: ["Mineur harmonique"],
     examples: ["Wishmaster (Nightwish)", "Ghost Love Score"]
@@ -365,7 +365,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Math Rock",
-    numerals: "i-III-bVI-V-i-VII-III-I",
+    numerals: "i-bIII-bVI-V-i-bVII-bIII-I",
     description: "Progression asymétrique avec des changements de métrique, typique du math rock.",
     compatibleModes: ["Dorien", "Mineur mélodique"],
     examples: ["Never Meant (American Football)", "Toe (Goodbye)"]
@@ -386,7 +386,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "New Wave Metal",
-    numerals: "VI-VII-i-III-VI-VII-i-V",
+    numerals: "bVI-bVII-i-bIII-bVI-bVII-i-V",
     description: "Progression alternant majeur et mineur, typique du metal alternatif des années 2000.",
     compatibleModes: ["Mineur éolien"],
     examples: ["Toxicity (System of a Down)", "Chop Suey!"]
@@ -409,7 +409,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Techno Hypnotic",
-    numerals: "i-VII-VI-v-i-VII-VI-v",
+    numerals: "i-bVII-bVI-v-i-bVII-bVI-v",
     description: "Progression mineure hypnotique et répétitive, typique de la techno underground.",
     compatibleModes: ["Phrygien", "Éolien"],
     examples: ["Spastik (Plastikman)", "Strings of Life (Rhythim Is Rhythim)"]
@@ -423,7 +423,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Drum & Bass",
-    numerals: "i-VI-VII-v-i-VI-VII-III",
+    numerals: "i-bVI-bVII-v-i-bVI-bVII-bIII",
     description: "Progression énergique avec des changements rapides, adaptée aux breakbeats rapides.",
     compatibleModes: ["Dorien", "Éolien"],
     examples: ["Watercolour (Pendulum)", "Inner City Life (Goldie)"]
@@ -451,7 +451,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Dubstep",
-    numerals: "i-VI-III-VII-i-VI-III-v",
+    numerals: "i-bVI-bIII-bVII-i-bVI-bIII-v",
     description: "Progression mineure avec des tensions harmoniques avant les drops.",
     compatibleModes: ["Éolien", "Phrygien"],
     examples: ["Scary Monsters and Nice Sprites (Skrillex)", "I Can't Stop (Flux Pavilion)"]
@@ -604,7 +604,7 @@ export const chordProgressions: ChordProgression[] = [
   // Progressions latines et mondiales
   {
     name: "Bossa Nova II",
-    numerals: "i-VII-III-VI-ii°-V7b9",
+    numerals: "i-bVII-bIII-bVI-ii°-V7b9",
     description: "Progression bossa nova en mineur avec une tension harmonique sophistiquée.",
     compatibleModes: ["Mineur", "Mineur harmonique"],
     examples: ["Black Orpheus (Manha de Carnaval)", "How Insensitive"]
@@ -660,7 +660,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Chacarera",
-    numerals: "i-III-VII-V",
+    numerals: "i-bIII-bVII-V",
     description: "Progression folklorique argentine en 6/8 avec un sentiment de danse.",
     compatibleModes: ["Mineur", "Dorien"],
     examples: ["La Chacarera (traditionnelle)", "El Olvidao"]
@@ -690,7 +690,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Chaconne",
-    numerals: "i-VII-VI-V",
+    numerals: "i-bVII-bVI-V",
     description: "Progression baroque descendante utilisée comme base d'ostinato et de variations.",
     compatibleModes: ["Mineur"],
     examples: ["Chaconne en Ré mineur (Bach)", "Dido's Lament (Purcell)"]
@@ -768,7 +768,7 @@ export const chordProgressions: ChordProgression[] = [
   },
   {
     name: "Autumn Leaves",
-    numerals: "i7-IV7-VII7-III7-VI7-II7-V7-i7",
+    numerals: "i7-iv7-bVII7-bIIImaj7-bVImaj7-iiø7-V7-i7",
     description: "Célèbre progression descendant par quintes, alternant entre relatif mineur et majeur.",
     compatibleModes: ["Mineur harmonique", "Mineur éolien"],
     examples: ["Autumn Leaves", "Tune Up (Miles Davis)"]

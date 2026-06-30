@@ -9,8 +9,6 @@ export default function TablatureMain() {
   return (
     <div className="partition-tab-container">
       <div className="tab-header">
-        <h3 className="tab-title">Tablature</h3>
-        <div className="tuning-info">Accordage: {tuningDisplay}</div>
       </div>
 
       <div className="tab-r3f-content">

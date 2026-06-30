@@ -65,7 +65,7 @@ export function findBestChordFrets(tuning: string[], notesPc: string[], startSi:
   let bestVoicing: Voicing[] = []
   let minScore = Infinity
 
-  function search(noteIdx: number, usedStrings: Set<number>, current: Voicing[]) {
+  function search(noteIdx: number, usedStrings: Set<number>, usedMidis: Set<number>, current: Voicing[]) {
     if (noteIdx === nNotes) {
       const midis = current.map(v => (Note.midi(tuning[v.si] ?? 'E2') ?? 0) + v.fret)
       const frets = current.map(v => v.fret)
@@ -105,17 +105,20 @@ export function findBestChordFrets(tuning: string[], notesPc: string[], startSi:
     }
 
     for (const cand of candidatesPerNote[noteIdx]) {
-      if (!usedStrings.has(cand.si)) {
+      const midi = (Note.midi(tuning[cand.si] ?? 'E2') ?? 0) + cand.fret
+      if (!usedStrings.has(cand.si) && !usedMidis.has(midi)) {
         usedStrings.add(cand.si)
+        usedMidis.add(midi)
         current.push(cand)
-        search(noteIdx + 1, usedStrings, current)
+        search(noteIdx + 1, usedStrings, usedMidis, current)
         current.pop()
+        usedMidis.delete(midi)
         usedStrings.delete(cand.si)
       }
     }
   }
 
-  search(0, new Set(), [])
+  search(0, new Set(), new Set(), [])
   
   if (bestVoicing.length === 0) {
     for (let j = 0; j < nNotes; j++) {

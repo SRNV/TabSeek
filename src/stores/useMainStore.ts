@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Note } from 'tonal'
 import type { ModeGuitar } from '../types'
 import type { ChordsCompleteDef } from '../composables/chords'
+import type { RhythmPatternDef } from '../composables/rhythmPatterns'
 
 const defaultMode: ModeGuitar = {
   name: 'ionian',
@@ -25,6 +26,7 @@ interface MainState {
   chordRootNoteType: string
   hoveredRootNote: string
   tabHoveredChordName: string | null
+  selectedRhythm: RhythmPatternDef | null
   fretboardHighlights: Array<{ si: number; fret: number; color?: string }>
   legatoFretHighlights: Array<{ si: number; fret: number }>
   setUserScale: (scale: string) => void
@@ -37,6 +39,7 @@ interface MainState {
   setChordRootNoteType: (type: string) => void
   setHoveredRootNote: (note: string) => void
   setTabHoveredChordName: (name: string | null) => void
+  setSelectedRhythm: (rhythm: RhythmPatternDef | null) => void
   setFretboardHighlights: (highlights: Array<{ si: number; fret: number; color?: string }>) => void
   setLegatoFretHighlights: (highlights: Array<{ si: number; fret: number }>) => void
   getModeNotes: () => string[]
@@ -54,6 +57,7 @@ export const useMainStore = create<MainState>((set, get) => ({
   chordRootNoteType: 'major',
   hoveredRootNote: '',
   tabHoveredChordName: null,
+  selectedRhythm: null,
   fretboardHighlights: [],
   legatoFretHighlights: [],
 
@@ -86,6 +90,7 @@ export const useMainStore = create<MainState>((set, get) => ({
   setChordRootNoteType: (type) => set({ chordRootNoteType: type }),
   setHoveredRootNote: (note) => set({ hoveredRootNote: note }),
   setTabHoveredChordName: (name) => set({ tabHoveredChordName: name }),
+  setSelectedRhythm: (rhythm) => set({ selectedRhythm: rhythm }),
   setFretboardHighlights: (highlights) => set({ fretboardHighlights: highlights }),
   setLegatoFretHighlights: (highlights) => set({ legatoFretHighlights: highlights }),
 }))

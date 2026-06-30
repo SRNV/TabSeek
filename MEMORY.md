@@ -107,13 +107,23 @@ overflow: hidden;
 ## 5. Routing (React Router v6)
 
 ```
-/              → ScaleContainer       panneaux: notes, modes, chords
-/chords        → ChordsTabsDisplay    panneaux: notes, chords
-/progressions  → ProgressionCompiler  panneaux: notes, modes
-/tablature     → TablaturePage        panneaux: notes, modes, chords
+/              → ScaleContainer       panneaux: notes, modes, chords, rhythms
+/chords        → ChordsTabsDisplay    panneaux: notes, chords, rhythms
+/progressions  → ProgressionCompiler  panneaux: notes, modes, rhythms
+/tablature     → TablaturePage        panneaux: notes, modes, chords, rhythms
 ```
 
 **Fichier** : `src/router/index.tsx` — `createBrowserRouter([...])`
+
+---
+
+## 5.1 MainGrid — Organisation des onglets
+
+- **Ordre des onglets** : Accords > Rythmes > Progressions > Accords Infos
+- **Style des listes** : Les listes (Accords, Rythmes) utilisent des **volets pliables** par catégorie.
+  - **Fermés par défaut** pour une meilleure lisibilité.
+  - **Décompte** : Le nombre d'items est affiché entre parenthèses dans le header de la catégorie : `Feel (12)`.
+  - **Interaction** : Toggle via clic sur le header ou l'icône `expand_more`/`expand_less`.
 
 ---
 
@@ -130,6 +140,7 @@ state: {
   chordRootNote: 'C4',
   chordRootObject: null,
   chordRootNoteType: 'major',
+  selectedRhythm: null,
   fretboardHighlights: [],      // [{ si, fret, color? }] — highlights classiques (hover/play)
   legatoFretHighlights: [],     // [{ si, fret }] — cellules à entourer (outline orange) pendant viz legato
   legatoActiveNoteIds: [],      // string[] — IDs des notes de la chaîne legato active (tablature)
@@ -153,9 +164,10 @@ Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
 | `useAudio.ts` | Façade audio — délègue à `SoundFontService` si prêt, oscillateur sinon. Même API : `playNote`, `playFullChord`, `stopAllSounds`. Lance `SoundFontService.preload()` à l'import. |
 | `useGuitarNotes.ts` | Calculs de notes sur le manche |
 | `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
-| `TablatureDropService.ts` | Logique métier pour le Drag & Drop d'accords/progressions |
+| `rhythmPatterns.ts` | Définition des patterns rythmiques (kick, snare, hi-hat) par feel. |
+| `TablatureDropService.ts` | Logique métier pour le Drag & Drop d'accords/progressions/rythmes. Division proportionnelle des notes lors du drop de rythme. |
 | `TablatureMoveService.ts` | Logique métier pour le déplacement/redimensionnement (collisions incluses) |
-| `FretboardHighlightService.ts` | Highlights classiques sur le manche (hover/play hors legato) |
+| `FretboardHighlightService.ts` | Highlights sur le manche (hover/play). **Correction Juin 2026** : Respecte strictement les positions (corde/frette) du store pour ne pas highlighter toutes les notes d'une même hauteur (pitch class). |
 | `LegatoFretVisualizationService.ts` | Visualisation legato sur le manche : `.show(noteId, notes)` et `.clear()`. Alimente `legatoFretHighlights` ET `legatoActiveNoteIds` dans le store. |
 | `RibbonLineService.ts` | **Service partagé** pour tous les line segments animés (shader traveling wave). Exporte : `createRibbonMaterial()`, `createRibbonGeometry(maxSegs)`, `fillRibbonGeoLinear(geo, waypoints, halfW, subdivisions, maxSegs)`, `buildRibbonGeoCatmullRom(chain, colors, halfW, subdivisions, z)`. |
 | `SoundFontService.ts` | **Moteur audio SF2** — parseur RIFF inline (PHDR→PBAG→PGEN→INST→IBAG→IGEN+SHDR), zones par preset, `AudioBufferSourceNode` avec looping SF2. Exporte `SoundFontService` singleton + `getSharedAudioCtx()` / `resumeSharedAudioCtx()`. |
@@ -273,15 +285,38 @@ La profondeur est gérée par `renderOrder` et la position Z pour éviter le z-f
 | Chord Pods (Contour vert, fond gris foncé) | 4–5 | -0.03 |
 | Legato Lines (Shader animé, contour orange) | 6 | -0.02 |
 | Note Pods (Couleur dynamique) | 8–9 | 0.0 |
-| Labels Html (Fret, Note Name) | auto | 0.02 |
+| Disc Html (Fret + Nom de note) | auto | 0.06 |
 | Viewport Rect Minimap (orange, layer 1) | — | 0.5 |
 | Curseur Minimap (vert, layer 1) | — | 0.6 |
 
-### 11.2 Anatomie d'un Note Pod
-Un pod de note est divisé en zones interactives (`noteZone`) :
-`[ Resize L | Bubble Prev | Fret Label | Note Name | Move | Bubble Next | Resize R ]`
+### 11.2 Anatomie d'un Note Pod — Refonte Juin 2026
 
-- **Intermediate Notes** : Les notes générées par un legato sont 50% plus sombres, 30% désaturées et n'ont pas de bulles de legato.
+**Corps (`getNoteGeo` → `leftCircleRect`)** :
+- Bord **gauche** : demi-cercle plein (`rayon = min(hauteur/2, largeur/2)`) — se marie visuellement avec le disque.
+- Bord **droit** : coin arrondi classique (`NOTE_R_MAX`, inchangé).
+- Hauteur du corps (`PODBODY_H`) = hauteur de voie (`LANE_H`), capée à la voie de corde.
+- **Couleur** : dégradé gauche→droite (shader `PodGradientMaterial`), de la couleur de degré (`getNoteColor`) vers la couleur de remplissage du disque (`discColors.fill`). Le dégradé s'étend sur **une mesure** (`MEASURE_W`) — un pod plus court qu'une mesure n'affiche qu'une portion du dégradé ; plus long, il reste figé sur la couleur du disque après la première mesure.
+- **Note fondamentale** : pulse (0.5 Hz, blend 40% blanc) intégré dans le **même** shader via l'uniform `u_blink` (remplace l'ancien `BlinkMaterial` séparé).
+- **Atténuation pendant la lecture** (`u_gray`) : tant que `isPlaying` est vrai, tout pod **hors** de l'intervalle de beats sous le curseur de lecture s'assombrit vers `LANE_COL`, transition `ease` ~0.5s (`useFrame`, approche exponentielle `1 - 0.01^(delta/0.5)`). Hors lecture ou pod actif → couleur normale. Calculé **par segment** (`item`), donc un pattern rythmique « chasse » la couleur sous-note par sous-note.
+
+**Disque (fret + nom de note)** — remplace l'ancien Fret Label / Note Name :
+- Disque circulaire ancré au **début** du pod, badge fret (grand) + nom de note (petit, bas-droite).
+- **Sticky** : clampé entre les bords du pod et le bord gauche visible de la caméra (`camL = scrollX - halfW`) — reste visible tant qu'une partie du corps du pod est à l'écran (même pattern que les disques sticky des Chord/Rhythm Pods).
+- **Taille** : diamètre cible = `LANE_H * 0.87` (13% de marge), réduit encore pour les pods étroits (`Math.min(discTargetPx, podWidthPx * 0.92)`).
+  - ⚠️ **Calculé via `pxPerWUY`, pas `pxPerWUX`** : le disque est ancré à la hauteur de voie (axe Y), or le zoom horizontal (Ctrl+molette) ne change que `pxPerWUX`. Utiliser le mauvais ratio fait grossir/rétrécir le disque pendant le zoom horizontal — bug corrigé Juin 2026.
+- **Couleurs** (`DISC_PALETTE`, précalculé au chargement du module — seulement 7 couleurs de degré possibles) :
+  - `fill` = couleur de degré assombrie 33% + désaturée 35%
+  - `border` = `fill` assombri encore 33% (désaturation déjà héritée, `darkenHex` ne touche pas la saturation)
+  - `text` = `ColorService.getContrastColor(fill)` (noir/blanc, jamais codé en dur)
+- **Clic sur le disque** : ouvre l'édition de la frette (équivalent du double-clic historique, mais en un clic).
+  - **Pendant la sélection d'un legato** (`legatoSourceId` actif) : le clic sur le disque **résout** la chaîne (`addLegato`) au lieu d'éditer — comportement identique au clic ailleurs sur le pod.
+
+**Bulle Legato** : seule la bulle **droite** (`bubble-next`) subsiste (la bulle gauche a été retirée). Masquée et non-cliquable sur **tous** les pods pendant la sélection d'un legato (`legatoSourceId` actif) — le clic se fait alors sur le disque ou n'importe où sur le corps du pod cible.
+
+**Zones d'interaction** (`noteZoneCompact`, remplace l'ancien `noteZone` pour les pods de note) :
+`[ Resize L | Move | Bubble Next (optionnel) | Resize R ]` — les zones Fret/Name ont disparu : le disque (élément DOM `Html`) intercepte le clic **avant** qu'il n'atteigne le mesh de raycasting THREE.js sous-jacent, donc plus besoin de zones dédiées.
+
+- **Intermediate Notes** : Les notes générées par un legato sont 50% plus sombres, 30% désaturées et n'ont pas de bulle/disque de legato (la bulle ; le disque fret/nom reste affiché).
 - **Pendant la visualisation legato** : Les notes de la chaîne active (`legatoActiveNoteIds`) ne sont **pas** assombries — elles affichent leur couleur de degré pleine (`SCALE_COLORS[deg-1]`).
 
 ### 11.3 Line Segment Legato (Tablature)
@@ -320,7 +355,52 @@ Bande de **56 px** en bas du canvas WebGL — vue d'ensemble du projet à échel
 - Rendu en deux passes par frame :
   1. Caméra principale → canvas complet (`gl.setScissorTest(false)` → `gl.render(scene, mainCam)`)
   2. `minimapCam` → bande basse 56 px (`gl.setViewport(0,0,w,56)` + scissor + clear + render)
+- `gl.autoClear = false` obligatoire pour ne pas effacer la passe 1.
+- **Minimap Interaction** : `onPointerDown`/`onPointerMove` sur la zone minimap :
+  - Calcule `targetWorldX` proportionnellement.
+  - Écrit dans `minimapTargetXRef` (ref partagée) → appliqué à `o.position.x` dans le `useFrame priority=1`.
+
+### 11.6 Rhythm Modifiers (Non-Destructif) — Juin 2026
+
+Le système de rythmes permet d'appliquer des patterns de subdivision sans modifier les notes originales via des **Rhythm Modifiers**.
+
+- **Hiérarchie d'application** : Note > Accord > Progression. Si plusieurs modificateurs s'appliquent, le plus spécifique l'emporte.
+- **RhythmModifierService** : Centralise la logique.
+  - `applyRhythmToTarget` : Crée un modificateur pour une note, un accord ou une progression.
+  - `getVirtualRhythm` : Calcule les "virtual notes" pour le rendu et le playback.
+- **Visualisation (TablatureR3F)** :
+  - **Contour rouge** (`#cc0000`) : Entoure l'élément modifié (Note, Accord ou Progression).
+  - **Disque Interactif** : Situé en haut à gauche (positionnement sticky pour rester visible).
+  - **Pop-over** :
+    - **Mode Proportionnel** : Divise la durée de la note/accord selon le pattern.
+    - **Mode Étendu** : Applique le pattern sur sa durée réelle (mesures).
+    - **Instruments** : Sélection des pistes (kick, snare, hi-hat) qui imposent leur rythme.
+    - **Navigation** : Changement de pattern via flèches ou liste.
+  - **Emojis** : Utilise le service global de résolution d'emojis (`ChordEmojiService.tsx`) pour afficher l'icône spécifique du pattern (ex: `:earth_africa:` pour Afrobeat).
+- **Playback** : Le moteur audio utilise les segments virtuels fournis par le service. Le highlight sur le manche suit également ces segments.
+  - ⚠️ `rawMaxBeat` (fin de lecture) doit inclure la fin des sous-notes virtuelles (`getVirtualRhythm`), pas seulement `note.startBeat + note.duration` — sinon le curseur s'arrête avant la fin réelle d'un pattern en mode étendu.
+- **Suppression** : Un clic droit sur le contour rouge ou le bouton supprimer dans la pop-over restaure instantanément l'état normal.
 - `gl.autoClear = false` obligatoire pour les deux passes ; remis à `true` en fin de frame.
+
+#### 11.6.1 Materialisation Legato d'un Rhythm Modifier — Juin 2026
+
+Bouton `linear_scale` dans la pop-over du Rhythm Modifier. **Ne réimplémente pas** le legato — réutilise entièrement le moteur existant (11.3/11.4).
+
+- **ON** → `RhythmModifierService.materializeLegatoRhythm(modId)` :
+  - Calcule les sous-notes virtuelles du pattern (`computeVirtualNotes`).
+  - 1ère sous-note → **source** (la note de base est mise à jour en place : `startBeat`/`duration` repris de la 1ère sous-note).
+  - Dernière sous-note → **destination** (nouvelle note, `legatoPrev` = source).
+  - Sous-notes intermédiaires → **notes intermédiaires** réelles, IDs stockés dans `source.intermediateNoteIds`.
+  - `LegatoLine` dessine alors un seul ruban source → intermédiaires → destination, comme un legato classique.
+- **OFF** → `dematerializeLegatoRhythm` : supprime les notes générées (`legatoExtras`), restaure la note de base à `legatoOrigRange`.
+- **Changement de pattern/instruments pendant que `legato=true`** : auto-déclenche `rematerializeWithPatch` (dematerialize → applique le patch → re-materialize) pour garder la chaîne synchronisée — sinon le changement de pattern n'aurait aucun effet visible sur des notes déjà matérialisées.
+- **Champs `RhythmModifier`** : `legato?`, `legatoBaseNoteId?` (lookup fiable, y compris pour les modifiers de type accord), `legatoExtras?` (IDs intermédiaires + destination), `legatoOrigRange?` (plage d'origine de la note de base).
+- **Bounds du pod** : quand `legato=true`, le pod du modifier couvre toutes les notes matérialisées (`targetId` + `legatoExtras`), pas seulement la position (raccourcie) de la note de base.
+
+### 11.7 Génération d'Accords & Voicing
+
+- **Règle de Jouabilité** : L'algorithme de voicing (`guitarUtils.ts`) filtre strictement les doublons de fréquences. Deux cordes différentes ne peuvent pas jouer la même note MIDI (même pitch, même octave) simultanément dans un accord généré automatiquement.
+- **Priorité** : Favorise les positions proches de l'ancre (startSi) et un span de frettes réduit.
 
 **`minimapCam` (OrthographicCamera)**
 
@@ -357,11 +437,24 @@ Les deux objets ont leur layer mis à 1 via `useEffect(() => { ref.current.layer
 
 ---
 
-## 12. Workflow de Drag & Drop (Accords / Progressions)
+## 12. Workflow de Drag & Drop (Accords / Rythmes / Progressions)
 
 Le service `TablatureDropService.ts` gère l'intelligence musicale lors du dépôt d'éléments sur la tablature.
 
-### 12.1 Restrictions
+### 12.1 Rythmes (Rhythm Modifiers)
+
+- **Source** : `rhythmPatterns.ts` définit des patterns par instrument (kick, snare, hi-hat).
+- **Rhythm Modifiers** : 
+  - Au lieu de modifier les notes de façon destructive, le drag & drop d'un rythme crée un **RhythmModifier**.
+  - S'applique à une **Note**, un **ChordGroup** ou un **ProgressionGroup**.
+  - **Modes** :
+    - `proportional` (défaut) : Le pattern est compressé/étendu pour tenir exactement dans la durée du pod cible.
+    - `extended` : Le pattern conserve sa durée naturelle (mesures) à partir du début de la cible.
+  - **Visualisation** : Encadré d'un trait rouge (`#cc0000`) avec un disque icône en haut à gauche.
+  - **Reversibilité** : Supprimer le modifier (clic droit sur l'encadré) restaure immédiatement l'apparence et le comportement normal du pod original.
+  - **Configuration** : Clic sur l'icône ouvre un pop-over pour choisir les pistes actives (kick, snare, etc.), changer de pattern ou basculer entre les modes Proportionnel/Étendu.
+
+### 12.2 Restrictions
 - **Interdit** de déposer sur un pod appartenant déjà à un accord (`ChordGroup`).
 - **Interdit** de déposer sur un pod faisant partie d'une chaîne legato (source, destination ou intermédiaire).
 
@@ -379,6 +472,7 @@ Lorsqu'un accord est déposé sur une note simple :
 - **Playback Indicator** : Barre verticale verte (`APPLE_GREEN`) avec flèche. Draggable pour changer la position.
 - **Auto-Reset** : Si `isLooping` est faux, la lecture revient à 0 à la fin du morceau.
 - **Audio** : Utilise `playFullChord` et `playNote`. `stopAllSounds()` est appelé au Stop ou pause.
+- **Atténuation des pods pendant la lecture** (Juin 2026, voir 11.2) : Chaque segment de pod s'assombrit vers `LANE_COL` quand le curseur n'est pas dans son intervalle de beats (`isPlaying && playbackBeat ∉ [startBeat, startBeat+duration)`), transition `ease` ~0.5s via le shader `PodGradientMaterial`. Désactivé hors lecture.
 
 ### 13.2 Fretboard Highlight
 

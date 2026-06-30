@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import './ProgressionCompiler.scss'
 import { useMainStore } from '../../stores/useMainStore'
 import { playFullChord } from '../../composables/useAudio'
-import { Chord } from 'tonal'
+import { Chord, Note } from 'tonal'
 import { romanToDegree, getMajorScaleNotes } from '../../utils/chordUtils'
 import ProgressionsList from '../sidebars/ProgressionsList'
 import ProgressionDropZone from './ProgressionDropZone'
@@ -32,12 +32,12 @@ export default function ProgressionCompiler() {
     }
   }
 
-  function getChordTypeFromNumeral(numeral: string, isMajor: boolean, base: string): string {
-    const modifiers = numeral.substring(base.length)
+  function getChordTypeFromNumeral(numeral: string, isMajor: boolean, base: string, stripped: string): string {
+    const modifiers = stripped.substring(base.length)
     if (modifiers.includes('°') || modifiers.includes('dim')) return 'dim'
     if (modifiers.includes('+') || modifiers.includes('aug')) return 'aug'
     if (modifiers.includes('maj7')) return isMajor ? 'maj7' : 'mMaj7'
-    if (modifiers.includes('m7b5') || modifiers.includes('Ø')) return 'm7b5'
+    if (modifiers.includes('m7b5') || modifiers.includes('ø') || modifiers.includes('Ø')) return 'm7b5'
     if (modifiers.includes('7')) return isMajor ? '7' : 'm7'
     if (modifiers.includes('6')) return isMajor ? '6' : 'm6'
     if (!isMajor) return 'm'
@@ -104,9 +104,13 @@ export default function ProgressionCompiler() {
 
     const numeral = numerals[chordIdx]
     const scaleNotes = getMajorScaleNotes(s.userScale)
-    const { degree, isMajor, base } = romanToDegree(numeral)
-    const chordRoot = scaleNotes[(degree - 1) % 7]
-    const chordType = getChordTypeFromNumeral(numeral, isMajor, base)
+    const { degree, isMajor, base, alteration, stripped } = romanToDegree(numeral)
+    let chordRoot = scaleNotes[(degree - 1) % 7]
+    if (alteration !== 0) {
+      const midi = Note.midi(chordRoot + '4')
+      if (midi !== null && midi !== undefined) chordRoot = Note.pitchClass(Note.fromMidi(midi + alteration))
+    }
+    const chordType = getChordTypeFromNumeral(numeral, isMajor, base, stripped)
     const chordNotes = getChordNotes(chordRoot, chordType)
 
     playFullChord(chordNotes, beatDuration, 'sine').then(() => {

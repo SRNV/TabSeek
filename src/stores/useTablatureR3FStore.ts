@@ -33,18 +33,37 @@ export interface ProgressionGroup {
   name: string
 }
 
+export type RhythmModifierMode = 'proportional' | 'extended'
+
+export interface RhythmModifier {
+  id: string
+  targetType: 'note' | 'chord' | 'progression'
+  targetId: string      // noteId, chordGroupId, or progressionGroupId
+  patternName: string   // Reference to rhythmPatterns
+  activeTracks: string[] // e.g. ["kick", "snare"]
+  mode: RhythmModifierMode
+  enabled: boolean
+  fillGaps?: boolean    // stretch each virtual note to the next onset (no silence between notes)
+  legato?: boolean      // materialize sub-notes as real legato notes (source → intermediates → dest)
+  legatoBaseNoteId?: string  // ID of the base note that was used as legato source (reliable across chord lookups)
+  legatoExtras?: string[]  // IDs of materialized notes (dest + intermediates), excluding the base note
+  legatoOrigRange?: { startBeat: number; duration: number }  // base note range before legato was applied
+}
+
 const MAX_HISTORY = 60
 
 type HistoryEntry = {
   notes:        TablatureNote[]
   groups:       ChordGroup[]
   progressions: ProgressionGroup[]
+  rhythmModifiers: RhythmModifier[]
 }
 
 interface State {
   notes:            TablatureNote[]
   chordGroups:      ChordGroup[]
   progressionGroups: ProgressionGroup[]
+  rhythmModifiers:  RhythmModifier[]
   legatoSourceId:    string | null
   past:             HistoryEntry[]
   future:           HistoryEntry[]
@@ -56,10 +75,12 @@ interface State {
   playbackBeat: number
   tempo: number
   isLooping: boolean
+  isFollowing: boolean
   togglePlayback: () => void
   setPlaybackBeat: (beat: number) => void
   setTempo: (tempo: number) => void
   setLooping: (loop: boolean) => void
+  setFollowing: (follow: boolean) => void
 
   addNote:               (n: Omit<TablatureNote, 'id'>) => string
   updateNote: (id: string, patch: Partial<Omit<TablatureNote, 'id'>>, tuning?: string[], scaleNotes?: string[]) => void
@@ -69,6 +90,9 @@ interface State {
   addProgressionGroup:    (chordGroupIds: string[], name: string) => string
   updateProgressionGroup: (id: string, patch: Partial<Pick<ProgressionGroup, 'name' | 'chordGroupIds'>>) => void
   removeProgressionGroup: (id: string) => void
+  addRhythmModifier: (mod: Omit<RhythmModifier, 'id'>) => string
+  updateRhythmModifier: (id: string, patch: Partial<Omit<RhythmModifier, 'id'>>) => void
+  removeRhythmModifier: (id: string) => void
   setLegato: (sourceId: string, destId: string | undefined, count?: number, tuning?: string[]) => void
   setLegatoBehavior: (sourceId: string, behavior: LegatoBehavior, tuning: string[], scaleNotes: string[]) => void
   setLegatoAuto: (sourceId: string, enabled: boolean) => void
@@ -96,6 +120,20 @@ function detectChordName(noteIds: string[], allNotes: TablatureNote[], tuning: s
   const pitches = notes.map(n => getNoteName(tuning[n.string] ?? 'E2', n.fret))
   const detected = Chord.detect(pitches)
   return detected.length > 0 ? detected[0] : '?'
+}
+
+// True when `noteId` is the source/intermediate/destination of a still-linked rhythm-modifier
+// legato chain (mod.legato === true). These chains have manually fixed, pattern-derived
+// durations — any resync (syncLegatoHelper) would silently resize them, so callers must skip
+// it entirely for locked notes regardless of legatoAuto/legatoChain. Local copy of
+// RhythmModifierService.isLegatoLocked to avoid a store → service → store circular import.
+function isRhythmLegatoLocked(rhythmModifiers: RhythmModifier[], notes: TablatureNote[], noteId: string): boolean {
+  return rhythmModifiers.some(m => {
+    if (!m.legato || !m.legatoBaseNoteId) return false
+    if (m.legatoBaseNoteId !== noteId && !m.legatoExtras?.includes(noteId)) return false
+    const base = notes.find(n => n.id === m.legatoBaseNoteId)
+    return !!base?.legatoNext
+  })
 }
 
 function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: string[], scaleNotes?: string[], startFromId?: string) {
@@ -292,12 +330,13 @@ function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: stri
 }
 
 export const useTablatureR3FStore = create<State>((set) => ({
-  notes: [], chordGroups: [], progressionGroups: [], past: [], future: [],
+  notes: [], chordGroups: [], progressionGroups: [], rhythmModifiers: [], past: [], future: [],
   legatoSourceId: null,
   isPlaying: false,
   playbackBeat: 0,
   tempo: 120,
   isLooping: true,
+  isFollowing: false,
 
   setLegatoSourceId: (id) => set({ legatoSourceId: id }),
 
@@ -305,6 +344,7 @@ export const useTablatureR3FStore = create<State>((set) => ({
   setPlaybackBeat: (beat) => set({ playbackBeat: beat }),
   setTempo: (tempo) => set({ tempo }),
   setLooping: (isLooping) => set({ isLooping }),
+  setFollowing: (isFollowing) => set({ isFollowing }),
 
   addNote: (n) => {
     const id = uid()
@@ -333,15 +373,15 @@ export const useTablatureR3FStore = create<State>((set) => ({
         // 1. If note is a source/destination and Auto is on
         const source = note.legatoNext ? note : newNotes.find(n => n.id === note.legatoPrev)
         const isAuto = source?.legatoAuto ?? true
-        
-        if (source && isAuto) {
+
+        if (source && isAuto && !isRhythmLegatoLocked(s.rhythmModifiers, newNotes, source.id)) {
           finalNotes = syncLegatoHelper(finalNotes, source.id, tuning, scaleNotes)
         }
-        
+
         // 2. If note is an intermediate note and Chain is on
         if (!source) {
           const actualSource = newNotes.find(n => n.intermediateNoteIds?.includes(id))
-          if (actualSource && actualSource.legatoChain) {
+          if (actualSource && actualSource.legatoChain && !isRhythmLegatoLocked(s.rhythmModifiers, newNotes, actualSource.id)) {
             // Reactive only when the note (pitch) changes
             if (patch.fret !== undefined || patch.string !== undefined) {
               finalNotes = syncLegatoHelper(finalNotes, actualSource.id, tuning, scaleNotes, id)
@@ -456,8 +496,23 @@ export const useTablatureR3FStore = create<State>((set) => ({
         notes: s.notes.filter(n => !toRemove.has(n.id)),
         chordGroups: s.chordGroups.filter(g => !gIds.has(g.id)),
         progressionGroups: s.progressionGroups.filter(p => p.id !== id),
+        rhythmModifiers: s.rhythmModifiers.filter(m => m.targetType !== 'progression' || m.targetId !== id),
       }
     }),
+
+  addRhythmModifier: (mod) => {
+    const id = uid()
+    set(s => ({ rhythmModifiers: [...s.rhythmModifiers, { ...mod, id }] }))
+    return id
+  },
+
+  updateRhythmModifier: (id, patch) =>
+    set(s => ({
+      rhythmModifiers: s.rhythmModifiers.map(m => m.id === id ? { ...m, ...patch } : m),
+    })),
+
+  removeRhythmModifier: (id) =>
+    set(s => ({ rhythmModifiers: s.rhythmModifiers.filter(m => m.id !== id) })),
 
   setLegato: (sourceId, destId, count = 2, tuning) =>
     set(s => {
@@ -522,14 +577,16 @@ export const useTablatureR3FStore = create<State>((set) => ({
   setLegatoBehavior: (sourceId, behavior, tuning, scaleNotes) =>
     set(s => {
       const source = s.notes.map(n => n.id === sourceId ? { ...n, legatoBehavior: behavior } : n)
+      if (isRhythmLegatoLocked(s.rhythmModifiers, source, sourceId)) return { notes: source }
       const finalNotes = syncLegatoHelper(source, sourceId, tuning, scaleNotes)
       return { notes: finalNotes }
     }),
 
   syncLegato: (sourceId: string, tuning: string[], scaleNotes?: string[]) =>
-    set(s => ({
-      notes: syncLegatoHelper(s.notes, sourceId, tuning, scaleNotes)
-    })),
+    set(s => {
+      if (isRhythmLegatoLocked(s.rhythmModifiers, s.notes, sourceId)) return s
+      return { notes: syncLegatoHelper(s.notes, sourceId, tuning, scaleNotes) }
+    }),
 
   renderLegato: (sourceId: string) =>
     set(s => {
@@ -565,7 +622,8 @@ export const useTablatureR3FStore = create<State>((set) => ({
     set(s => {
       const source = s.notes.find(n => n.intermediateNoteIds?.includes(noteId))
       if (!source || !source.legatoNext) return s
-      
+      if (isRhythmLegatoLocked(s.rhythmModifiers, s.notes, source.id)) return s
+
       const id = uid()
       const clickedNote = s.notes.find(n => n.id === noteId)!
       
@@ -594,6 +652,7 @@ export const useTablatureR3FStore = create<State>((set) => ({
     set(s => {
       const source = s.notes.find(n => n.intermediateNoteIds?.includes(noteId))
       if (!source || !source.legatoNext) return s
+      if (isRhythmLegatoLocked(s.rhythmModifiers, s.notes, source.id)) return s
 
       const newIds = source.intermediateNoteIds!.filter(id => id !== noteId)
       
@@ -622,7 +681,7 @@ export const useTablatureR3FStore = create<State>((set) => ({
   pushHistory: () =>
     set(s => ({
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
       }],
       future: [],
     })),
@@ -634,9 +693,10 @@ export const useTablatureR3FStore = create<State>((set) => ({
       notes:            prev.notes,
       chordGroups:      prev.groups,
       progressionGroups: prev.progressions ?? [],
+      rhythmModifiers:  prev.rhythmModifiers ?? [],
       past:             s.past.slice(0, -1),
       future: [{
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
       }, ...s.future.slice(0, MAX_HISTORY - 1)],
     }
   }),
@@ -648,8 +708,9 @@ export const useTablatureR3FStore = create<State>((set) => ({
       notes:            next.notes,
       chordGroups:      next.groups,
       progressionGroups: next.progressions ?? [],
+      rhythmModifiers:  next.rhythmModifiers ?? [],
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
       }],
       future: s.future.slice(1),
     }

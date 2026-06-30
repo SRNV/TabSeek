@@ -5,11 +5,17 @@ import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { getNoteName } from '../composables/useNoteHelpers'
 import { findBestChordFrets, Voicing } from '../utils/guitarUtils'
+import { RhythmModifierService } from './RhythmModifierService'
 import type { ChordProgression } from '../composables/progressions'
+import type { RhythmPatternDef } from '../composables/rhythmPatterns'
 
 const CHORD_DUR = 4 // Default duration for each chord in a progression
 
 export const TablatureDropService = {
+  handleRhythmDrop: (rhythm: RhythmPatternDef, targetId: string, trackIndex?: number) => {
+    RhythmModifierService.applyRhythmToTarget(rhythm, targetId, trackIndex)
+  },
+
   handleDrop: (
     prog: ChordProgression,
     si: number,
@@ -60,9 +66,13 @@ export const TablatureDropService = {
       // Anchoring logic: find the Tonic such that the first chord's root is the note we dropped on
       const firstNumeral = prog.numerals?.split('-')[0]
       if (firstNumeral && !prog._chordType) {
-        const { degree } = romanToDegree(firstNumeral)
-        const ivs = ['1P','2M','3M','4P','5P','6M','7M']
-        effectiveScalePc = Note.pitchClass(Note.transpose(noteName, "-" + ivs[degree - 1]))
+        const { degree, alteration } = romanToDegree(firstNumeral)
+        const ivsSemitones = [0, 2, 4, 5, 7, 9, 11]
+        const intervalSt = ivsSemitones[degree - 1] + alteration
+        const noteMidi = Note.midi(noteName + '4')
+        effectiveScalePc = (noteMidi !== null && noteMidi !== undefined)
+          ? Note.pitchClass(Note.fromMidi(noteMidi - intervalSt))
+          : noteName
       } else {
         effectiveScalePc = Note.pitchClass(noteName)
       }
