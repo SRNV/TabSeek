@@ -1,5 +1,4 @@
 import { useTablatureR3FStore, TablatureNote, RhythmModifier } from '../stores/useTablatureR3FStore'
-import { useTablatureStore } from '../stores/useTablatureStore'
 import { rhythmPatterns, RhythmPatternDef } from '../composables/rhythmPatterns'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
 
@@ -9,19 +8,31 @@ export interface VirtualNote {
   id: string
 }
 
+export const ALL_TRACKS = '__all__'
+
+// When a chord-targeting modifier has a per-string override for this note, only that
+// track's steps drive the note — otherwise fall back to the merged activeTracks (default).
+function mergeSteps(pattern: RhythmPatternDef, mod: RhythmModifier, note: TablatureNote): { totalSteps: number, mergedSteps: number[] } {
+  const override = mod.targetType === 'chord' ? mod.stringTrackOverrides?.[note.id] : undefined
+  const tracksToUse = (override && override !== ALL_TRACKS)
+    ? pattern.tracks.filter(t => t.part === override)
+    : pattern.tracks.filter(t => mod.activeTracks.includes(t.part))
+
+  let totalSteps = 0
+  const mergedSteps: number[] = []
+  tracksToUse.forEach(t => {
+    totalSteps = Math.max(totalSteps, t.steps.length)
+    t.steps.forEach((v, i) => { mergedSteps[i] = Math.max(mergedSteps[i] || 0, v) })
+  })
+  return { totalSteps, mergedSteps }
+}
+
 // Shared helper: compute the onset list and step duration for a modifier + note
 function computeVirtualNotes(mod: RhythmModifier, note: TablatureNote): VirtualNote[] | null {
   const pattern = rhythmPatterns.find(p => p.name === mod.patternName)
   if (!pattern) return null
 
-  let totalSteps = 0
-  const mergedSteps: number[] = []
-  pattern.tracks.forEach(t => {
-    if (mod.activeTracks.includes(t.part)) {
-      totalSteps = Math.max(totalSteps, t.steps.length)
-      t.steps.forEach((v, i) => { mergedSteps[i] = Math.max(mergedSteps[i] || 0, v) })
-    }
-  })
+  const { totalSteps, mergedSteps } = mergeSteps(pattern, mod, note)
 
   const onsets = mergedSteps.map((vel, i) => vel > 0 ? i : -1).filter(i => i !== -1)
   if (onsets.length < 2) return null
@@ -50,22 +61,36 @@ export const RhythmModifierService = {
     const state = useTablatureR3FStore.getState()
     const { addRhythmModifier: addMod, pushHistory: ph } = state
 
-    let targetType: 'note' | 'chord' | 'progression' = 'note'
-    const isNote = state.notes.some(n => n.id === targetId)
-    const isChord = state.chordGroups.some(g => g.id === targetId)
-    const isProg = state.progressionGroups.some(p => p.id === targetId)
+    // targetId is the note dropped on (the only thing the canvas drop handler can hit-test).
+    // If that note belongs to a chord, the modifier targets the whole ChordGroup instead —
+    // dropping a rhythm on any note of a chord pod imposes the rhythm on the chord.
+    // (targetId may also directly be a chord/progression id if called from elsewhere.)
+    let targetType: 'note' | 'chord' | 'progression'
+    let resolvedId = targetId
 
-    if (isProg) targetType = 'progression'
-    else if (isChord) targetType = 'chord'
-    else if (isNote) targetType = 'note'
-    else return
+    const directProg  = state.progressionGroups.find(p => p.id === targetId)
+    const directChord = state.chordGroups.find(g => g.id === targetId)
+    const chordOfNote = state.chordGroups.find(g => g.noteIds.includes(targetId))
+
+    if (directProg) {
+      targetType = 'progression'
+    } else if (directChord) {
+      targetType = 'chord'
+    } else if (chordOfNote) {
+      targetType = 'chord'
+      resolvedId = chordOfNote.id
+    } else if (state.notes.some(n => n.id === targetId)) {
+      targetType = 'note'
+    } else {
+      return
+    }
 
     if (targetType === 'note') {
       const isLegatoIntermediate = state.notes.some(n => n.intermediateNoteIds?.includes(targetId))
       if (isLegatoIntermediate) return
     }
 
-    const existing = state.rhythmModifiers.find(m => m.targetId === targetId && m.targetType === targetType)
+    const existing = state.rhythmModifiers.find(m => m.targetId === resolvedId && m.targetType === targetType)
     if (existing) return
 
     ph()
@@ -83,7 +108,7 @@ export const RhythmModifierService = {
 
     if (activeTracks.length === 0) return
 
-    addMod({ targetType, targetId, patternName: rhythm.name, activeTracks, mode: 'proportional', enabled: true })
+    addMod({ targetType, targetId: resolvedId, patternName: rhythm.name, activeTracks, mode: 'proportional', enabled: true, fillGaps: true })
   },
 
   /**
@@ -141,14 +166,7 @@ export const RhythmModifierService = {
     const pattern = rhythmPatterns.find(p => p.name === activeMod.patternName)
     if (!pattern) return null
 
-    let totalSteps = 0
-    const mergedSteps: number[] = []
-    pattern.tracks.forEach(t => {
-      if (activeMod.activeTracks.includes(t.part)) {
-        totalSteps = Math.max(totalSteps, t.steps.length)
-        t.steps.forEach((v, i) => { mergedSteps[i] = Math.max(mergedSteps[i] || 0, v) })
-      }
-    })
+    const { totalSteps, mergedSteps } = mergeSteps(pattern, activeMod, note)
 
     const onsets = mergedSteps.map((vel, i) => vel > 0 ? i : -1).filter(i => i !== -1)
     if (onsets.length === 0) return null
@@ -170,31 +188,17 @@ export const RhythmModifierService = {
   },
 
   /**
-   * Materializes virtual sub-notes as real legato notes.
+   * Materializes one note's virtual sub-notes as a real legato chain.
    * First sub-note = legato SOURCE (base note updated in place).
    * Last sub-note  = legato DESTINATION (new note).
    * Middle sub-notes = INTERMEDIATE notes stored in source.intermediateNoteIds.
    * The LegatoLine component then renders a single ribbon from source through intermediates to dest.
+   * Caller is responsible for pushHistory() — this only performs the mutation.
    */
-  materializeLegatoRhythm: (modId: string) => {
+  materializeChainForNote: (mod: RhythmModifier, baseNote: TablatureNote): { baseNoteId: string; extras: string[]; origRange: { startBeat: number; duration: number } } | null => {
     const state = useTablatureR3FStore.getState()
-    const mod = state.rhythmModifiers.find(m => m.id === modId)
-    if (!mod || mod.legato) return
-
-    // Find the base note to materialize
-    let baseNote: TablatureNote | undefined
-    if (mod.targetType === 'note') {
-      baseNote = state.notes.find(n => n.id === mod.targetId)
-    } else if (mod.targetType === 'chord') {
-      const chord = state.chordGroups.find(g => g.id === mod.targetId)
-      if (chord) baseNote = state.notes.find(n => chord.noteIds.includes(n.id))
-    }
-    if (!baseNote) return
-
     const virtual = computeVirtualNotes(mod, baseNote)
-    if (!virtual || virtual.length < 2) return
-
-    state.pushHistory()
+    if (!virtual || virtual.length < 2) return null
 
     const origRange = { startBeat: baseNote.startBeat, duration: baseNote.duration }
     const sn0 = virtual[0]
@@ -237,53 +241,107 @@ export const RhythmModifierService = {
       intermediateNoteIds: intermediateIds
     })
 
-    // Store materialized info in modifier (legatoBaseNoteId for reliable future lookup)
-    state.updateRhythmModifier(modId, {
+    return { baseNoteId: baseNote.id, extras: [...intermediateIds, destId], origRange }
+  },
+
+  /**
+   * Materializes the modifier's virtual rhythm as real legato notes.
+   * - targetType='note': a single chain on that note (legacy single-chain fields).
+   * - targetType='chord': **every note of the chord** gets its own independent chain —
+   *   the rhythm must apply to the whole chord, not collapse onto just the root/fundamental.
+   *   Stored as legatoChains[]; the chord group's noteIds is updated to span all of them.
+   */
+  materializeLegatoRhythm: (modId: string) => {
+    const state = useTablatureR3FStore.getState()
+    const mod = state.rhythmModifiers.find(m => m.id === modId)
+    if (!mod || mod.legato) return
+
+    if (mod.targetType === 'chord') {
+      const chord = state.chordGroups.find(g => g.id === mod.targetId)
+      if (!chord) return
+      const chordNotes = state.notes.filter(n => chord.noteIds.includes(n.id))
+      if (chordNotes.length === 0) return
+
+      state.pushHistory()
+      // Notes whose pattern has fewer than 2 onsets can't form a chain (materializeChainForNote
+      // returns null without touching them) — they stay in the group untouched, alongside the
+      // notes that did materialize.
+      const unchangedIds: string[] = []
+      const chains: { baseNoteId: string; extras: string[]; origRange: { startBeat: number; duration: number } }[] = []
+      chordNotes.forEach(n => {
+        const chain = RhythmModifierService.materializeChainForNote(mod, n)
+        if (chain) chains.push(chain)
+        else unchangedIds.push(n.id)
+      })
+      if (chains.length === 0) return
+
+      const allIds = [...chains.flatMap(c => [c.baseNoteId, ...c.extras]), ...unchangedIds]
+      const fresh = useTablatureR3FStore.getState()
+      fresh.setChordGroupNoteIds(chord.id, allIds)
+      fresh.updateRhythmModifier(modId, { legato: true, legatoChains: chains })
+      return
+    }
+
+    const baseNote = state.notes.find(n => n.id === mod.targetId)
+    if (!baseNote) return
+
+    state.pushHistory()
+    const chain = RhythmModifierService.materializeChainForNote(mod, baseNote)
+    if (!chain) return
+
+    useTablatureR3FStore.getState().updateRhythmModifier(modId, {
       legato: true,
-      legatoBaseNoteId: baseNote.id,
-      legatoExtras: [...intermediateIds, destId],
-      legatoOrigRange: origRange
+      legatoBaseNoteId: chain.baseNoteId,
+      legatoExtras: chain.extras,
+      legatoOrigRange: chain.origRange
     })
   },
 
   /**
-   * Dematerializes the legato chain, restoring the base note to its original range
-   * and deleting the extra materialized notes.
+   * Dematerializes every chain (single or multi) on this modifier, restoring each base note
+   * to its original range and deleting the extra materialized notes. Deleting a chain's extras
+   * naturally shrinks the chord group's noteIds back down to just the base notes (deleteNote's
+   * own cascade), so no explicit chord-group cleanup is needed here.
    */
   dematerializeLegatoRhythm: (modId: string) => {
-    const state = useTablatureR3FStore.getState()
-    const mod = state.rhythmModifiers.find(m => m.id === modId)
-    if (!mod?.legato || !mod.legatoOrigRange) return
+    const initial = useTablatureR3FStore.getState()
+    const mod = initial.rhythmModifiers.find(m => m.id === modId)
+    if (!mod?.legato) return
 
-    // Use stored legatoBaseNoteId for reliable lookup (chord-level modifiers would otherwise
-    // find any note in the chord, not necessarily the materialized source)
-    const baseNote = state.notes.find(n => n.id === (mod.legatoBaseNoteId ?? mod.targetId))
+    initial.pushHistory()
 
-    state.pushHistory()
+    const chains = (mod.legatoChains && mod.legatoChains.length > 0)
+      ? mod.legatoChains
+      : (mod.legatoBaseNoteId && mod.legatoOrigRange)
+        ? [{ baseNoteId: mod.legatoBaseNoteId, extras: mod.legatoExtras ?? [], origRange: mod.legatoOrigRange }]
+        : []
 
-    const tuning = useTablatureStore.getState().tuning.split(',')
+    // No tuning passed to deleteNote: skip its auto chord-name re-detection — the chord's
+    // name must stay what it was before materializing, not whatever a partial set detects as.
+    chains.forEach(chain => {
+      const store = useTablatureR3FStore.getState()
+      const extras = new Set(chain.extras)
+      extras.forEach(id => store.deleteNote(id))
 
-    // Delete extra notes (intermediates + dest) — deleteNote for dest also unlinks source's legatoNext
-    const extras = new Set(mod.legatoExtras ?? [])
-    extras.forEach(id => state.deleteNote(id, tuning))
+      const baseNote = useTablatureR3FStore.getState().notes.find(n => n.id === chain.baseNoteId)
+      if (baseNote) {
+        useTablatureR3FStore.getState().updateNote(baseNote.id, {
+          startBeat: chain.origRange.startBeat,
+          duration: chain.origRange.duration,
+          legatoNext: undefined,
+          legatoPrev: undefined,
+          intermediateNoteIds: [],
+          legatoCount: 0
+        })
+      }
+    })
 
-    // Restore base note to original range
-    if (baseNote) {
-      state.updateNote(baseNote.id, {
-        startBeat: mod.legatoOrigRange.startBeat,
-        duration: mod.legatoOrigRange.duration,
-        legatoNext: undefined,
-        legatoPrev: undefined,
-        intermediateNoteIds: [],
-        legatoCount: 0
-      })
-    }
-
-    state.updateRhythmModifier(modId, {
+    useTablatureR3FStore.getState().updateRhythmModifier(modId, {
       legato: false,
       legatoBaseNoteId: undefined,
       legatoExtras: undefined,
-      legatoOrigRange: undefined
+      legatoOrigRange: undefined,
+      legatoChains: undefined
     })
   },
 
@@ -295,6 +353,41 @@ export const RhythmModifierService = {
     RhythmModifierService.dematerializeLegatoRhythm(modId)
     useTablatureR3FStore.getState().updateRhythmModifier(modId, patch)
     RhythmModifierService.materializeLegatoRhythm(modId)
+  },
+
+  /**
+   * Returns the track part assigned to a single string/note of a chord-targeting modifier,
+   * or ALL_TRACKS when no per-string override is set (merged default behavior).
+   */
+  getAssignedTrack: (mod: RhythmModifier, noteId: string): string => {
+    return mod.stringTrackOverrides?.[noteId] ?? ALL_TRACKS
+  },
+
+  /**
+   * Cycles a single chord note's instrument assignment through the active pattern's tracks
+   * (plus ALL_TRACKS), used by the per-string instrument discs on chord pods.
+   */
+  cycleStringTrack: (modId: string, noteId: string) => {
+    const state = useTablatureR3FStore.getState()
+    const mod = state.rhythmModifiers.find(m => m.id === modId)
+    if (!mod) return
+    const pattern = rhythmPatterns.find(p => p.name === mod.patternName)
+    if (!pattern) return
+
+    const options = [ALL_TRACKS, ...pattern.tracks.map(t => t.part)]
+    const current = RhythmModifierService.getAssignedTrack(mod, noteId)
+    const next = options[(options.indexOf(current) + 1) % options.length]
+
+    const overrides = { ...(mod.stringTrackOverrides ?? {}) }
+    if (next === ALL_TRACKS) delete overrides[noteId]
+    else overrides[noteId] = next
+
+    const patch: Partial<RhythmModifier> = { stringTrackOverrides: overrides }
+    if (mod.legato) RhythmModifierService.rematerializeWithPatch(modId, patch)
+    else {
+      state.pushHistory()
+      state.updateRhythmModifier(modId, patch)
+    }
   },
 
   /**
@@ -312,7 +405,15 @@ export const RhythmModifierService = {
   isLegatoLocked: (noteId: string): boolean => {
     const state = useTablatureR3FStore.getState()
     return state.rhythmModifiers.some(m => {
-      if (!m.legato || !m.legatoBaseNoteId) return false
+      if (!m.legato) return false
+      if (m.legatoChains && m.legatoChains.length > 0) {
+        return m.legatoChains.some(chain => {
+          if (chain.baseNoteId !== noteId && !chain.extras.includes(noteId)) return false
+          const base = state.notes.find(n => n.id === chain.baseNoteId)
+          return !!base?.legatoNext
+        })
+      }
+      if (!m.legatoBaseNoteId) return false
       if (m.legatoBaseNoteId !== noteId && !m.legatoExtras?.includes(noteId)) return false
       const base = state.notes.find(n => n.id === m.legatoBaseNoteId)
       return !!base?.legatoNext

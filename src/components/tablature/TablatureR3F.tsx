@@ -5,18 +5,21 @@ import { Html } from '@react-three/drei'
 import { createRibbonMaterial, buildRibbonGeoCatmullRom } from '../../services/RibbonLineService'
 import * as THREE from 'three'
 import { Note, Chord } from 'tonal'
-import { useTablatureR3FStore } from '../../stores/useTablatureR3FStore'
-import type { TablatureNote, ChordGroup, ProgressionGroup, LegatoBehavior, RhythmModifier } from '../../stores/useTablatureR3FStore'
+import { useTablatureR3FStore, MODE_ZONE_MIN_LENGTH } from '../../stores/useTablatureR3FStore'
+import type { TablatureNote, ChordGroup, ProgressionGroup, LegatoBehavior, RhythmModifier, ModeZone } from '../../stores/useTablatureR3FStore'
 import type { ChordProgression } from '../../composables/progressions'
 import { useTablatureStore } from '../../stores/useTablatureStore'
 import { useMainStore } from '../../stores/useMainStore'
 import { getNoteDegree } from '../../composables/useNoteHelpers'
 import { TablatureDropService } from '../../services/TablatureDropService'
 import { TablatureMoveService } from '../../services/TablatureMoveService'
-import { ChordEmojiBox, EmojiBox, resolveEmojiStr } from '../../services/ChordEmojiService'
+import { getChordEmojiByName } from '../../services/ChordEmojiService'
 import { FretboardHighlightService } from '../../services/FretboardHighlightService'
 import { LegatoFretVisualizationService } from '../../services/LegatoFretVisualizationService'
 import { RhythmModifierService } from '../../services/RhythmModifierService'
+import { PodModifierService } from '../../services/PodModifierService'
+import { ModeZoneService } from '../../services/ModeZoneService'
+import { PodModifierDisc, PodModifierPopover, RhythmModifierDisc, ArpeggioPanel, InstrumentTrackDisc } from './PodModifierUI'
 import { playNote, playFullChord, stopAllSounds } from '../../composables/useAudio'
 import { ColorService } from '../../services/ColorService'
 import './TablatureR3F.scss'
@@ -84,8 +87,42 @@ const DISC_PALETTE: Record<string, { fill: string; border: string; text: string 
   return map
 })()
 
+/**
+ * Utility to forward wheel events to the canvas.
+ * R3F Html overlays with pointer-events: auto block the canvas's native wheel listener.
+ * Typed structurally (not React.WheelEvent) so it can be passed to both plain DOM
+ * onWheel handlers and drei <Html>'s onWheel prop — drei types the latter as
+ * ThreeEvent<WheelEvent>, but it actually forwards the native DOM wheel event at runtime.
+ */
+function passWheel(e: {
+  currentTarget: any
+  deltaX: number; deltaY: number; deltaZ: number; deltaMode: number
+  ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean
+  clientX: number; clientY: number
+}) {
+  const canvas = (e.currentTarget.ownerDocument || document).querySelector('.tab-r3f-canvas-area canvas')
+  if (canvas) {
+    canvas.dispatchEvent(new WheelEvent('wheel', {
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+      deltaZ: e.deltaZ,
+      deltaMode: e.deltaMode,
+      ctrlKey: e.ctrlKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+      metaKey: e.metaKey,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      bubbles: true,
+      cancelable: true
+    }))
+  }
+}
+
 const BG_COL        = '#3a3a3a'
 const LANE_COL      = '#2e2e2e'
+const LEFT_MARGIN_W = MEASURE_W / 8 * 0.7
+const MARGIN_COL    = darkenHex(LANE_COL, 0.33)
 const BEAT_LINE_COL = '#111111'
 const MEAS_LINE_COL = '#505050'
 const OFF_COL       = '#606060'
@@ -110,7 +147,8 @@ const CAM_HALF_H_TOP = gridTop + 0.50
 const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + 0.30
 
 // Progression pod style
-const PROG_BORDER_COL = '#5B8EE8'
+const PROG_BORDER_COL      = '#5B8EE8'
+const PROG_BORDER_HOVER_COL = '#8fb3f0' // lighter shade of its own theme on hover — not the generic SEL_COL
 const PROG_FILL_COL   = BG_COL
 const PROG_FILL_HOV   = '#4a4a4a'
 const PROG_PAD_H      = 1.20   // extra padding beyond chord pod edges on each side
@@ -121,7 +159,18 @@ const CHORD_PAD_H     = 0.25            // horizontal padding around chord pod (
 const CHORD_PAD_V     = 0.25            // vertical padding around chord pod (WU ≈ 5px)
 const CHORD_R         = 0.28            // chord pod corner radius (WU)
 const CHORD_BORDER_WU = 0.10            // ~2 px border at standard zoom
-const CHORD_BORDER_COL = '#4caf50'      // green border
+const CHORD_BORDER_COL       = '#4caf50' // green border
+const CHORD_BORDER_HOVER_COL = '#7be08c' // lighter shade of its own theme on hover — not the generic SEL_COL
+
+// Mode pod style — not anchored to a specific string row (influences the whole grid), but its
+// header still sits in the inter-string gap above the topmost string ("e"), exactly like a
+// Chord/Progression pod whose bounds.siMax is that same topmost string — not above the measure
+// number labels, which stay further up still (gridTop+0.20).
+const MODE_BORDER_COL       = '#cc0000'
+const MODE_BORDER_HOVER_COL = '#ff4d4d'
+const MODE_HEADER_OFF       = stringY(N_STRINGS - 1) + POD_HEADER_OFF
+const MODE_GRADIENT_RAMP    = 0.2   // fraction of the zone's width over which the tint ramps in
+const MODE_GRADIENT_OPACITY = 0.35
 
 const BUBBLE_W = 0.25
 
@@ -331,6 +380,7 @@ type DragNewProg = {
 }
 type DragPlayback = { kind: 'playback-beat' }
 type DragRhythm = { kind: 'rhythm'; pattern: RhythmPatternDef }
+type DragModeZone = { kind: 'mode-zone'; type: 'move' | 'resize-right'; zoneId: string; startX: number; origStartBeat: number; origLength: number }
 
 // ── PodGradientMaterial: left→right gradient (degree color → disc color) over one measure's
 // width, plus the fundamental-note 0.5 Hz pulse — imperative ShaderMaterial to avoid colorspace
@@ -398,34 +448,155 @@ function PodGradientMaterial({ colorA, colorB, halfW, gradWidth, blink, grayTarg
   return <primitive object={material} attach="material" />
 }
 
+// ── ModeZoneGradientMaterial: tint wash for a Mode pod's influence zone — solid color for the
+// first 80% of the zone (starting immediately at the pod's position), then ramps OUT to
+// transparent over the final MODE_GRADIENT_RAMP fraction (anticipating the next Mode pod /
+// end of piece). Driven by local vertex position (like PodGradientMaterial above), not UV —
+// avoids any ambiguity about which way PlaneGeometry's default UV.x runs. ──
+const MODE_GRAD_VERT = `
+  varying vec2 vPos;
+  void main(){
+    vPos = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+const MODE_GRAD_FRAG = `
+  uniform vec3 u_color;
+  uniform float u_opacity;
+  uniform float u_halfW;
+  uniform float u_rampWidth;
+  varying vec2 vPos;
+  void main(){
+    float t = 1.0 - clamp((vPos.x - (u_halfW - u_rampWidth)) / u_rampWidth, 0.0, 1.0);
+    gl_FragColor = vec4(u_color, t * u_opacity);
+    #include <colorspace_fragment>
+  }
+`
+function ModeZoneGradientMaterial({ color, width, ramp, opacity }: { color: string, width: number, ramp: number, opacity: number }) {
+  const halfW = width / 2
+  const rampWidth = Math.max(0.001, width * ramp)
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      u_color:     { value: new THREE.Color(color) },
+      u_halfW:     { value: halfW },
+      u_rampWidth: { value: rampWidth },
+      u_opacity:   { value: opacity },
+    },
+    vertexShader:   MODE_GRAD_VERT,
+    fragmentShader: MODE_GRAD_FRAG,
+    transparent: true,
+    depthWrite: false,
+  }), [color, halfW, rampWidth, opacity])
+  return <primitive object={material} attach="material" />
+}
+
 interface SceneProps { onStringYPcts: (pcts: number[]) => void }
 
 import { rhythmPatterns, type RhythmPatternDef } from '../../composables/rhythmPatterns'
 
-// ── Rhythm Modifier Pod component ────────────────────────────────────────────────
-function RhythmModifierPod({ 
-  mod, 
-  bounds, 
-  invStretchX, 
-  pxPerWUX, 
-  onUpdate, 
+function chordEmojiStr(chordName: string): string {
+  return getChordEmojiByName(chordName)
+}
+
+// ── Chord pod popover: category-specific buttons (alternate fingering, octave, arpeggio) ──
+function ChordPopoverButtons({ group }: { group: ChordGroup }) {
+  const [arpVisible, setArpVisible] = useState(false)
+  const arpActive = !!PodModifierService.getArpeggioForChord(group.id)
+
+  return (
+    <>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.cycleVoicing(group, 1) }}
+        title="Chercher une autre façon de jouer cet accord (même notes, autres frettes/cordes)"
+      >
+        <span className="material-symbols-outlined">search</span>
+      </button>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.transposeOctave(group, -1) }}
+        title="Octave en dessous"
+      >
+        <span className="material-symbols-outlined">keyboard_double_arrow_down</span>
+      </button>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.transposeOctave(group, 1) }}
+        title="Octave au-dessus"
+      >
+        <span className="material-symbols-outlined">keyboard_double_arrow_up</span>
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button
+          className={`pop-toggle${arpVisible || arpActive ? ' active' : ''}`}
+          onClick={e => { e.stopPropagation(); setArpVisible(v => !v) }}
+          title="Arpège verrouillé"
+        >
+          <span className="material-symbols-outlined">linear_scale</span>
+        </button>
+        {arpVisible && <ArpeggioPanel group={group} />}
+      </div>
+    </>
+  )
+}
+
+// ── Mode pod popover: force-note toggle + color picker ──────────────────────────────
+// Force-note is purely a flag — non-destructive, computed live by ModeZoneService.getVirtualFret
+// wherever a note is rendered/played, so toggling it needs no extra action here.
+function ModePopoverButtons({ zone }: { zone: ModeZone }) {
+  return (
+    <>
+      <button
+        className={`pop-toggle${zone.forceNote ? ' active' : ''}`}
+        onClick={e => {
+          e.stopPropagation()
+          useTablatureR3FStore.getState().pushHistory()
+          useTablatureR3FStore.getState().updateModeZone(zone.id, { forceNote: !zone.forceNote })
+        }}
+        title="Forcer les notes de la zone vers la gamme du mode (même degré d'échelle) — non-destructif"
+      >
+        <span className="material-symbols-outlined">sync_alt</span>
+      </button>
+      <label className="pop-toggle" style={{ position: 'relative', cursor: 'pointer' }} title="Couleur de la zone">
+        <span className="material-symbols-outlined" style={{ color: zone.color }}>palette</span>
+        <input
+          type="color"
+          value={zone.color}
+          onChange={e => useTablatureR3FStore.getState().updateModeZone(zone.id, { color: e.target.value })}
+          onClick={e => e.stopPropagation()}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+        />
+      </label>
+    </>
+  )
+}
+
+// ── Rhythm Modifier Pod component (floating header bar — note/progression targets only;
+// chord-targeted modifiers are rendered inline by the Chord pod itself, see §4.3/§4.5
+// of the PodModifier plan) ────────────────────────────────────────────────────────
+function RhythmModifierPod({
+  mod,
+  bounds,
+  invStretchX,
+  pxPerWUX,
+  getHeaderGeo,
+  onUpdate,
   onRemove,
   onHover,
   isHovered
-}: { 
-  mod: RhythmModifier, 
+}: {
+  mod: RhythmModifier,
   bounds: { beatMin: number, beatMax: number, siMin: number, siMax: number },
   invStretchX: number,
   pxPerWUX: number,
+  getHeaderGeo: (w: number, h: number) => THREE.ShapeGeometry,
   onUpdate: (patch: Partial<RhythmModifier>) => void,
   onRemove: () => void,
   onHover: (hovered: boolean) => void,
   isHovered: boolean
 }) {
-  const [popoverVisible, setPopoverVisible] = useState(false)
-  const [instrVisible, setInstrVisible] = useState(false)
   const pattern = rhythmPatterns.find(p => p.name === mod.patternName)
-  
+
   // Visual bounds always match the note content range
   const podW = (bounds.beatMax - bounds.beatMin) * BEAT_W + CHORD_PAD_H * 2 + PROG_PAD_H * 2 + 0.2
   const podH = (bounds.siMax - bounds.siMin + 1) * STRING_H
@@ -434,7 +605,7 @@ function RhythmModifierPod({
 
   const { camera } = useThree()
   const o = camera as THREE.OrthographicCamera
-  const camL = o.position.x - (o.right - o.left) / 2
+  const camL = (o.position.x - LEFT_MARGIN_W) - (o.right - o.left) / 2
 
   const podLeftX  = bounds.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H
   const podRightX = bounds.beatMax * BEAT_W + CHORD_PAD_H + PROG_PAD_H
@@ -446,15 +617,14 @@ function RhythmModifierPod({
   const discWU    = 31.2 / pxPerWUX  // 26px disc × 1.2
   const targetX   = Math.max(podLeftX, Math.min(podRightX - discWU, camL + 0.08 * invStretchX))
   const relativeX = targetX - podCX
-  const textMaxPx = Math.max(20, (podRightX - targetX) * pxPerWUX - 31.2 - 10)
 
   const borderCol = isHovered ? '#a855f7' : '#7c3aed'
 
   return (
     <group position={[podCX, podCY, 0.005]}>
-      {/* Header strip — solid fill, no outline */}
-      <mesh position={[0, relHeaderY, 0]} renderOrder={6}>
-        <planeGeometry args={[podW, HEADER_H]} />
+      {/* Header strip — solid fill, no outline. Same rounded-rect geometry function as the
+          chord/progression pod headers, so all three modifier pods render identically. */}
+      <mesh position={[0, relHeaderY, 0]} geometry={getHeaderGeo(podW, HEADER_H)} renderOrder={6}>
         <meshBasicMaterial color={borderCol} />
       </mesh>
 
@@ -468,133 +638,10 @@ function RhythmModifierPod({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Sticky emoji disc + pattern name in header */}
-      <Html position={[relativeX, relHeaderY, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[80, 80]}>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '3px' }}>
-          <div onClick={(e) => { e.stopPropagation(); setPopoverVisible(!popoverVisible) }} style={{ cursor: 'pointer' }}>
-            <EmojiBox
-              emojiStr={pattern?.emoji ?? ':musical_note:'}
-              size={26}
-              disc={{ bgColor: '#1a0033', borderColor: borderCol }}
-              style={{ boxShadow: isHovered ? '0 0 10px rgba(168,85,247,0.5)' : 'none' }}
-            />
-          </div>
-          <span style={{
-            fontSize: '10px', fontWeight: 700, color: '#000',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            userSelect: 'none', lineHeight: 1, maxWidth: `${textMaxPx}px`,
-            pointerEvents: 'none', padding: '0 3px',
-          }}>
-            {mod.patternName}
-          </span>
-
-          {popoverVisible && (
-            <div className="legato-popover visible rhythm-popover" onClick={e => e.stopPropagation()}>
-              {/* Pattern navigation */}
-              <button className="pop-nav" onClick={() => {
-                const idx = rhythmPatterns.findIndex(p => p.name === mod.patternName)
-                const prev = rhythmPatterns[(idx - 1 + rhythmPatterns.length) % rhythmPatterns.length]
-                onUpdate({ patternName: prev.name, activeTracks: prev.tracks.map(t => t.part) })
-              }}>
-                <span className="material-symbols-outlined">chevron_left</span>
-              </button>
-              <div className="pop-behavior-info">
-                <span style={{ fontSize: '1rem', lineHeight: 1 }}>{resolveEmojiStr(pattern?.emoji ?? ':musical_note:')}</span>
-                <span className="pop-name">{mod.patternName}</span>
-              </div>
-              <button className="pop-nav" onClick={() => {
-                const idx = rhythmPatterns.findIndex(p => p.name === mod.patternName)
-                const next = rhythmPatterns[(idx + 1) % rhythmPatterns.length]
-                onUpdate({ patternName: next.name, activeTracks: next.tracks.map(t => t.part) })
-              }}>
-                <span className="material-symbols-outlined">chevron_right</span>
-              </button>
-
-              <div className="pop-divider" />
-
-              {/* Mode toggles */}
-              <button
-                className={`pop-toggle${mod.mode === 'proportional' ? ' active' : ''}`}
-                onClick={() => onUpdate({ mode: 'proportional' })}
-                title="Proportionnel"
-              >
-                <span className="material-symbols-outlined">compress</span>
-              </button>
-              <button
-                className={`pop-toggle${mod.mode === 'extended' ? ' active' : ''}`}
-                onClick={() => onUpdate({ mode: 'extended' })}
-                title="Étendu"
-              >
-                <span className="material-symbols-outlined">open_in_full</span>
-              </button>
-              <button
-                className={`pop-toggle${mod.fillGaps ? ' active' : ''}`}
-                onClick={() => onUpdate({ fillGaps: !mod.fillGaps })}
-                title="Combler les silences"
-              >
-                <span className="material-symbols-outlined">density_small</span>
-              </button>
-              <button
-                className={`pop-toggle${mod.legato ? ' active' : ''}`}
-                onClick={() => {
-                  if (mod.legato) RhythmModifierService.dematerializeLegatoRhythm(mod.id)
-                  else RhythmModifierService.materializeLegatoRhythm(mod.id)
-                }}
-                title="Legato — matérialise les pods comme une chaîne legato"
-              >
-                <span className="material-symbols-outlined">linear_scale</span>
-              </button>
-
-              <div className="pop-divider" />
-
-              {/* Instruments sub-popover trigger */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  className={`pop-toggle${instrVisible ? ' active' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); setInstrVisible(v => !v) }}
-                  title="Instruments"
-                >
-                  <span className="material-symbols-outlined">tune</span>
-                </button>
-                {instrVisible && (
-                  <div className="rhythm-instr-popover" onClick={e => e.stopPropagation()}>
-                    {pattern?.tracks.map(t => (
-                      <label key={t.part} className="rhythm-instr-popover__row">
-                        <input
-                          type="checkbox"
-                          checked={mod.activeTracks.includes(t.part)}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...mod.activeTracks, t.part]
-                              : mod.activeTracks.filter(p => p !== t.part)
-                            onUpdate({ activeTracks: next })
-                          }}
-                        />
-                        {t.part}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pop-divider" />
-
-              {/* Delete */}
-              <button
-                className="pop-toggle"
-                onClick={() => { onRemove(); setPopoverVisible(false) }}
-                title="Supprimer"
-                style={{ color: '#883333' }}
-              >
-                <span className="material-symbols-outlined">delete</span>
-              </button>
-
-              {/* Close */}
-              <button className="pop-toggle" onClick={() => { setPopoverVisible(false); setInstrVisible(false) }} title="Fermer">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-          )}
+      {/* Sticky emoji disc — pattern name shown as a tooltip on sustained hover, not as a permanent label */}
+      <Html position={[relativeX, relHeaderY, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[80, 80]} onWheel={passWheel}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '3px' }} onWheel={passWheel}>
+          <RhythmModifierDisc mod={mod} onUpdate={onUpdate} onRemove={onRemove} size={26} glow={isHovered} />
         </div>
       </Html>
     </group>
@@ -624,9 +671,10 @@ function NoteDisc({ discX, discPx, fill, border, text, fret, noteName, locked, o
   onClick: (e: React.MouseEvent) => void, onMouseEnter: () => void, onMouseLeave: () => void,
 }) {
   return (
-    <Html position={[discX, 0, 0.06]} center zIndexRange={[70, 70]} style={{ pointerEvents: 'auto' }}>
+    <Html position={[discX, 0, 0.06]} center zIndexRange={[70, 70]} style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
       <div
         onPointerDown={e => e.stopPropagation()}
+        onWheel={passWheel}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -666,14 +714,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   const pxPerWUX = size.width / (o.right - o.left)
   const pxPerWUY = size.height / (o.top - o.bottom)
   const invStretchX = pxPerWUY / pxPerWUX
-  const camL = o.position.x - (o.right - o.left) / 2
-  const { 
-    notes, chordGroups, progressionGroups, rhythmModifiers,
-    addNote, updateNote, deleteNote, 
-    addChordGroup, removeChordGroup, 
-    addProgressionGroup, updateProgressionGroup, 
-    removeProgressionGroup, 
+  const camL = (o.position.x - LEFT_MARGIN_W) - (o.right - o.left) / 2
+  const {
+    notes, chordGroups, progressionGroups, rhythmModifiers, modeZones,
+    addNote, updateNote, deleteNote,
+    addChordGroup, removeChordGroup,
+    addProgressionGroup, updateProgressionGroup,
+    removeProgressionGroup,
     updateRhythmModifier, removeRhythmModifier,
+    updateModeZone, removeModeZone,
     setLegato, setLegatoBehavior, addLegatoIntermediate, syncLegato,
     setLegatoAuto, setLegatoChain, renderLegato,
     pushHistory, undo, redo,
@@ -766,18 +815,27 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     function onPointerLeave() {
       if (!dragging) canvas.style.cursor = 'default'
     }
+    function onDblClick(e: MouseEvent) {
+      if (!isInMinimap(e as any)) return
+      e.stopPropagation()
+      const worldX = pointerToWorldX(e as any)
+      const beat = worldX / BEAT_W
+      setPlaybackBeat(Math.max(0, beat))
+    }
 
     canvas.addEventListener('pointerdown',  onPointerDown,  { capture: true })
     canvas.addEventListener('pointermove',  onPointerMove,  { capture: true })
     canvas.addEventListener('pointerup',    onPointerUp,    { capture: true })
     canvas.addEventListener('pointerleave', onPointerLeave)
+    canvas.addEventListener('dblclick',     onDblClick,     { capture: true })
     return () => {
       canvas.removeEventListener('pointerdown',  onPointerDown,  { capture: true })
       canvas.removeEventListener('pointermove',  onPointerMove,  { capture: true })
       canvas.removeEventListener('pointerup',    onPointerUp,    { capture: true })
       canvas.removeEventListener('pointerleave', onPointerLeave)
+      canvas.removeEventListener('dblclick',     onDblClick,     { capture: true })
     }
-  }, [gl, minimapCam])
+  }, [gl, minimapCam, setPlaybackBeat])
 
   // ── Playback Logic ──────────────────────────────────────────────────────────
   useFrame((_, delta) => {
@@ -790,16 +848,17 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const activeHighlights: Array<{ si: number; fret: number }> = []
       notes.forEach(n => {
         const subNotes = RhythmModifierService.getVirtualRhythm(n)
+        const vFret = ModeZoneService.getVirtualFret(n, totalMeasures) ?? n.fret
         if (subNotes) {
           const activeSub = subNotes.find(sn => newBeat >= sn.startBeat && newBeat < sn.startBeat + sn.duration)
           if (activeSub) {
             activeNotes.push(n)
-            activeHighlights.push({ si: n.string, fret: n.fret })
+            activeHighlights.push({ si: n.string, fret: vFret })
           }
         } else {
           if (newBeat >= n.startBeat && newBeat < n.startBeat + n.duration) {
             activeNotes.push(n)
-            activeHighlights.push({ si: n.string, fret: n.fret })
+            activeHighlights.push({ si: n.string, fret: vFret })
           }
         }
       })
@@ -869,13 +928,14 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           groups.forEach((items) => {
             const pitches = items.map(it => {
               const openNote = tuningArr[it.note.string] ?? 'E2'
-              return getNoteName(openNote, it.note.fret)
+              const fret = ModeZoneService.getVirtualFret(it.note, totalMeasures) ?? it.note.fret
+              return getNoteName(openNote, fret)
             })
-            const durSec = Math.max(0.1, items[0].duration * (60 / tempo))
+            const durations = items.map(it => Math.max(0.1, it.duration * (60 / tempo)))
             if (pitches.length > 1) {
-              playFullChord(pitches, durSec)
+              playFullChord(pitches, durations)
             } else {
-              playNote(pitches[0], durSec)
+              playNote(pitches[0], durations[0])
             }
           })
         }
@@ -900,7 +960,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     // Update minimap camera frustum to show all used content
     const usedBeats  = notes.length > 0 ? Math.max(...notes.map(n => n.startBeat + n.duration)) : 0
     const usedMeas   = Math.ceil(usedBeats / BEATS_PER_MEAS)
-    const viewRight  = (o.position.x + halfWRef.current) / MEASURE_W
+    const viewRight  = (o.position.x - LEFT_MARGIN_W + halfWRef.current) / MEASURE_W
     const dispMeas   = Math.max(usedMeas + 8, viewRight + 4, 20)
     const totalWorldW = dispMeas * MEASURE_W
 
@@ -914,8 +974,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     // Update viewport rect geometry (layer 1 — only visible to minimapCam)
     if (viewportRectRef.current) {
       const pos = viewportRectRef.current.geometry.attributes.position as THREE.BufferAttribute
-      const vl = o.position.x - halfWRef.current
-      const vr = o.position.x + halfWRef.current
+      const vl = o.position.x - LEFT_MARGIN_W - halfWRef.current
+      const vr = o.position.x - LEFT_MARGIN_W + halfWRef.current
       pos.setXYZ(0, vl, CAM_HALF_H_TOP,    0.5)
       pos.setXYZ(1, vr, CAM_HALF_H_TOP,    0.5)
       pos.setXYZ(2, vr, -CAM_HALF_H_BOT,   0.5)
@@ -1019,7 +1079,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   // Shared helper: apply halfW to camera and sync state
   function applyCameraW(o: THREE.OrthographicCamera, halfW: number) {
     halfWRef.current  = halfW
-    o.left = -halfW; o.right = halfW
+    // Asymmetric frustum: left side includes margin, right side is reduced by same amount to keep total width = 2*halfW
+    o.left = -halfW - LEFT_MARGIN_W; o.right = halfW - LEFT_MARGIN_W
     const maxX = totalMeasRef.current * MEASURE_W + halfW
     o.position.x = Math.max(halfW, Math.min(maxX, o.position.x))
     o.updateProjectionMatrix()
@@ -1039,11 +1100,11 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     
     const halfW = (visibleMeasRef.current * MEASURE_W) / 2
     
-    // Asymmetric frustum: extra space at bottom for info lane
+    // Asymmetric frustum: extra space at bottom for info lane, extra space at left for margin
     o.top    = CAM_HALF_H_TOP
     o.bottom = -CAM_HALF_H_BOT
-    o.left   = -halfW
-    o.right  = +halfW
+    o.left   = -halfW - LEFT_MARGIN_W
+    o.right  = +halfW - LEFT_MARGIN_W
     o.zoom   = 1
     
     // Vertical center to align world y=0 correctly
@@ -1131,16 +1192,20 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const rect = canvas.getBoundingClientRect()
       const ndx  = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const ndy  = 1 - ((e.clientY - rect.top)  / rect.height) * 2
-      const worldX = o.position.x + ndx * halfWRef.current
+      const worldX = (o.position.x - LEFT_MARGIN_W) + ndx * halfWRef.current
       const worldY = o.position.y + (o.top + o.bottom) / 2 + ndy * (o.top - o.bottom) / 2
       const si     = siFromWorldY(worldY)
       const beat   = Math.max(0, snapBeat(worldX / BEAT_W))
 
-      if (payload.kind === 'rhythm') {
+      if (payload.kind === 'mode') {
+        // Mode pods aren't anchored to a string — just a beat position
+        useTablatureR3FStore.getState().pushHistory()
+        useTablatureR3FStore.getState().addModeZone(beat, payload.modeName)
+      } else if (payload.kind === 'rhythm') {
         // Find the note under the drop
-        const noteUnder = useTablatureR3FStore.getState().notes.find(n => 
-          n.string === si && 
-          beat >= n.startBeat && 
+        const noteUnder = useTablatureR3FStore.getState().notes.find(n =>
+          n.string === si &&
+          beat >= n.startBeat &&
           beat < (n.startBeat + n.duration)
         )
         if (noteUnder) {
@@ -1174,13 +1239,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   const [rectBox, setRectBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
-  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | DragPlayback | null>(null)
+  const drag    = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | DragPlayback | DragModeZone | null>(null)
   const [newProgDrag, setNewProgDrag] = useState<{ startBeat: number; endBeat: number } | null>(null)
   const [hoveredGroupId,      setHoveredGroupId]      = useState<string | null>(null)
   const [labelHoveredGroupId, setLabelHoveredGroupId] = useState<string | null>(null)
   const [hoveredProgId,       setHoveredProgId]       = useState<string | null>(null)
   const [hoveredModId,        setHoveredModId]        = useState<string | null>(null)
-  const [labelHoveredProgId,  setLabelHoveredProgId]  = useState<string | null>(null)
+  const [hoveredModeZoneId,   setHoveredModeZoneId]   = useState<string | null>(null)
   const [selectedChordGroupIds, setSelectedChordGroupIds] = useState<Set<string>>(new Set())
   const [editingProgId,   setEditingProgId]   = useState<string | null>(null)
   const [editingProgName, setEditingProgName] = useState('')
@@ -1207,7 +1272,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
       const rect = canvas.getBoundingClientRect()
       const ndc = ((cx - rect.left) / rect.width) * 2 - 1
       const o   = camera as THREE.OrthographicCamera
-      return o.position.x + ndc * (o.right - o.left) / 2
+      // Use (o.position.x - LEFT_MARGIN_W) as the center of the frustum in world space
+      return (o.position.x - LEFT_MARGIN_W) + ndc * (o.right - o.left) / 2
     }
     function wy(cy: number) {
       const rect = canvas.getBoundingClientRect()
@@ -1228,6 +1294,14 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         TablatureMoveService.handleChordGroupMove(d, e.clientX, wx, tuningArr, scaleNotes)
       } else if (d?.kind === 'prog-group') {
         TablatureMoveService.handleProgGroupMove(d, e.clientX, wx, tuningArr, scaleNotes)
+      } else if (d?.kind === 'mode-zone') {
+        const dBeat = snapBeat((wx(e.clientX) - d.startX) / BEAT_W)
+        if (d.type === 'resize-right') {
+          const newLength = Math.max(MODE_ZONE_MIN_LENGTH, d.origLength + dBeat / BEATS_PER_MEAS)
+          useTablatureR3FStore.getState().updateModeZone(d.zoneId, { length: newLength })
+        } else {
+          useTablatureR3FStore.getState().updateModeZone(d.zoneId, { startBeat: Math.max(0, d.origStartBeat + dBeat) })
+        }
       } else if (d?.kind === 'new-prog') {
         const endBeat = wx(e.clientX) / BEAT_W
         ;(drag.current as DragNewProg).endBeat = endBeat
@@ -1427,7 +1501,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
   }, [notes])
 
   // ── Color — selected notes keep degree fill; border added via separate mesh ────
-  const getNoteColor = React.useCallback((note: TablatureNote, skipDarken = false): string => {
+  const getNoteColor = React.useCallback((note: TablatureNote, skipDarken = false, fretOverride?: number): string => {
     let hex = OFF_COL
     if (legatoSourceId) {
       if (legatoSourceId === note.id) hex = LEGATO_COL
@@ -1435,8 +1509,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     } else if (note.id === editingId) {
       hex = PEND_COL
     } else {
+      // No more app-wide "current mode" (legacy, removed) — a note's color comes purely from
+      // whichever Mode Zone covers its own position on the tablature, if any. Outside every
+      // zone, there's no scale to compare against (off-scale/neutral).
       const open = tuningArr[note.string]
-      const deg  = open ? getNoteDegree(getNoteName(open, note.fret), scaleNotes) : null
+      const zoneScale = ModeZoneService.getScaleForBeat(note.startBeat, totalMeasures)
+      const deg = open && zoneScale ? getNoteDegree(getNoteName(open, fretOverride ?? note.fret), zoneScale) : null
       hex = deg ? SCALE_COLORS[deg - 1] : OFF_COL
     }
 
@@ -1450,7 +1528,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     }
 
     return hex
-  }, [legatoSourceId, editingId, tuningArr, scaleNotes, intermediateIds])
+  }, [legatoSourceId, editingId, tuningArr, intermediateIds, modeZones, totalMeasures])
 
   // ── Geometry caches ───────────────────────────────────────────────────────────
   // Pod anatomy: the note disc's diameter is capped at the string's lane height (never
@@ -1617,6 +1695,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   const laneBgGeo = useMemo(() => new THREE.PlaneGeometry(LARGE_W, LANE_H), [])
   const laneBgMat = useMemo(() => new THREE.MeshBasicMaterial({ color: LANE_COL }), [])
+  const marginMat = useMemo(() => new THREE.MeshBasicMaterial({ color: MARGIN_COL }), [])
+
+  const marginGeo = useMemo(() => {
+    const h = CAM_HALF_H_TOP + CAM_HALF_H_BOT
+    return new THREE.PlaneGeometry(LEFT_MARGIN_W, h)
+  }, [])
+  const marginY   = (CAM_HALF_H_TOP - CAM_HALF_H_BOT) / 2
   const matBeat   = useMemo(() => new THREE.LineBasicMaterial({ color: BEAT_LINE_COL }), [])
   const matMeas   = useMemo(() => new THREE.LineBasicMaterial({ color: MEAS_LINE_COL }), [])
 
@@ -1684,8 +1769,8 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 
   // ── Visible measure range ─────────────────────────────────────────────────────
   const halfW     = halfWRef.current
-  const leftMeas  = Math.max(0, Math.floor((scrollX - halfW) / MEASURE_W) - 1)
-  const rightMeas = Math.min(totalMeasures - 1, Math.ceil((scrollX + halfW) / MEASURE_W) + 1)
+  const leftMeas  = Math.max(0, Math.floor((scrollX - LEFT_MARGIN_W - halfW) / MEASURE_W) - 1)
+  const rightMeas = Math.min(totalMeasures - 1, Math.ceil((scrollX - LEFT_MARGIN_W + halfW) / MEASURE_W) + 1)
   const measLabelY = gridTop + 0.20
 
   return (
@@ -1705,6 +1790,25 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         </group>
       ))}
 
+      {/* Left Margin */}
+      <mesh position={[-LEFT_MARGIN_W / 2, marginY, -0.038]} geometry={marginGeo} material={marginMat} />
+
+      {/* Mode Zone tint — gradient wash over the measures a Mode pod influences, behind the
+          grid lines/notes but in front of the lane backgrounds */}
+      {modeZones.map(zone => {
+        const { startBeat, endBeat } = ModeZoneService.getZoneBounds(zone, modeZones, totalMeasures)
+        const w = (endBeat - startBeat) * BEAT_W
+        if (w <= 0) return null
+        const cx = startBeat * BEAT_W + w / 2
+        const tintColor = desaturateHex(darkenHex(zone.color, 0.10), 0.12)
+        return (
+          <mesh key={zone.id} position={[cx, (gridTop + gridBottom) / 2, -0.039]}>
+            <planeGeometry args={[w, gridTop - gridBottom]} />
+            <ModeZoneGradientMaterial color={tintColor} width={w} ramp={MODE_GRADIENT_RAMP} opacity={MODE_GRADIENT_OPACITY} />
+          </mesh>
+        )
+      })}
+
       {/* Grid lines */}
       <lineSegments position={[0, 0, -0.035]} geometry={beatGeo} material={matBeat} frustumCulled={false} />
       <lineSegments position={[0, 0, -0.035]} geometry={measGeo} material={matMeas} frustumCulled={false} />
@@ -1714,7 +1818,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const m = leftMeas + i
         if (m < 0 || m >= totalMeasures) return null
         return (
-          <Html key={m} center position={[m * MEASURE_W + MEASURE_W / 2, measLabelY, 0.1]}
+          <Html key={m} position={[m * MEASURE_W + 0.08, measLabelY, 0.1]}
             style={{ pointerEvents: 'none' }}>
             <span className="tab-r3f-meas-label">{m + 1}</span>
           </Html>
@@ -1759,12 +1863,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const headerCY = stringY(b.siMax) + POD_HEADER_OFF
         const podLeft  = b.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H
         const podRight = podLeft + headerW
-        const isHov   = hoveredProgId === prog.id || labelHoveredProgId === prog.id
-        const bCol    = isHov ? SEL_COL : PROG_BORDER_COL
+        const isHov   = hoveredProgId === prog.id
+        const bCol    = isHov ? PROG_BORDER_HOVER_COL : PROG_BORDER_COL
         const fillCol = isHov ? PROG_FILL_HOV : '#252535'
-        // Sticky label: clamp to camera left while pod is on screen
-        const labelW    = 70 / pxPerWUX
-        const stickyX   = Math.max(podLeft, Math.min(podRight - labelW, camL + 0.06 * invStretchX))
+        // Sticky disc: clamp to camera left while pod is on screen
+        const progDiscWU = 26.4 / pxPerWUX  // 22px disc × 1.2
+        const stickyX   = Math.max(podLeft, Math.min(podRight - progDiscWU, camL + 0.06 * invStretchX))
         const stickyRelX = stickyX - headerX
         return (
           <group key={prog.id} position={[headerX, headerCY, 0.003]}>
@@ -1787,51 +1891,127 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               <planeGeometry args={[headerW, HEADER_H]} />
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
-            {/* Sticky label — double-click to rename */}
-            <Html position={[stickyRelX, 0, 0.1]} style={{ pointerEvents: editingProgId === prog.id ? 'auto' : 'none', transform: 'translateY(-50%)' }} zIndexRange={[80, 80]}>
-              {editingProgId === prog.id ? (
-                <input
-                  className="tab-r3f-fret-input"
-                  style={{ width: '90px', color: PROG_BORDER_COL, borderColor: PROG_BORDER_COL, background: 'rgba(0,0,0,0.85)' }}
-                  value={editingProgName}
-                  autoFocus
-                  onChange={ev => setEditingProgName(ev.target.value)}
-                  onKeyDown={ev => {
-                    ev.stopPropagation()
-                    if (ev.key === 'Enter' || ev.key === 'Escape') {
-                      if (ev.key === 'Enter') updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
-                      setEditingProgId(null)
-                    }
-                  }}
-                  onBlur={() => {
-                    updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
-                    setEditingProgId(null)
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    fontSize: '10px', fontWeight: 800, color: '#000',
-                    userSelect: 'none', whiteSpace: 'nowrap', cursor: 'inherit',
-                    overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
-                    maxWidth: `${Math.max(40, (podRight - stickyX) * pxPerWUX - 6)}px`,
-                    pointerEvents: 'auto',
-                    padding: '0 3px',
-                  }}
-                  onMouseEnter={() => setLabelHoveredProgId(prog.id)}
-                  onMouseLeave={() => setLabelHoveredProgId(null)}
+            {/* Sticky disc (template nav popover) — name shown as a tooltip on hover, double-click to rename */}
+            <Html position={[stickyRelX, 0, 0.1]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[80, 80]} onWheel={passWheel}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }} onPointerDown={e => e.stopPropagation()} onWheel={passWheel}>
+                <PodModifierDisc
+                  emojiStr=":musical_score:"
+                  size={22}
+                  discBg="#1a1a2a"
+                  borderCol={PROG_BORDER_COL}
+                  title={prog.name}
                   onDoubleClick={() => { setEditingId(prog.id); setEditingProgName(prog.name) }}
-                >
-                  {prog.name}
-                </span>
-              )}
+                  popoverContent={close => (
+                    <PodModifierPopover
+                      nav={PodModifierService.getProgressionTemplateNav(prog)}
+                      emojiStr=":musical_score:"
+                      onClose={close}
+                      className="progression-popover"
+                    />
+                  )}
+                />
+                {editingProgId === prog.id && (
+                  <input
+                    className="tab-r3f-fret-input"
+                    style={{ width: '90px', color: PROG_BORDER_COL, borderColor: PROG_BORDER_COL, background: 'rgba(0,0,0,0.85)' }}
+                    value={editingProgName}
+                    autoFocus
+                    onChange={ev => setEditingProgName(ev.target.value)}
+                    onKeyDown={ev => {
+                      ev.stopPropagation()
+                      if (ev.key === 'Enter' || ev.key === 'Escape') {
+                        if (ev.key === 'Enter') updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
+                        setEditingProgId(null)
+                      }
+                    }}
+                    onBlur={() => {
+                      updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
+                      setEditingProgId(null)
+                    }}
+                  />
+                )}
+              </div>
             </Html>
           </group>
         )
       })}
 
-      {/* Rhythm Modifiers */}
-      {rhythmModifiers.map(mod => {
+      {/* Mode pods — not anchored to a string, header floats above the whole grid; influence
+          zone is [startBeat, startBeat+length measures), explicit and resizable (right edge),
+          see ModeZoneService.getZoneBounds */}
+      {modeZones.map(zone => {
+        const { startBeat, endBeat } = ModeZoneService.getZoneBounds(zone, modeZones, totalMeasures)
+        const headerW   = (endBeat - startBeat) * BEAT_W + CHORD_PAD_H * 2
+        const headerX   = (startBeat + endBeat) / 2 * BEAT_W
+        const podLeft   = startBeat * BEAT_W - CHORD_PAD_H
+        const podRight  = podLeft + headerW
+        const isHov     = hoveredModeZoneId === zone.id
+        const borderCol = isHov ? MODE_BORDER_HOVER_COL : MODE_BORDER_COL
+        const discWU    = 30 / pxPerWUX
+        const stickyX   = Math.max(podLeft, Math.min(podRight - discWU, camL + 0.06 * invStretchX))
+        const stickyRelX = stickyX - headerX
+        const resizeZoneWU = 0.15 * invStretchX
+        return (
+          <group key={zone.id} position={[headerX, MODE_HEADER_OFF, 0.002]}>
+            <mesh geometry={getChordPodGeo(headerW, HEADER_H)} renderOrder={5}>
+              <meshBasicMaterial color={borderCol} />
+            </mesh>
+            <mesh position={[0, 0, 0.01]}
+              onPointerDown={e => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                pushHistory()
+                const lx = e.point.x - podLeft
+                const isResize = lx > headerW - resizeZoneWU
+                drag.current = {
+                  kind: 'mode-zone',
+                  type: isResize ? 'resize-right' : 'move',
+                  zoneId: zone.id, startX: e.point.x,
+                  origStartBeat: zone.startBeat, origLength: zone.length,
+                }
+                gl.domElement.style.cursor = isResize ? 'e-resize' : 'grabbing'
+              }}
+              onPointerEnter={() => { setHoveredModeZoneId(zone.id); if (!drag.current) gl.domElement.style.cursor = 'grab' }}
+              onPointerLeave={() => { setHoveredModeZoneId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
+              onPointerMove={e => {
+                if (drag.current) return
+                const lx = e.point.x - podLeft
+                gl.domElement.style.cursor = lx > headerW - resizeZoneWU ? 'e-resize' : 'grab'
+              }}
+              onContextMenu={e => { e.stopPropagation(); pushHistory(); removeModeZone(zone.id) }}
+            >
+              <planeGeometry args={[headerW, HEADER_H]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+            <Html position={[stickyRelX, 0, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[70, 70]} onWheel={passWheel}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }} onPointerDown={e => e.stopPropagation()} onWheel={passWheel}>
+                <PodModifierDisc
+                  emojiStr=":compass:"
+                  size={22}
+                  discBg="#330000"
+                  borderCol={MODE_BORDER_COL}
+                  title={zone.modeName}
+                  popoverContent={close => (
+                    <PodModifierPopover
+                      nav={ModeZoneService.getModeNav(zone)}
+                      emojiStr=":compass:"
+                      onRemove={() => removeModeZone(zone.id)}
+                      onClose={close}
+                      className="mode-popover"
+                    >
+                      <ModePopoverButtons zone={zone} />
+                    </PodModifierPopover>
+                  )}
+                />
+              </div>
+            </Html>
+          </group>
+        )
+      })}
+
+      {/* Rhythm Modifiers — chord-targeted modifiers (incl. arpeggios, which are always
+          chord-targeted) are rendered inline by the Chord pod itself instead, see below */}
+      {rhythmModifiers.filter(mod => mod.targetType !== 'chord').map(mod => {
         let b: { beatMin: number, beatMax: number, siMin: number, siMax: number } | null = null
 
         if (mod.legato && mod.legatoOrigRange) {
@@ -1849,9 +2029,6 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         } else if (mod.targetType === 'note') {
           const n = notes.find(n => n.id === mod.targetId)
           if (n) b = { beatMin: n.startBeat, beatMax: n.startBeat + n.duration, siMin: n.string, siMax: n.string }
-        } else if (mod.targetType === 'chord') {
-          const cg = chordGroups.find(g => g.id === mod.targetId)
-          if (cg) b = getGroupBounds(cg)
         } else if (mod.targetType === 'progression') {
           const pg = progressionGroups.find(p => p.id === mod.targetId)
           if (pg) b = getProgBounds(pg)
@@ -1865,6 +2042,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
             bounds={b}
             invStretchX={invStretchX}
             pxPerWUX={pxPerWUX}
+            getHeaderGeo={getChordPodGeo}
             onUpdate={(patch) => {
               if (mod.legato) {
                 // Auto-rematerialize when pattern or tracks change while legato is active
@@ -1892,12 +2070,16 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const podRight = podLeft + headerW
         const isLabelHover = labelHoveredGroupId === group.id
         const isSelForProg = selectedChordGroupIds.has(group.id)
-        const borderCol    = isLabelHover ? SEL_COL : isSelForProg ? '#7BA7E8' : CHORD_BORDER_COL
+        const borderCol    = isLabelHover ? CHORD_BORDER_HOVER_COL : isSelForProg ? '#7BA7E8' : CHORD_BORDER_COL
+        // A rhythm modifier may impose a rhythm on this chord — its disc renders right after
+        // the chord's own disc instead of as a separate floating pod (see RhythmModifierPod).
+        const chordRhythmMod = rhythmModifiers.find(m => m.targetType === 'chord' && m.targetId === group.id && m.kind !== 'arpeggio')
+        const arpeggioMod    = PodModifierService.getArpeggioForChord(group.id)
         // Sticky disc: stays visible at left edge while pod is in camera view
-        const discWU     = 30 / pxPerWUX  // 25px disc × 1.2
+        const extraDiscWU = chordRhythmMod ? 26.4 / pxPerWUX : 0  // 22px disc × 1.2 + gap
+        const discWU     = 30 / pxPerWUX + extraDiscWU  // 25px disc × 1.2
         const stickyX    = Math.max(podLeft, Math.min(podRight - discWU, camL + 0.06 * invStretchX))
         const stickyRelX = stickyX - headerX
-        const textMaxPx  = Math.max(20, (podRight - stickyX) * pxPerWUX - 30 - 10)
         return (
           <group key={group.id} position={[headerX, headerCY, 0.001]}>
             {/* Header fill — solid color, no outline */}
@@ -1907,8 +2089,21 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
             {/* Hit area on header */}
             <mesh position={[0, 0, 0.01]}
               onPointerDown={e => onChordPodDown(e, group, podLeft, headerW)}
-              onPointerEnter={() => { setHoveredGroupId(group.id); if (!drag.current) gl.domElement.style.cursor = 'grab' }}
-              onPointerLeave={() => { setHoveredGroupId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
+              onPointerEnter={() => {
+                setHoveredGroupId(group.id)
+                if (!drag.current) {
+                  gl.domElement.style.cursor = 'grab'
+                  const groupNotes = notes.filter(n => group.noteIds.includes(n.id))
+                  FretboardHighlightService.setHighlights(groupNotes.map(n => ({ si: n.string, fret: n.fret })))
+                }
+              }}
+              onPointerLeave={() => {
+                setHoveredGroupId(null)
+                if (!drag.current) {
+                  gl.domElement.style.cursor = 'default'
+                  FretboardHighlightService.clearHighlights()
+                }
+              }}
               onPointerMove={e => {
                 if (drag.current) return
                 const lx = e.point.x - podLeft
@@ -1923,28 +2118,44 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               <planeGeometry args={[headerW, HEADER_H]} />
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
-            {/* Sticky emoji disc + chord name */}
-            <Html position={[stickyRelX, 0, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[70, 70]}>
+            {/* Sticky emoji disc + chord name (+ rhythm disc when a rhythm modifier targets this chord) */}
+            <Html position={[stickyRelX, 0, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[70, 70]} onWheel={passWheel}>
               <div
                 style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
                 onMouseEnter={() => setLabelHoveredGroupId(group.id)}
                 onMouseLeave={() => setLabelHoveredGroupId(null)}
                 onPointerDown={e => e.stopPropagation()}
+                onWheel={passWheel}
               >
-                <ChordEmojiBox
-                  chordName={group.chordName}
+                <PodModifierDisc
+                  emojiStr={chordEmojiStr(group.chordName)}
                   size={25}
-                  disc={{ bgColor: '#1a1a1a', borderColor: 'transparent' }}
+                  discBg="#1a1a1a"
+                  borderCol={arpeggioMod ? '#f5a623' : CHORD_BORDER_COL}
+                  glow={!!arpeggioMod}
+                  title={group.chordName}
+                  popoverContent={close => (
+                    <PodModifierPopover
+                      nav={PodModifierService.getChordTypeNav(group)}
+                      emojiStr={chordEmojiStr(group.chordName)}
+                      onClose={close}
+                      className="chord-popover"
+                    >
+                      <ChordPopoverButtons group={group} />
+                    </PodModifierPopover>
+                  )}
                 />
-                <span style={{
-                  fontSize: '10px', fontWeight: 700, color: '#000',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  userSelect: 'none', lineHeight: 1,
-                  maxWidth: `${textMaxPx}px`,
-                  padding: '0 3px',
-                }}>
-                  {group.chordName}
-                </span>
+                {chordRhythmMod && (
+                  <RhythmModifierDisc
+                    mod={chordRhythmMod}
+                    size={22}
+                    onUpdate={patch => {
+                      if (chordRhythmMod.legato) RhythmModifierService.rematerializeWithPatch(chordRhythmMod.id, patch)
+                      else { pushHistory(); updateRhythmModifier(chordRhythmMod.id, patch) }
+                    }}
+                    onRemove={() => RhythmModifierService.restoreToNormal(chordRhythmMod.id)}
+                  />
+                )}
               </div>
             </Html>
             {/* Info lane hit area — drag-to-create-progression (no visual label) */}
@@ -1997,16 +2208,56 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const isIntermediate = intermediateIds.has(note.id)
         const sourceNote = isIntermediate ? notes.find(n => n.intermediateNoteIds?.includes(note.id)) : null
 
+        // Per-string instrument assignment disc — only for notes whose chord has an
+        // active rhythm modifier (not the locked-arpeggio kind, which has no instruments).
+        // Independent of the sub-note pods: sticky-clamped within the note's full span
+        // (not any single rhythm-step pod), so it never depends on a sub-pod being wide
+        // enough to show its own disc — it stays visible regardless of zoom/subdivision width.
+        //
+        // One bubble per STRING, not per materialized note: when the rhythm is legato-
+        // materialized (11.6.1/11.8.3), each string's chain produces many real notes (anchor +
+        // intermediates + destination), all belonging to the same chord group — without this
+        // guard every single one of them would render its own bubble. Only the chain's anchor
+        // (no legatoPrev, not an intermediate) represents "this string"'s instrument assignment.
+        const noteChordGroup = chordGroups.find(g => g.noteIds.includes(note.id))
+        const noteChordRhythmMod = (noteChordGroup && !isIntermediate && !note.legatoPrev)
+          ? rhythmModifiers.find(m => m.targetType === 'chord' && m.targetId === noteChordGroup.id && m.kind !== 'arpeggio')
+          : undefined
+        const instrBubblePx     = 22  // same size as the rhythm modifier disc embedded in the Chord pod
+        const instrBubbleRadius = (instrBubblePx * 1.2 / 2) / pxPerWUX
+        const instrGapWU = 5 / pxPerWUX  // 5px gap kept between the bubble and the note pod it follows
+        const instrPodL = note.startBeat * BEAT_W
+        const instrPodR = instrPodL + note.duration * BEAT_W
+        const instrCamL = scrollX - halfW
+        // The pod's own sticky-clamped left edge (same pattern as NoteDisc, over the full note
+        // span) — the bubble sits immediately to its left, with a constant 5px gap, so it always
+        // "follows" the pod regardless of zoom/scroll without ever overlapping it.
+        const podStickyLeftX = Math.max(instrPodL, Math.min(instrPodR, instrCamL + 0.05 * invStretchX))
+        const instrBubbleX = podStickyLeftX - instrGapWU - instrBubbleRadius
+
+        // Mode pod "force note" — non-destructive: never written to the note's own
+        // string/fret, just an effective fret used for display/color/playback while the
+        // note falls inside an active force-note Mode zone (same string, nearest fret
+        // matching the target scale degree's pitch class in the zone's mode). Reverts
+        // automatically the instant the zone is moved/deleted/toggled off — nothing to undo.
+        const effFret = ModeZoneService.getVirtualFret(note, totalMeasures) ?? note.fret
+
         return (
           <group key={note.id} renderOrder={8}>
             {note.legatoNext && (
               <LegatoLine sourceId={note.id} destId={note.legatoNext} noteColor={(n) => getNoteColor(n, true)} legatoSourceId={legatoSourceId} invStretchX={invStretchX} />
             )}
-            
+
+            {noteChordRhythmMod && (
+              <Html position={[instrBubbleX, y, 0.07]} center zIndexRange={[71, 71]} style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
+                <InstrumentTrackDisc mod={noteChordRhythmMod} noteId={note.id} size={instrBubblePx} />
+              </Html>
+            )}
+
             {items.map((item, idx) => {
               const w          = item.duration * BEAT_W
               const cx         = item.startBeat * BEAT_W + w / 2
-              const color      = getNoteColor(note)
+              const color      = getNoteColor(note, false, effFret)
               const noteLeftX  = item.startBeat * BEAT_W
 
               const podWidthPx = w / (2 * halfW) * gl.domElement.clientWidth
@@ -2024,7 +2275,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
               const showDisc     = podWidthPx >= 16
               const podL         = cx - w / 2
               const podR         = cx + w / 2
-              const camL         = scrollX - halfW
+              const camL         = scrollX - LEFT_MARGIN_W - halfW
               const discCenterWorldX = Math.max(podL + discRadius, Math.min(podR - discRadius, camL + discRadius + 0.05 * invStretchX))
               const discX        = discCenterWorldX - cx
 
@@ -2043,12 +2294,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                 const chord = Chord.get(group.chordName)
                 const rootPc = chord.root || chord.notes[0]
                 if (!rootPc) return false
-                const noteName = getNoteName(tuningArr[note.string], note.fret)
+                const noteName = getNoteName(tuningArr[note.string], effFret)
                 return Note.pitchClass(noteName) === Note.pitchClass(rootPc)
               })()
 
               const labelColor = ColorService.getContrastColor(color)
-              const noteNamePc = Note.pitchClass(getNoteName(tuningArr[note.string], note.fret))
+              const noteNamePc = Note.pitchClass(getNoteName(tuningArr[note.string], effFret))
               const discColors = DISC_PALETTE[color] ?? (() => {
                 const fill = desaturateHex(darkenHex(color, 0.33), 0.35)
                 return { fill, border: darkenHex(fill, 0.33), text: ColorService.getContrastColor(fill) }
@@ -2081,15 +2332,15 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                   {/* Legato action buttons (merge / behavior) — manages an existing chain */}
                   {showLegatoActions && (() => {
                     const btnW = (28 * 2 + 4) * (1 / pxPerWUX)
-                    const camL = scrollX - halfW
+                    const camL = scrollX - LEFT_MARGIN_W - halfW
                     const podL = note.startBeat * BEAT_W
                     const podR = podL + w
                     const targetX = Math.max(podL, Math.min(podR - btnW, camL + 0.1 * invStretchX))
                     const relativeX = targetX - cx
                     return (
                       <group position={[relativeX, 0, 0.1]}>
-                        <Html position={[0, 0.7, 0]} center style={{ pointerEvents: 'auto', transform: 'none', display: 'flex', width: 'max-content' }} zIndexRange={[90, 90]}>
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }} onPointerDown={e => e.stopPropagation()}>
+                        <Html position={[0, 0.7, 0]} center style={{ pointerEvents: 'auto', transform: 'none', display: 'flex', width: 'max-content' }} zIndexRange={[90, 90]} onWheel={passWheel}>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }} onPointerDown={e => e.stopPropagation()} onWheel={passWheel}>
                             {/* Rendering would clear legatoNext and silently desync the rhythm modifier's tracked chain — use the rhythm pop-over's legato toggle instead */}
                             {!locked && <LegatoActionBtn color={color} icon="merge" onClick={() => { pushHistory(); renderLegato(note.id) }} />}
                             <LegatoActionBtn color={color} icon={BEHAVIORS[note.legatoBehavior || 'chromatique'].icon} onClick={() => { setPopoverLegatoId(note.id); setPopoverVisible(true) }} />
@@ -2107,7 +2358,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                       fill={discColors.fill}
                       border={discColors.border}
                       text={discColors.text}
-                      fret={note.fret}
+                      fret={effFret}
                       noteName={noteNamePc}
                       locked={locked}
                       onClick={e => {
@@ -2180,8 +2431,9 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
                   </mesh>
 
                   {isEditing && (
-                    <Html position={[discX, 0, 0]} center style={{ pointerEvents: 'auto' }}>
+                    <Html position={[discX, 0, 0]} center style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
                       <input className="tab-r3f-fret-input" value={inputVal} autoFocus maxLength={3}
+                        onWheel={passWheel}
                         onChange={ev => {
                           const raw = ev.target.value
                           if (/^[A-Ga-g]/.test(raw)) {
@@ -2270,11 +2522,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         const x = note.startBeat * BEAT_W
 
         return (
-          <Html position={[x, y + 0.7, 0.2]} center style={{ pointerEvents: 'auto' }} zIndexRange={[100, 100]}>
+          <Html position={[x, y + 0.7, 0.2]} center style={{ pointerEvents: 'auto' }} zIndexRange={[100, 100]} onWheel={passWheel}>
              <div
                className="legato-popover visible"
                onMouseLeave={() => setPopoverVisible(false)}
                onPointerDown={e => e.stopPropagation()}
+               onWheel={passWheel}
              >
                {!popLocked && (
                  <button className="pop-nav" onClick={() => {
@@ -2340,8 +2593,12 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
 }
 
 function stringLabel(tuningArr: string[], si: number): string {
-  const pc = Note.get(tuningArr[si] ?? '').pc ?? tuningArr[si] ?? '?'
-  return si === N_STRINGS - 1 && pc === 'E' ? 'e' : pc
+  const note = Note.get(tuningArr[si] ?? '')
+  if (note.empty) return tuningArr[si] ?? '?'
+  const name = note.name // e.g. "E2", "G3", "B3"
+  // Topmost string (high e): guitar convention uses lowercase 'e'
+  if (si === N_STRINGS - 1 && note.pc === 'E') return `e${note.oct ?? ''}`
+  return name
 }
 
 export default function TablatureR3F() {

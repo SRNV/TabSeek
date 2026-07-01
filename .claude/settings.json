@@ -10,7 +10,16 @@
       "Bash(node -e *)",
       "Bash(node -e \"const t = require\\('./node_modules/tonal'\\); console.log\\(Object.keys\\(t\\).filter\\(k => /rhythm|pattern|duration|meter|time/i.test\\(k\\)\\)\\)\")",
       "Bash(node -e \"const t = require\\('./node_modules/tonal'\\); console.log\\(Object.keys\\(t\\)\\)\")",
-      "Bash(node -e \"const { RhythmPattern, DurationValue, TimeSignature } = require\\('./node_modules/tonal'\\); console.log\\('RhythmPattern:', JSON.stringify\\(Object.keys\\(RhythmPattern\\), null, 2\\)\\); console.log\\('DurationValue:', JSON.stringify\\(Object.keys\\(DurationValue\\), null, 2\\)\\); console.log\\('TimeSignature:', JSON.stringify\\(Object.keys\\(TimeSignature\\), null, 2\\)\\);\")"
+      "Bash(node -e \"const { RhythmPattern, DurationValue, TimeSignature } = require\\('./node_modules/tonal'\\); console.log\\('RhythmPattern:', JSON.stringify\\(Object.keys\\(RhythmPattern\\), null, 2\\)\\); console.log\\('DurationValue:', JSON.stringify\\(Object.keys\\(DurationValue\\), null, 2\\)\\); console.log\\('TimeSignature:', JSON.stringify\\(Object.keys\\(TimeSignature\\), null, 2\\)\\);\")",
+      "Bash(agent-browser find *)",
+      "Bash(agent-browser console *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(curl -s http://localhost:5174/ -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(agent-browser drag *)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "PowerShell(head -30)",
+      "Bash(grep -n \"rhythmModifiers,$\\\\|rhythmModifiers, addNote\\\\|import type { TablatureNote, ChordGroup, ProgressionGroup, LegatoBehavior, RhythmModifier }\" src/components/tablature/TablatureR3F.tsx)",
+      "Bash(grep -n \"function getNoteColor\\\\|playNote\\(\\\\|playFullChord\\(\\\\|noteNamePc\\\\s*=\\\\|fret={note.fret}\\\\|getNoteName\\(tuningArr\\\\[note.string\\\\], note.fret\\)\" src/components/tablature/TablatureR3F.tsx)"
     ]
   }
 }

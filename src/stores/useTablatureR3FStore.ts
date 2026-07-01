@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { Note, Chord } from 'tonal'
+import { findNearestFretForMidi } from '../utils/guitarUtils'
 
 export type LegatoBehavior = 
   'chromatique' | 'secondes' | 'tierces' | 'quartes' | 'quintes' | 'sixtes' | 'septiemes' | 'octaves' | 
@@ -35,19 +36,44 @@ export interface ProgressionGroup {
 
 export type RhythmModifierMode = 'proportional' | 'extended'
 
+export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'downup'
+
 export interface RhythmModifier {
   id: string
+  kind?: 'rhythm' | 'arpeggio'  // defaults to 'rhythm' when absent
   targetType: 'note' | 'chord' | 'progression'
   targetId: string      // noteId, chordGroupId, or progressionGroupId
-  patternName: string   // Reference to rhythmPatterns
+  patternName: string   // Reference to rhythmPatterns (unused for kind='arpeggio')
   activeTracks: string[] // e.g. ["kick", "snare"]
   mode: RhythmModifierMode
   enabled: boolean
   fillGaps?: boolean    // stretch each virtual note to the next onset (no silence between notes)
+  stringTrackOverrides?: Record<string, string>  // noteId -> track.part ('__all__' = merged default)
+  arpeggioDirection?: ArpeggioDirection   // kind='arpeggio' only
+  arpeggioNoteCount?: number              // kind='arpeggio' only
+  arpeggioOrigNotes?: { string: number; fret: number; startBeat: number; duration: number }[]  // simultaneous chord notes removed by the arpeggio, restored on dematerialize
   legato?: boolean      // materialize sub-notes as real legato notes (source → intermediates → dest)
+  // Single-chain fields — used for targetType='note' (one base note, one chain).
   legatoBaseNoteId?: string  // ID of the base note that was used as legato source (reliable across chord lookups)
   legatoExtras?: string[]  // IDs of materialized notes (dest + intermediates), excluding the base note
   legatoOrigRange?: { startBeat: number; duration: number }  // base note range before legato was applied
+  // Multi-chain fields — used for targetType='chord': every note of the chord gets its own
+  // independent materialized chain (not just the root), so the rhythm applies to the whole chord.
+  legatoChains?: { baseNoteId: string; extras: string[]; origRange: { startBeat: number; duration: number } }[]
+}
+
+// A Mode pod doesn't target a note/chord/progression — it's a pure time zone that imposes a
+// musical mode from its position up to the next ModeZone (or the end of the piece). No
+// "length"/duration field by design: the influence zone is always implicit, never explicit.
+export const MODE_ZONE_MIN_LENGTH = 0.125 // 1/8 of a measure — hard floor when resizing
+
+export interface ModeZone {
+  id: string
+  startBeat: number
+  length: number      // in measures (1 = one measure); >= MODE_ZONE_MIN_LENGTH
+  modeName: string   // references EXTRA_MODES (composables/extraModes.ts) by .name
+  forceNote: boolean
+  color: string       // hex chosen by the user, drives the measure-tint gradient
 }
 
 const MAX_HISTORY = 60
@@ -57,6 +83,7 @@ type HistoryEntry = {
   groups:       ChordGroup[]
   progressions: ProgressionGroup[]
   rhythmModifiers: RhythmModifier[]
+  modeZones:    ModeZone[]
 }
 
 interface State {
@@ -64,6 +91,7 @@ interface State {
   chordGroups:      ChordGroup[]
   progressionGroups: ProgressionGroup[]
   rhythmModifiers:  RhythmModifier[]
+  modeZones:        ModeZone[]
   legatoSourceId:    string | null
   past:             HistoryEntry[]
   future:           HistoryEntry[]
@@ -87,12 +115,26 @@ interface State {
   deleteNote:            (id: string, tuning?: string[]) => void
   addChordGroup:         (noteIds: string[], chordName: string) => string
   removeChordGroup:      (id: string) => void
+  // Swaps a chord group's constituent notes for a brand new voicing in one atomic step
+  // (chord type cycling/search/arpeggio) — bypasses deleteNote's empty-group cascade so the
+  // group id (and any progression referencing it) survives.
+  replaceChordGroupVoicing: (groupId: string, notes: Omit<TablatureNote, 'id'>[], chordName: string) => string[]
+  // Swaps an entire progression's chord groups for a new set built from a different template,
+  // in one atomic step (progression template cycling) — bypasses removeProgressionGroup's
+  // "delete progression when empty" cascade.
+  replaceProgressionContent: (progId: string, chordEntries: { notes: Omit<TablatureNote, 'id'>[]; chordName: string }[], name?: string) => void
+  // Overwrites a chord group's noteIds in place (used by the arpeggiator, which adds/removes
+  // notes one at a time via addNote/deleteNote and then re-syncs the group's membership).
+  setChordGroupNoteIds: (groupId: string, noteIds: string[]) => void
   addProgressionGroup:    (chordGroupIds: string[], name: string) => string
   updateProgressionGroup: (id: string, patch: Partial<Pick<ProgressionGroup, 'name' | 'chordGroupIds'>>) => void
   removeProgressionGroup: (id: string) => void
   addRhythmModifier: (mod: Omit<RhythmModifier, 'id'>) => string
   updateRhythmModifier: (id: string, patch: Partial<Omit<RhythmModifier, 'id'>>) => void
   removeRhythmModifier: (id: string) => void
+  addModeZone: (startBeat: number, modeName: string) => string
+  updateModeZone: (id: string, patch: Partial<Omit<ModeZone, 'id'>>) => void
+  removeModeZone: (id: string) => void
   setLegato: (sourceId: string, destId: string | undefined, count?: number, tuning?: string[]) => void
   setLegatoBehavior: (sourceId: string, behavior: LegatoBehavior, tuning: string[], scaleNotes: string[]) => void
   setLegatoAuto: (sourceId: string, enabled: boolean) => void
@@ -109,6 +151,20 @@ interface State {
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
+// Random hue, fixed saturation/lightness for a consistently vivid, legible Mode pod color —
+// each newly dropped Mode pod gets its own distinct tint instead of always defaulting to red.
+// Plain HSL->RGB math (no THREE dependency in this file).
+function randomHexColor(): string {
+  const h = Math.random() * 360
+  const s = 0.65
+  const l = 0.45
+  const k = (n: number) => (n + h / 30) % 12
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+  const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0')
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`
+}
+
 function getNoteName(openNote: string, fret: number): string {
   const midi = (Note.midi(openNote) ?? 0) + fret
   return Note.fromMidi(midi)
@@ -117,7 +173,14 @@ function getNoteName(openNote: string, fret: number): string {
 function detectChordName(noteIds: string[], allNotes: TablatureNote[], tuning: string[]): string | null {
   const notes = allNotes.filter(n => noteIds.includes(n.id))
   if (notes.length === 0) return null
-  const pitches = notes.map(n => getNoteName(tuning[n.string] ?? 'E2', n.fret))
+  // Sort by ascending pitch (not store insertion order) before detecting: Chord.detect is
+  // order-sensitive — the same set of notes in a different order can resolve to a different
+  // name (e.g. ['C4','E4','G4'] -> "CM" but ['E4','C4','G4'] -> "Em#5"). Insertion order is
+  // incidental (depends on note creation history, not the chord's actual shape), so without
+  // this sort, moving a note and putting it back unchanged could still rename the chord.
+  const pitches = notes
+    .map(n => getNoteName(tuning[n.string] ?? 'E2', n.fret))
+    .sort((a, b) => (Note.midi(a) ?? 0) - (Note.midi(b) ?? 0))
   const detected = Chord.detect(pitches)
   return detected.length > 0 ? detected[0] : '?'
 }
@@ -129,7 +192,15 @@ function detectChordName(noteIds: string[], allNotes: TablatureNote[], tuning: s
 // RhythmModifierService.isLegatoLocked to avoid a store → service → store circular import.
 function isRhythmLegatoLocked(rhythmModifiers: RhythmModifier[], notes: TablatureNote[], noteId: string): boolean {
   return rhythmModifiers.some(m => {
-    if (!m.legato || !m.legatoBaseNoteId) return false
+    if (!m.legato) return false
+    if (m.legatoChains && m.legatoChains.length > 0) {
+      return m.legatoChains.some(chain => {
+        if (chain.baseNoteId !== noteId && !chain.extras.includes(noteId)) return false
+        const base = notes.find(n => n.id === chain.baseNoteId)
+        return !!base?.legatoNext
+      })
+    }
+    if (!m.legatoBaseNoteId) return false
     if (m.legatoBaseNoteId !== noteId && !m.legatoExtras?.includes(noteId)) return false
     const base = notes.find(n => n.id === m.legatoBaseNoteId)
     return !!base?.legatoNext
@@ -291,33 +362,11 @@ function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: stri
     // This minimizes unnecessary hand shifts and keeps notes within a playable span.
     const targetFretPos = segmentSource.fret + (dest.fret - segmentSource.fret) * tSeg
     
-    let string = Math.round(segmentSource.string + (dest.string - segmentSource.string) * tSeg)
-    let fret = Math.round(targetMidi - (Note.midi(tuning[string] ?? 'E2') ?? 0))
-    
-    let bestString = -1
-    let bestFret = -1
-    let minFretDiff = Infinity
+    const interpString = Math.round(segmentSource.string + (dest.string - segmentSource.string) * tSeg)
+    const nearest = findNearestFretForMidi(tuning, targetMidi, interpString, targetFretPos)
+    let string = nearest.si
+    let fret = nearest.fret
 
-    for (let sIdx = 0; sIdx < tuning.length; sIdx++) {
-      const openMidi = Note.midi(tuning[sIdx] ?? 'E2') ?? 0
-      const f = targetMidi - openMidi
-      if (f >= 0 && f <= 24) {
-        const diff = Math.abs(f - targetFretPos)
-        // Bonus: prefer the interpolated string if ties or very close
-        const stringBonus = (sIdx === string) ? -0.1 : 0
-        if (diff + stringBonus < minFretDiff) {
-          minFretDiff = diff + stringBonus
-          bestString = sIdx
-          bestFret = f
-        }
-      }
-    }
-
-    if (bestString !== -1) {
-      string = bestString
-      fret = bestFret
-    }
-    
     return {
       ...n,
       string,
@@ -330,7 +379,7 @@ function syncLegatoHelper(notes: TablatureNote[], sourceId: string, tuning: stri
 }
 
 export const useTablatureR3FStore = create<State>((set) => ({
-  notes: [], chordGroups: [], progressionGroups: [], rhythmModifiers: [], past: [], future: [],
+  notes: [], chordGroups: [], progressionGroups: [], rhythmModifiers: [], modeZones: [], past: [], future: [],
   legatoSourceId: null,
   isPlaying: false,
   playbackBeat: 0,
@@ -470,6 +519,59 @@ export const useTablatureR3FStore = create<State>((set) => ({
     return id
   },
 
+  replaceChordGroupVoicing: (groupId, newNotes, chordName) => {
+    const newIds = newNotes.map(() => uid())
+    set(s => {
+      const group = s.chordGroups.find(g => g.id === groupId)
+      if (!group) return s
+      const oldIds = new Set(group.noteIds)
+      return {
+        notes: [
+          ...s.notes.filter(n => !oldIds.has(n.id)),
+          ...newNotes.map((n, i) => ({ ...n, id: newIds[i] })),
+        ],
+        chordGroups: s.chordGroups.map(g => g.id === groupId ? { ...g, noteIds: newIds, chordName } : g),
+        rhythmModifiers: s.rhythmModifiers.filter(m => !(m.targetType === 'note' && oldIds.has(m.targetId))),
+      }
+    })
+    return newIds
+  },
+
+  replaceProgressionContent: (progId, chordEntries, name) =>
+    set(s => {
+      const prog = s.progressionGroups.find(p => p.id === progId)
+      if (!prog) return s
+      const oldGroupIds = new Set(prog.chordGroupIds)
+      const oldNoteIds = new Set(
+        s.chordGroups.filter(g => oldGroupIds.has(g.id)).flatMap(g => g.noteIds)
+      )
+
+      const newChordGroups: ChordGroup[] = []
+      const newNotes: TablatureNote[] = []
+      chordEntries.forEach(({ notes: entryNotes, chordName }) => {
+        const ids = entryNotes.map(() => uid())
+        entryNotes.forEach((n, i) => newNotes.push({ ...n, id: ids[i] }))
+        newChordGroups.push({ id: uid(), noteIds: ids, chordName })
+      })
+
+      return {
+        notes: [...s.notes.filter(n => !oldNoteIds.has(n.id)), ...newNotes],
+        chordGroups: [...s.chordGroups.filter(g => !oldGroupIds.has(g.id)), ...newChordGroups],
+        progressionGroups: s.progressionGroups.map(p => p.id === progId
+          ? { ...p, chordGroupIds: newChordGroups.map(g => g.id), name: name ?? p.name }
+          : p),
+        rhythmModifiers: s.rhythmModifiers.filter(m =>
+          !(m.targetType === 'note' && oldNoteIds.has(m.targetId)) &&
+          !(m.targetType === 'chord' && oldGroupIds.has(m.targetId))
+        ),
+      }
+    }),
+
+  setChordGroupNoteIds: (groupId, noteIds) =>
+    set(s => ({
+      chordGroups: s.chordGroups.map(g => g.id === groupId ? { ...g, noteIds } : g),
+    })),
+
   addProgressionGroup: (chordGroupIds, name) => {
     const id = uid()
     set(s => ({ progressionGroups: [...s.progressionGroups, { id, chordGroupIds, name }] }))
@@ -513,6 +615,18 @@ export const useTablatureR3FStore = create<State>((set) => ({
 
   removeRhythmModifier: (id) =>
     set(s => ({ rhythmModifiers: s.rhythmModifiers.filter(m => m.id !== id) })),
+
+  addModeZone: (startBeat, modeName) => {
+    const id = uid()
+    set(s => ({ modeZones: [...s.modeZones, { id, startBeat, length: 1, modeName, forceNote: false, color: randomHexColor() }] }))
+    return id
+  },
+
+  updateModeZone: (id, patch) =>
+    set(s => ({ modeZones: s.modeZones.map(z => z.id === id ? { ...z, ...patch } : z) })),
+
+  removeModeZone: (id) =>
+    set(s => ({ modeZones: s.modeZones.filter(z => z.id !== id) })),
 
   setLegato: (sourceId, destId, count = 2, tuning) =>
     set(s => {
@@ -681,7 +795,7 @@ export const useTablatureR3FStore = create<State>((set) => ({
   pushHistory: () =>
     set(s => ({
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
       }],
       future: [],
     })),
@@ -694,9 +808,10 @@ export const useTablatureR3FStore = create<State>((set) => ({
       chordGroups:      prev.groups,
       progressionGroups: prev.progressions ?? [],
       rhythmModifiers:  prev.rhythmModifiers ?? [],
+      modeZones:        prev.modeZones ?? [],
       past:             s.past.slice(0, -1),
       future: [{
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
       }, ...s.future.slice(0, MAX_HISTORY - 1)],
     }
   }),
@@ -709,8 +824,9 @@ export const useTablatureR3FStore = create<State>((set) => ({
       chordGroups:      next.groups,
       progressionGroups: next.progressions ?? [],
       rhythmModifiers:  next.rhythmModifiers ?? [],
+      modeZones:        next.modeZones ?? [],
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
       }],
       future: s.future.slice(1),
     }

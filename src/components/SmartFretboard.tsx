@@ -2,8 +2,10 @@ import React, { useMemo } from 'react'
 import { Note, Chord } from 'tonal'
 import { useMainStore } from '../stores/useMainStore'
 import { useTablatureStore } from '../stores/useTablatureStore'
+import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import { useMidiUtils } from '../composables/useMidiUtils'
 import { EXTRA_MODES } from '../composables/extraModes'
+import { ModeZoneService } from '../services/ModeZoneService'
 import type { ModeGuitar } from '../types'
 import Tab from './tab/Tab'
 
@@ -27,20 +29,21 @@ export default function SmartFretboard() {
 
   // ── Tablature sync ────────────────────────────────────────────────────────
   const tabTuning            = useTablatureStore(s => s.tuning)
-  const activeColumn         = useTablatureStore(s => s.activeColumn)
-  const currentPlayingColumn = useTablatureStore(s => s.currentPlayingColumn)
-  const isPlaying            = useTablatureStore(s => s.isPlaying)
+  
+  // R3F sync
+  const isPlayingR3F         = useTablatureR3FStore(s => s.isPlaying)
+  const playbackBeat         = useTablatureR3FStore(s => s.playbackBeat)
+  const modeZones            = useTablatureR3FStore(s => s.modeZones)
 
-  // Playing cursor takes priority over editing cursor
-  const effectiveColumn = isPlaying ? currentPlayingColumn : activeColumn
-
-  // Resolve mode override at the active tab column
+  // Resolve mode override at the current beat
   const contextModeObject = useMemo<ModeGuitar | undefined>(() => {
-    if (effectiveColumn < 0) return undefined
-    const modeName = useTablatureStore.getState().flatColumnMode(effectiveColumn)
-    if (!modeName) return undefined
-    return findModeByTabName(modeName) ?? undefined
-  }, [effectiveColumn])
+    // In R3F mode, we use ModeZones.
+    const activeZone = ModeZoneService.getActiveZoneAt(playbackBeat, 1000)
+    if (activeZone) {
+      return findModeByTabName(activeZone.modeName) ?? undefined
+    }
+    return undefined
+  }, [playbackBeat, modeZones])
 
   // Tuning: store is low→high ('E2,A2,...'), Tab expects the same order as cords
   const cords = useMemo(() => tabTuning.split(','), [tabTuning])
@@ -51,7 +54,11 @@ export default function SmartFretboard() {
       return notesToMidi(pcs.map(pc => `${pc}4`))         // octave 4 → pitch-class match in Tab
     }
     const eff = contextModeObject ?? modeObject
-    const modeNotes = eff.intervals.map((iv: string) => Note.transpose(userScale, iv))
+    
+    // Ensure userScale has an octave for midi matching
+    const scaleWithOctave = Note.get(userScale).oct !== null ? userScale : `${userScale}4`
+    
+    const modeNotes = eff.intervals.map((iv: string) => Note.transpose(scaleWithOctave, iv))
     return notesToMidi(modeNotes)
   }, [tabHoveredChordName, userScale, modeObject, contextModeObject, notesToMidi])
 

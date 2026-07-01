@@ -83,7 +83,12 @@ export const TablatureDropService = {
       
       // Update global tonic
       if (effectiveScalePc) {
-        useMainStore.getState().setUserScale(effectiveScalePc)
+        const scaleWithOctave = effectiveScalePc.includes('0') || effectiveScalePc.includes('1') || effectiveScalePc.includes('2') || 
+                               effectiveScalePc.includes('3') || effectiveScalePc.includes('4') || effectiveScalePc.includes('5') || 
+                               effectiveScalePc.includes('6') || effectiveScalePc.includes('7') || effectiveScalePc.includes('8') || 
+                               effectiveScalePc.includes('9') 
+                               ? effectiveScalePc : `${effectiveScalePc}4`
+        useMainStore.getState().setUserScale(scaleWithOctave)
       }
       
       // Break any legato connection

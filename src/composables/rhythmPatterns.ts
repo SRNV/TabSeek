@@ -903,7 +903,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Rumba Clave 3-2",
-    emoji: ':woman_dancing:',
+    emoji: ':dancer:',
     description: "Clave rumba 3-2 sur 2 mesures en double-croches. Plus syncopée que la clave son : la 3e frappe de la barre 1 tombe une DC plus tard. Hex : 'A450'.",
     timeSignature: '4/4',
     tempo: { min: 60, max: 140, typical: 90 },
@@ -1100,7 +1100,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Cumbia",
-    emoji: ':accordion:',
+    emoji: ':musical_keyboard:',
     description: "Rythme colombien fondamental. La caja frappe sur les contretemps (euclid(8,3) rotate 1), la tambora/basse sur les temps 1 et 3, la maracas en croche continue. Base de nombreux rythmes latino-américains.",
     timeSignature: '4/4',
     tempo: { min: 85, max: 130, typical: 110 },
@@ -1299,7 +1299,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Baião",
-    emoji: ':accordion:',
+    emoji: ':musical_keyboard:',
     description: "Rythme nordiste brésilien de Luiz Gonzaga. Zabumba (basse) en euclid(8,5) sur 2/4 avec accents forts, triangle en DC continue, caixa syncopée en euclid(8,3). Fondement du forró.",
     timeSignature: '2/4',
     tempo: { min: 100, max: 160, typical: 130 },
@@ -1395,7 +1395,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Flamenco Bulería",
-    emoji: ':woman_dancing:',
+    emoji: ':dancer:',
     description: "Cycle de 12 pulsations en croches. Accents flamenco sur les positions 3, 6, 8, 10, 12 (index base-0 : 2, 5, 7, 9, 11). Le rythme le plus rapide et complexe du flamenco.",
     timeSignature: '12/8',
     tempo: { min: 180, max: 280, typical: 220 },
@@ -1846,7 +1846,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "UK Garage 2-Step",
-    emoji: ':car:',
+    emoji: ':red_car:',
     description: "Groove en deux pas londonien. Le kick évite les temps forts grâce à euclid(16,5) rotate 1, clap sur 2 et 4, hi-hat DC asymétrique (euclid(16,9)). Style britannique 1997-2001.",
     timeSignature: '4/4',
     tempo: { min: 128, max: 142, typical: 135 },
@@ -2944,7 +2944,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Kwassa Kwassa",
-    emoji: ':woman_dancing:',
+    emoji: ':dancer:',
     description: "Kwassa kwassa congolais de Kanda Bongo Man (années 80-90). Basse répétitive syncopée euclid(16,5), hi-hat DC continu, snare sur 2 et 4. Caractère dansant et léger, popularisé en Occident.",
     timeSignature: '4/4',
     tempo: { min: 110, max: 150, typical: 130 },
@@ -3080,7 +3080,7 @@ export const rhythmPatterns: RhythmPatternDef[] = [
 
   {
     name: "Marche",
-    emoji: ':bugle:',
+    emoji: ':postal_horn:',
     description: "Rythme militaire en 2/4. Snare sur tous les temps avec accents forts/faibles alternés. Grosse caisse sur le 1. Euclidien E(4,4) pour la snare (toutes les croches).",
     timeSignature: '2/4',
     tempo: { min: 60, max: 120, typical: 90 },

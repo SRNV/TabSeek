@@ -452,13 +452,14 @@ class SoundFontServiceClass {
     this.trigger(midi, duration, 0.8);
   }
 
-  async playFullChord(notes: string[], duration = 0.5): Promise<void> {
+  async playFullChord(notes: string[], duration: number | number[] = 0.5): Promise<void> {
     await resumeSharedAudioCtx();
     const g = 0.8 / Math.sqrt(Math.max(notes.length, 1));
-    for (const note of notes) {
+    notes.forEach((note, i) => {
       const { midi } = Note.get(note);
-      if (midi != null) this.trigger(midi, duration, g);
-    }
+      const dur = Array.isArray(duration) ? (duration[i] ?? duration[0] ?? 0.5) : duration;
+      if (midi != null) this.trigger(midi, dur, g);
+    });
   }
 
   stopAll(): void {

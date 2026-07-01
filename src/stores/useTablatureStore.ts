@@ -120,7 +120,7 @@ export const useTablatureStore = create<TablatureState>((set, get) => ({
   tempo: 120,
   metronomeEnabled: false,
   filterByScaleEnabled: true,
-  tuning: 'E2,A2,D3,G3,C3,E4',
+  tuning: 'E2,A2,D3,G3,C4,E4',
   columns: 8 * 4,
   selectedColumns: [],
   selectionStart: 0,

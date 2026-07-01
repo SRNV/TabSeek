@@ -86,17 +86,22 @@ export async function playChord(
 
 export async function playFullChord(
   notes: string[],
-  duration = 0.5,
+  duration: number | number[] = 0.5,
   _type?: OscillatorType,
 ): Promise<void> {
-  const valid = notes
-    .filter(n => Note.get(n).midi != null)
-    .map(n => (n.match(/\d/) ? n : `${n}4`));
+  const noteObjects = notes.map((n, i) => ({
+    note: n.match(/\d/) ? n : `${n}4`,
+    dur: Array.isArray(duration) ? (duration[i] ?? duration[0] ?? 0.5) : duration
+  })).filter(obj => Note.get(obj.note).midi != null);
 
-  valid.forEach(emitMidi);
+  if (noteObjects.length === 0) return;
+
+  noteObjects.forEach(obj => emitMidi(obj.note));
 
   if (SoundFontService.isReady) {
-    await SoundFontService.playFullChord(valid, duration);
+    const validNotes = noteObjects.map(o => o.note);
+    const validDurs = noteObjects.map(o => o.dur);
+    await SoundFontService.playFullChord(validNotes, validDurs);
     return;
   }
 
@@ -105,25 +110,27 @@ export async function playFullChord(
   const ctx = getSharedAudioCtx();
   if (!ctx) return;
 
-  const gain = ctx.createGain();
-  gain.gain.value = 0.3 / Math.sqrt(Math.max(valid.length, 1));
-  gain.connect(ctx.destination);
-  activeGainNodes.push(gain);
+  const gVal = 0.3 / Math.sqrt(Math.max(noteObjects.length, 1));
 
-  gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  noteObjects.forEach((obj) => {
+    const gain = ctx.createGain();
+    gain.gain.value = gVal;
+    gain.connect(ctx.destination);
+    activeGainNodes.push(gain);
 
-  valid.forEach(n => {
+    gain.gain.setValueAtTime(gVal, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + obj.dur);
+
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.value = getFrequency(n);
+    osc.frequency.value = getFrequency(obj.note);
     osc.connect(gain);
     osc.start();
-    osc.stop(ctx.currentTime + duration);
-  });
+    osc.stop(ctx.currentTime + obj.dur);
 
-  setTimeout(() => {
-    const i = activeGainNodes.indexOf(gain);
-    if (i !== -1) activeGainNodes.splice(i, 1);
-  }, duration * 1000);
+    osc.onended = () => {
+      const idx = activeGainNodes.indexOf(gain);
+      if (idx !== -1) activeGainNodes.splice(idx, 1);
+    };
+  });
 }

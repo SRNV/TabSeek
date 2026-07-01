@@ -20,7 +20,7 @@
 
 // Sticky sidebar: string name labels, aligned to camera Y positions
 .tab-r3f-sidebar {
-  width: 34px;
+  width: 42px;
   flex-shrink: 0;
   position: relative;
   background: #0a0a0a;
@@ -29,12 +29,12 @@
 
   .tab-r3f-string-label {
     position: absolute;
-    right: 6px;
+    right: 4px;
     transform: translateY(-50%);
     background: #000;
-    padding: 2px 4px;
+    padding: 2px 3px;
     border-radius: 2px;
-    min-width: 18px;
+    min-width: 28px;
     text-align: center;
     z-index: 10;
   }
@@ -230,14 +230,10 @@
   }
 }
 
-// Rhythm modifier popover — horizontal pill, same design as legato-popover
-// position: absolute so it never shifts the disc when it opens.
-// Anchored above the disc (bottom: 100%) instead of beside it — growing upward keeps it
-// clear of the note row and the inter-string gap below instead of overlapping them.
+// Rhythm modifier popover — horizontal pill, same design as legato-popover.
+// Positioning is handled by the outer .floating-pod-popover portal wrapper (see below),
+// not by this element — it just carries the color theme.
 .legato-popover.rhythm-popover {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
   border-color: #7c3aed;
   box-shadow: 0 2px 12px rgba(124, 58, 237, 0.25);
 
@@ -286,6 +282,123 @@
       width: 13px;
       height: 13px;
     }
+  }
+}
+
+// Chord pod popover — same pill design; positioning handled by .floating-pod-popover
+.legato-popover.chord-popover {
+  border-color: #4caf50;
+  box-shadow: 0 2px 12px rgba(76, 175, 80, 0.25);
+
+  .pop-toggle.active {
+    color: #4caf50;
+    background: rgba(76, 175, 80, 0.15);
+  }
+}
+
+// Progression pod popover — same pill design, blue theme
+.legato-popover.progression-popover {
+  border-color: #5B8EE8;
+  box-shadow: 0 2px 12px rgba(91, 142, 232, 0.25);
+}
+
+// Mode pod popover — same pill design, red theme (the most powerful pod)
+.legato-popover.mode-popover {
+  border-color: #cc0000;
+  box-shadow: 0 2px 12px rgba(204, 0, 0, 0.25);
+
+  .pop-toggle.active {
+    color: #ff4d4d;
+    background: rgba(204, 0, 0, 0.15);
+  }
+}
+
+// Floating popover portal — rendered to <body>, completely outside the canvas's row
+// stacking, so it can never block a neighboring string's clicks underneath it.
+// Position (left/top) is computed in JS and applied inline; this only carries the
+// fixed/z-index/transition concerns and the connector arrow pointing at the disc.
+.pod-modifier-overlay-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 700;
+}
+
+.floating-pod-popover {
+  position: fixed;
+  pointer-events: auto;
+  transition: left 0.05s linear, top 0.05s linear;
+
+  .legato-popover {
+    position: static;
+    transform-origin: bottom center;
+  }
+
+  &.placement-below .legato-popover {
+    transform-origin: top center;
+  }
+
+  &__arrow {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    transform: translateX(-50%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  &.placement-above &__arrow {
+    bottom: -5px;
+    border-top: none;
+    border-left: none;
+  }
+
+  &.placement-below &__arrow {
+    top: -5px;
+    border-bottom: none;
+    border-right: none;
+  }
+}
+
+// Arpeggio sub-popover — direction buttons + note-count stepper
+.arpeggio-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid #4caf50;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  pointer-events: auto;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+
+  &__directions {
+    display: flex;
+    gap: 2px;
+  }
+
+  &__count {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border-left: 1px solid #333;
+    border-right: 1px solid #333;
+    padding: 0 6px;
+  }
+
+  &__count-value {
+    font-size: 0.78rem;
+    color: #e0e0e0;
+    font-weight: 700;
+    min-width: 16px;
+    text-align: center;
   }
 }
 

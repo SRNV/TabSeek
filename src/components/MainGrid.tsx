@@ -8,6 +8,7 @@ import ChordsList from './chords/ChordsList'
 import ProgressionCompiler from './progression/ProgressionCompiler'
 import ProgressionsList from './sidebars/ProgressionsList'
 import RhythmList from './sidebars/RhythmList'
+import ModesList from './modes/ModesList'
 import TablatureMain from './tablature/TablatureMain'
 import { useMainStore } from '../stores/useMainStore'
 import { CHORD_TYPES_BY_CATEGORY } from '../composables/tonalChordsMapping'
@@ -46,6 +47,7 @@ export default function MainGrid() {
           { label: 'Accords', content: <ChordsList /> },
           { label: 'Rythmes', content: <RhythmList /> },
           { label: 'Progressions', content: <ProgressionsList /> },
+          { label: 'Modes', content: <ModesList /> },
           { label: 'Accords Infos', content: <ChordTab chordType={chordRootNoteType} chordData={chordRootObject} hideFretboard /> },
         ]} />
       </div>
