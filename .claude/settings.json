@@ -21,7 +21,8 @@
       "Bash(grep -n \"rhythmModifiers,$\\\\|rhythmModifiers, addNote\\\\|import type { TablatureNote, ChordGroup, ProgressionGroup, LegatoBehavior, RhythmModifier }\" src/components/tablature/TablatureR3F.tsx)",
       "Bash(grep -n \"function getNoteColor\\\\|playNote\\(\\\\|playFullChord\\(\\\\|noteNamePc\\\\s*=\\\\|fret={note.fret}\\\\|getNoteName\\(tuningArr\\\\[note.string\\\\], note.fret\\)\" src/components/tablature/TablatureR3F.tsx)",
       "Bash(xargs wc -l)",
-      "Bash(awk '$1 > 500 {print}')"
+      "Bash(awk '$1 > 500 {print}')",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" -Recurse -Include *.ts,*.tsx)"
     ]
   }
 }

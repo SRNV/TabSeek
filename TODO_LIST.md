@@ -1,184 +1,219 @@
 # TabSeek — TODO List
 
-> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 5 — traitement TODO + refactoring architecture).
+> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 6 — audit architecture complet, comité Dr. Ota + Eva).
+> ⚠️ **Eva a posé son veto sur tout ajout de feature tant que les items 🔴 PHASE 1 ne sont pas traités.**
 
 ---
 
-## ✅ TRAITÉS EN SESSION 5
+## ✅ TRAITÉS (sessions 3-5)
 
-| Item | Fix |
-|---|---|
-| C1 Progression hover fretboard | `TablatureR3F.tsx` ~1882 — `FretboardHighlightService.setHighlights()` ajouté sur la progression pod |
-| C2 Icônes PWA | `public/icon-192.png` + `public/icon-512.png` générés (cercle orange TabSeek) |
-| C3 PreferencesService | Catch vides → `console.warn` avec clé et erreur |
-| M1 Console.log prod | `main.tsx`, `SoundFontService.ts`, `useGuitarChords.ts`, `useNoteHelpers.ts` nettoyés |
-| M3/M4 Tuning doc | `useTablatureStore.ts` — JSDoc complet sur `tuning` + convention d'ordre documentée ; `useGuitarChords.ts` — `REFERENCE_TUNING` commenté |
-| M5 Validation Chord.get | `TablatureDropService.ts` — vérification `chordData.empty` avant voicing |
-| M7 Fret hors-bornes | `ModeZoneService.ts` — skip `f < 0 \|\| f > 24` dans `getVirtualFret` |
-| A1 Extraire legatoUtils | `src/utils/legatoUtils.ts` — `syncLegatoHelper` (169L), `detectChordName`, `isRhythmLegatoLocked`, `getNoteNameFromFret` extraits du store |
-| A2 Typer eventBus | `eventBus.ts` — `playProgression`/`progressionDragStart` : `any` → `ChordProgression` |
-| A3 Typer drag service | `src/types/tablatureDrag.ts` + `TablatureMoveService.ts` — `d: any` → union discriminée typée |
-
-**Résultat** : `useTablatureR3FStore.ts` 834 → **628 lignes** (-24%), 0 `any` dans les services critiques.
-
----
-
-## 🔴 CRITIQUE (UX bloquant / régressif)
-
-### ~~[C1] Progression pod hover~~ ✅ résolu session 5
-
-### ~~[C1] (archive) Progression pod hover ne highlight pas le manche
-- **Fichier** : `TablatureR3F.tsx` ~ligne 1882
-- `onPointerEnter` du progression pod fait `setHoveredProgId()` mais **n'appelle pas** `FretboardHighlightService.setHighlights()`
-- **Attendu** : survoler une progression → toutes les notes de tous ses accords s'allument sur le SmartFretBoard
-- **Pattern** : identique au chord pod hover fixé en session 3 (lignes 2092-2093)
-
-### [C2] Icônes PWA manquantes
-- **Fichier** : `public/` — `icon-192.png` et `icon-512.png` absents
-- `vite.config.ts:18-19` référence ces fichiers — PWA installable mais icône cassée
-- **Fix** : générer deux PNG (192×192 et 512×512) depuis le logo du projet
-
-### [C3] PreferencesService catch vides — silently fail
-- **Fichier** : `src/services/PreferencesService.ts:8,16,22`
-- Les préférences échouent silencieusement (localStorage) — aucune notification utilisateur
-- **Fix** : logger l'erreur + fallback sur valeur par défaut visible
-
----
-
-## 🟡 AMÉLIORATIONS COURT TERME
-
-### [M1] Console.log en production à retirer
-| Fichier | Ligne | Message |
+| Item | Fix | Session |
 |---|---|---|
-| `src/main.tsx` | 10 | `console.log(midi)` |
-| `src/services/SoundFontService.ts` | 298, 374 | Logs SF2 chargement/preset |
-| `src/composables/useGuitarChords.ts` | 43 | `console.error` en français |
-| `src/composables/useNoteHelpers.ts` | 145 | `console.error` en français |
-| `src/services/GuitarSelectionService.ts` | 46 | `console.warn` sans contexte |
-
-### [M2] Types `any` à corriger (dettes TypeScript)
-| Fichier | Lignes | Problème |
-|---|---|---|
-| `src/eventBus.ts` | 10-11 | `playProgression: any` → typer avec `ChordProgression` |
-| `src/stores/useTablatureStore.ts` | 87-90, 199 | Params progression et frets non typés |
-| `src/services/TablatureMoveService.ts` | 11, 46, 90 | `d: any` → union discriminée des types DragXxx |
-| `src/composables/useGuitarNotes.ts` | 15-22 | Champs du mode non typés |
-| `src/components/chords/ChordsList.tsx` | 13, 27, 44 | `chord: any` → utiliser l'interface existante |
-| `TablatureR3F.tsx` | 98, 438-439, 1188 | Casts `as any` évitables |
-
-### [M3] `tuningArray()` — absence de documentation
-- **Fichier** : `src/stores/useTablatureStore.ts:130`
-- `.reverse()` est intentionnel (vue grille legacy) mais non documenté → source de bugs potentiels
-- **Fix** : ajouter un JSDoc expliquant la convention inversée vs ordre direct R3F
-
-### [M4] Duplication de la définition du tuning
-- `useTablatureStore.ts:123` : `'E2,A2,D3,G3,C4,E4'` (hardcodé)
-- `src/composables/useGuitarChords.ts:7` : `REFERENCE_TUNING` défini séparément
-- **Fix** : `useGuitarChords.ts` doit importer depuis `useTablatureStore` ou une constante partagée
-
-### [M5] Validation manquante dans TablatureDropService
-- **Fichier** : `src/services/TablatureDropService.ts:127-150`
-- `Chord.get()` peut échouer silencieusement si le nom d'accord est invalide
-- **Fix** : vérifier `chord.empty` avant de construire le voicing
-
-### [M6] Copy/paste sans feedback visuel
-- **Fichier** : `TablatureR3F.tsx:1407-1428`
-- Ctrl+C / Ctrl+V fonctionne mais aucun toast/indicateur pour l'utilisateur
-- **Fix** : afficher une notification temporaire "X note(s) copiées" / "Collé"
-
-### [M7] Mode Zone `getVirtualFret` — cas limite octave supérieure
-- **Fichier** : `src/services/ModeZoneService.ts:73-95`
-- `findFretForPc()` peut retourner une frette invalide si la hauteur cible dépasse la 24ème
-- **Fix** : vérifier que le résultat est dans `[0, 24]` et retourner `null` sinon
+| C1 Progression hover fretboard | `TablatureR3F.tsx` ~1882 — FretboardHighlightService sur progression pod | 3 |
+| C2 Icônes PWA | `public/icon-192.png` + `public/icon-512.png` générés | 5 |
+| C3 PreferencesService | Catch vides → console.warn documenté | 5 |
+| M1 Console.log prod | `main.tsx`, `SoundFontService.ts`, etc. nettoyés | 5 |
+| M3/M4 Tuning doc | JSDoc complet sur `tuning` ; `REFERENCE_TUNING` commenté | 5 |
+| M5 Validation Chord.get | `TablatureDropService.ts` — vérification `chordData.empty` | 5 |
+| M7 Fret hors-bornes | `ModeZoneService.ts` — skip `f < 0 \|\| f > 24` | 5 |
+| A1 legatoUtils.ts | `syncLegatoHelper`, `detectChordName`, `isRhythmLegatoLocked` extraits du store | 5 |
+| A2 eventBus typé | `any` → `ChordProgression` | 5 |
+| A3 tablatureDrag.ts | Types drag centralisés, TablatureMoveService typé | 5 |
 
 ---
 
-## 🟢 FEATURES MANQUANTES
+## 🔴 PHASE 1 — CRITIQUE · BLOQUER TOUTE FEATURE (2-3 jours)
+
+### [P1-1] playbackBeat dans Zustand → re-render 60 FPS sur toute l'app ⚠️ VETO EVA
+- **Fichier** : `src/stores/useTablatureR3FStore.ts:108`, `TablatureR3F.tsx:945`
+- `setPlaybackBeat(newBeat)` est appelé **chaque frame** dans `useFrame`, modifie Zustand, provoque un re-render de tous les subscribers à chaque frame (60 FPS)
+- **Fix** : sortir `playbackBeat` de Zustand → `useRef` local dans `TablatureScene` + `useFrame` lit/écrit la ref ; les composants qui ont besoin de la valeur lisent via `useTablatureR3FStore.getState().playbackBeat` (sans subscription) ou un store séparé haute-fréquence
+- **Impact** : Performance critique — arrête les re-renders inutiles sur tout le composant
+- **Complexité** : M · 3 heures
+
+### [P1-2] HistoryEntry incomplète — undo incohérent
+- **Fichier** : `src/stores/useTablatureR3FStore.ts:86-92`
+- Manquent dans `HistoryEntry` : `legatoSourceId` (UI incohérente après undo si legato en cours de création)
+- **Fix** : ajouter `legatoSourceId: string | null` à `HistoryEntry` + `pushHistory` + `undo` + `redo`
+- **Complexité** : S · 30 min
+
+### [P1-3] `@ts-ignore` dans le handler drag
+- **Fichier** : `TablatureR3F.tsx:2503`
+- `// @ts-ignore` sur `gl.domElement.setPointerCapture(e.pointerId)` — masque une incompatibilité de types R3F
+- **Fix** : typer correctement via `(e.target as HTMLElement).setPointerCapture(e.pointerId)` ou étendre les types R3F
+- **Complexité** : S · 1 heure
+
+### [P1-4] ChordDetection sur chaque updateNote même pour durée seule
+- **Fichier** : `src/stores/useTablatureR3FStore.ts:206-214`
+- `detectChordName` (Tonal.js, coûteux) s'exécute même si seul `startBeat`/`duration` change
+- **Fix** : vérifier `if ('fret' in patch || 'string' in patch)` avant de re-détecter
+- **Complexité** : S · 30 min
+
+### [P1-5] `getTuning()` helper manquant — format accédé en 4 endroits différents
+- **Fichier** : `TablatureDropService.ts`, `ModeZoneService.ts`, `PodModifierService.ts`, `TablatureR3F.tsx`
+- Tous font `useTablatureStore.getState().tuning.split(',')` — si le format change, 4+ endroits cassent
+- **Fix** : créer `src/utils/tuningUtils.ts` → `getTuning(): string[]`
+- **Complexité** : S · 20 min
+
+### [P1-6] `legatoSourceId` absent de `HistoryEntry` — cf. [P1-2]
+*(Regroupé avec P1-2 dans l'implémentation)*
+
+---
+
+## 🟠 PHASE 2 — ARCHITECTURE · TablatureR3F DÉCOMPOSITION (4-5 jours, Dr. Ota)
+
+> **Prérequis** : Phase 1 terminée. Décomposer sans changer le comportement.
+
+### [P2-1] TablatureR3F.tsx — God Component 2705 lignes · 21 useState · ~40 responsabilités
+- **Fichier** : `TablatureR3F.tsx` entier
+- **Plan de découpage en 8 sous-composants** (Dr. Kenji Ota) :
+  - `<SceneBackground />` — grille, marges, lanes (lignes ~1750-1810)
+  - `<ModeZoneTint />` — gradient shader zones mode (lignes ~1812-1835)
+  - `<NotePods />` — notes individuelles + legato lines (lignes ~2055-2530)
+  - `<ChordPods />` — pods accord + disques (lignes ~1960-2055)
+  - `<ProgressionPods />` — pods progression (lignes ~1855-1960)
+  - `<RhythmModifierPods />` — pods rythme flottants (lignes ~1920-1965)
+  - `<ModePods />` — pods mode (lignes ~1985-2060)
+  - `<PlaybackIndicator />` — curseur de lecture + flèche (lignes ~2535-2575)
+- **Complexité** : XL · 4 jours
+
+### [P2-2] TablatureScene — 21 useState à extraire en 3 hooks
+- **Fichier** : `TablatureR3F.tsx:1043-1070, 1229-1263`
+- `useEditorSelection()` → `selectedIds`, `editingId`, `inputVal`, `selectedChordGroupIds`
+- `useEditorHover()` → `hoveredGroupId`, `labelHoveredGroupId`, `hoveredProgId`, `hoveredModId`, `hoveredModeZoneId`
+- `useEditorDrag()` → état drag + handlers `onMove`/`onUp`
+- **Complexité** : L · 1 jour
+
+### [P2-3] `noteZone()` et `noteZoneCompact()` quasi-identiques → unifier
+- **Fichier** : `TablatureR3F.tsx:177-213`
+- Les deux fonctions partagent 80% de leur logique
+- **Fix** : une seule fonction `computeNoteZone(lx, w, invStretchX, options: {compact?: boolean, showBubble?: boolean})`
+- **Complexité** : S · 1 heure
+
+### [P2-4] Shader vertex dupliqué (PodGradient + ModeZoneGradient)
+- **Fichier** : `TablatureR3F.tsx:388-394` et `TablatureR3F.tsx:456-461`
+- Même vertex shader `varying vec2 vPos; void main() {...}` recopié 2 fois
+- **Fix** : `const SHARED_POS_VERT = ...` utilisé par les deux materials
+- **Complexité** : S · 30 min
+
+### [P2-5] ChordPod et ProgressionPod rendering quasi-identiques
+- **Fichier** : `TablatureR3F.tsx:1858-1950` (progression) vs `~2000-2060` (chord)
+- Structure identique : header mesh + hit area + sticky disc Html
+- **Fix** : `<PodHeaderTemplate>` partagé, paramétré par couleur/géo/handlers
+- **Complexité** : M · 2 heures
+
+### [P2-6] TablatureMoveService — chord/prog handlers 90% identiques
+- **Fichier** : `src/services/TablatureMoveService.ts:46-136`
+- `handleChordGroupMove` et `handleProgGroupMove` — copie de code, bug fixé dans l'un mais pas l'autre
+- **Fix** : extraire `handleGroupMove(d: DragGroupState, ...)` générique, les deux appellent le même handler
+- **Complexité** : S · 1 heure
+
+---
+
+## 🟠 PHASE 3 — RÉORGANISATION DOSSIERS (1 jour)
+
+### [P3-1] `src/composables/` contient des fichiers de données pures — confusion totale
+- **Fichiers à déplacer** vers `src/data/` :
+  - `src/composables/rhythmPatterns.ts` — données statiques
+  - `src/composables/extraModes.ts` — données statiques
+  - `src/composables/progressions.ts` — données statiques
+  - `src/composables/chords.ts` — données statiques
+  - `src/composables/chord-charts.ts` — données statiques
+  - `src/composables/tonalChordsMapping.ts` — données + mappings
+- **Fichiers à déplacer** vers `src/hooks/` :
+  - `src/composables/useAudio.ts`
+  - `src/composables/useGuitarChords.ts`
+  - `src/composables/useGuitarNotes.ts`
+  - `src/composables/useMidiUtils.ts`
+  - `src/composables/useNoteHelpers.ts`
+  - `src/composables/useUIState.ts`
+- **Complexité** : M · 1 jour (+ mise à jour de tous les imports)
+
+### [P3-2] `src/types/` incomplet — consolider
+- Actuellement : seulement `tablatureDrag.ts`
+- Ajouter : `src/types/index.ts` qui ré-exporte `ModeGuitar` (de `types.ts` racine), `ChordProgression`, `RhythmPatternDef`
+- **Complexité** : S · 30 min
+
+---
+
+## 🟠 PHASE 4 — SERVICES & QUALITÉ (2 jours)
+
+### [P4-1] Services couplés au store via getState() direct — pas d'injection
+- **Fichiers** : `PodModifierService.ts`, `RhythmModifierService.ts`, `ModeZoneService.ts`, `TablatureDropService.ts`, `TablatureMoveService.ts`
+- Tous appellent directement `useTablatureR3FStore.getState()` ou `useTablatureStore.getState()`
+- **Problème** : impossible de tester unitairement, couplage fort, races potentielles
+- **Fix** : passer le `state` (ou les actions nécessaires) en paramètre des fonctions (ou utiliser un provider pattern)
+- **Complexité** : L · 4 heures
+
+### [P4-2] RhythmModifierService — mutations séquentielles sans transaction
+- **Fichier** : `src/services/RhythmModifierService.ts:265-298`
+- `materializeLegatoRhythm()` exécute 5+ mutations store en séquence — si échec à mi-parcours, état corrompu
+- **Fix** : `pushHistory()` une seule fois en début ; collecter toutes les mutations dans un objet puis appliquer atomiquement via un seul `set()`
+- **Complexité** : M · 3 heures
+
+### [P4-3] RhythmModifierService — pas de pre-flight check sur notes déjà en legato
+- **Fichier** : `src/services/RhythmModifierService.ts:254-298`
+- Materialiser un rythme sur un accord contenant des notes en `legatoNext` écraserait silencieusement les chaînes
+- **Fix** : avant materialisation, vérifier `note.legatoNext === undefined` pour chaque note du chord
+- **Complexité** : M · 1 heure
+
+### [P4-4] LegatoLine souscrit à `notes` entier — re-render sur chaque note
+- **Fichier** : `TablatureR3F.tsx:271`
+- `const notes = useTablatureR3FStore(s => s.notes)` — subscribe à tout
+- **Fix** : sélecteur ciblé `s => s.notes.filter(n => n.id === sourceId || n.id === destId || source?.intermediateNoteIds?.includes(n.id))`
+- **Complexité** : S · 30 min
+
+### [P4-5] ModeZone `getZoneBounds` — params `_allZones` et `_totalMeasures` ignorés mais présents
+- **Fichier** : `src/services/ModeZoneService.ts:30-32`
+- Les underscores indiquent un design incomplet — la gestion des overlaps n'est pas implémentée
+- **Fix** : soit supprimer les params inutiles, soit implémenter la gestion des overlaps (zones qui se chevauchent)
+- **Complexité** : M · 1 heure
+
+### [P4-6] Géométries Three.js — disposal fragilisé par le nettoyage sur changement d'aspect ratio
+- **Fichier** : `TablatureR3F.tsx:1544-1553`
+- `useEffect([invXKey])` détruit TOUT le cache géométrique à chaque changement d'aspect ratio
+- **Fix** : invalider uniquement les géométries dépendantes de `invStretchX` (rounded rects) pas toutes
+- **Complexité** : S · 1 heure
+
+---
+
+## ⚪ PHASE 5 — PERFORMANCE (1 jour, Alex Chen)
+
+### [P5-1] `useTablatureR3FStore()` sans sélecteur dans TablatureScene
+- `TablatureScene` destructure 30+ propriétés sans sélecteur → re-render entier sur tout changement du store
+- **Fix** : scinder en plusieurs souscriptions ciblées ou utiliser `useShallow`
+- **Complexité** : M · 2 heures
+
+### [P5-2] `rootNoteIds` useMemo trop large
+- Se retrigger sur tout changement de `notes` ou `chordGroups` même si seul `startBeat` change
+- **Fix** : dépendance plus fine (seulement `chordGroups.map(g => g.chordName + g.noteIds.join(','))`)
+- **Complexité** : S · 20 min
+
+### [P5-3] midiList SmartFretboard sans cache par chordName
+- **Fix** : `useMemo` avec `tabHoveredChordName` seul en dépendance
+- **Complexité** : S · 15 min
+
+---
+
+## 🟢 FEATURES FUTURES (roadmap)
 
 ### [F1] Export MIDI
-- Aucune fonctionnalité d'export actuellement
-- Les données (`notes`, `chordGroups`, `tempo`) sont toutes disponibles dans le store
-- **Lib suggérée** : `@tonejs/midi` ou `midi-writer-js`
-
-### [F2] Export PDF / tablature imprimable
-- Rendu de la tablature en notation ASCII ou image SVG/PDF
-- Priorité après MIDI
-
-### [F3] Sauvegarde projet (JSON)
-- La tablature est éphémère (pas de persistance localStorage R3F)
-- **Fix** : sérialiser `useTablatureR3FStore` en JSON (export/import fichier)
-
-### [F4] Aide / raccourcis clavier
-- **Fichier** : `TablatureR3F.tsx:1387-1456`
-- Raccourcis existants : Undo, Redo, Delete, Select All, Ctrl+C, Ctrl+V, Ctrl+G, Ctrl+M
-- Aucun moyen de les découvrir (pas de modal ? ou help menu)
-- **Fix** : touche `?` ou `F1` → overlay des raccourcis
-
-### [F5] Édition de la corde depuis le clavier
-- Cliquer le disque d'une note ouvre l'édition de frette, mais pas de la corde
-- **Fix** : flèches haut/bas pour changer de corde pendant l'édition
-
-### [F6] Preview template de progression avant drop
-- L'utilisateur ne sait pas quels accords vont être générés avant de déposer
-- **Fix** : tooltip au survol de chaque progression dans la liste
-
+### [F2] Export PDF/tablature imprimable
+### [F3] Sauvegarde projet JSON (actuellement éphémère)
+### [F4] Raccourcis clavier — aide/overlay (Ctrl+?)
+### [F5] Édition corde depuis clavier (flèches haut/bas)
+### [F6] Preview progression avant drop
 ### [F7] Hover Mode Zone → scale degrees sur le manche
-- Survoler un pod Mode devrait afficher les degrés de la gamme du mode sur le SmartFretBoard
-- Similaire au chord pod hover (session 3)
 
 ---
 
-## 🔵 ARCHITECTURE / DETTE TECHNIQUE
+## 📌 RÈGLES ARCHITECTURALES (James Edison — à respecter dès maintenant)
 
-### [A1] Copie locale de `isLegatoLocked` dans le store
-- **Fichier** : `src/stores/useTablatureR3FStore.ts` (isRhythmLegatoLocked, ligne ~130)
-- Dupliqué depuis `RhythmModifierService.ts` pour éviter l'import circulaire
-- **Solution** : extraire dans un fichier utilitaire partagé `src/utils/legatoUtils.ts`
-
-### [A2] `eventBus.ts` non typé
-- **Fichier** : `src/eventBus.ts:10-11`
-- `playProgression: any` et `progressionDragStart: any` — perte de sécurité type sur les événements inter-composants
-- **Fix** : définir les interfaces des payloads
-
-### [A3] Validation fret input sans borne supérieure
-- **Fichier** : `TablatureR3F.tsx:1485`
-- Input accepte 0-24 mais ne valide pas que la note existe sur le manche selon le tuning
-- **Fix** : calculer la frette max atteignable par corde et valider dynamiquement
-
----
-
-## ⚪ PERFORMANCE (faible risque mais notable)
-
-### [P1] `rootNoteIds` recompté à chaque render
-- **Fichier** : `TablatureR3F.tsx:1682-1691`
-- `useMemo` présent mais se retriggère si `notes` ou `chordGroups` changent — même pour des changements de `startBeat`/`duration` qui n'affectent pas les noms de notes
-- **Fix** : dépendance plus fine (seulement `chordName` et `noteIds`)
-
-### [P2] `midiList` SmartFretboard recompté à chaque hover
-- **Fichier** : `src/components/SmartFretboard.tsx:51-63`
-- Recompute sur chaque changement de `tabHoveredChordName` sans cache
-- **Fix** : `useMemo` avec `tabHoveredChordName` en dépendance
-
-### [P3] Fonctions `onNoteDown` non mémoïsées
-- **Fichier** : `TablatureR3F.tsx:1736`
-- Calcul de zones legato à chaque pointeur-bas — pourrait être memoïsé par `note.id`
-
----
-
-## ✅ RÉSOLU (historique)
-
-### [R1] Tuning octave — C3 → C4 *(2026-07-01)*
-### [R2] Architecture tuning vérifiée *(2026-07-01 session 2)*
-### [R3] A2 — `getNoteName` propagation octave validée *(2026-07-01 session 2)*
-### [R4] Tests T1–T4 validés par inspection *(2026-07-01 session 2)*
-### [R5] Hover chord pod → highlight SmartFretBoard *(2026-07-01 session 3)*
-- `TablatureR3F.tsx` ~ligne 2092 — `FretboardHighlightService.setHighlights()` ajouté
-
----
-
-## 📌 NOTES TRANSVERSALES
-
-- Tuning actuel : `'E2,A2,D3,G3,C4,E4'` — source unique dans `useTablatureStore.ts`
-- `tuningArray()` inverse l'ordre (vue grille legacy) — convention intentionnelle documentée
-- `B1 "Force Note" du pod Mode` : abandonné — non reproductible de façon fiable
-- Aucun framework d'internationalisation (i18n) — messages d'erreur en français dans le code
+1. **Aucune logique algorithmique dans les stores** → `src/utils/` ou `src/services/`
+2. **Les services ne font pas de getState() direct** → recevoir le state en paramètre
+3. **Aucun fichier de données dans `src/composables/`** → `src/data/`
+4. **Les composants R3F ne lisent pas le store entier** → sélecteurs ciblés obligatoires
+5. **playbackBeat = ref, jamais Zustand** (Eva, veto permanent)
+6. **Tout nouveau pod partagent `<PodHeaderTemplate>`** → pas de copier-coller chord/progression
+7. **Tuning lu via `getTuning()` uniquement** (quand créé en P1-5)
+8. **HistoryEntry doit capturer tout état UI impacté par undo**

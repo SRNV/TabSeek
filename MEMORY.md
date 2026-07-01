@@ -21,6 +21,14 @@ Avant chaque tâche complexe (ticket), une phase de brainstorming structurée es
 - **Alex Chen (DevSecOps & Performance Engineer)** : Assure la stabilité de l'infrastructure Docker, la sécurité des dépendances et l'optimisation des temps de rendu (FPS) de la scène R3F.
 - **Romain (Senior Technical Recruiter - Expert en Sourcing & Talent Acquisition)** : Le facilitateur de croissance. À chaque réunion, il présente un nouveau profil d'expert (temporaire ou permanent) pour lever un verrou technique spécifique, améliorer la R&D ou optimiser la maintenance.
 
+### Groupe d'Utilisateurs (Panel Bêta-testeurs)
+
+- **Lucas (Guitariste Débutant)** : Représente les néophytes. Il a besoin d'une interface ultra-intuitive, d'aides visuelles claires et d'un feedback immédiat pour apprendre ses premiers accords.
+- **Chloé (Compositrice Jazz & Fusion)** : Utilisatrice experte. Elle pousse l'application dans ses retranchements théoriques (accords complexes, substitutions, modulations modales).
+- **Marcus (Producteur de Metal & Musique Moderne)** : Focus sur l'efficacité et la puissance. Il attend des rythmes percutants, une gestion parfaite des accordages bas et une fluidité de workflow maximale.
+- **Elena (Professeure de Musique)** : Vision pédagogique. Elle utilise TabSeek comme support de cours et veille à la clarté de la notation et à la facilité de partage des exercices.
+- **Tom (Bassiste de Session)** : L'œil du métronome. Il se concentre sur la cohérence entre la section rythmique et la tablature, assurant que le groove reste la priorité.
+
 ### Processus de Brainstorming (Ticket Review)
 
 1.  **Recrutement & Extension (Romain)** : Introduction d'un nouveau profil expert dont les compétences spécifiques permettront d'accélérer l'exécution, de sécuriser la R&D ou d'améliorer la maintenance de la fonctionnalité visée.
