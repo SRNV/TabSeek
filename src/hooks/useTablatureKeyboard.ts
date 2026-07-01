@@ -94,6 +94,18 @@ export const useTablatureKeyboard = ({
         setSelectedIds(new Set(newIds))
       }
 
+      // ↑/↓ : move selected notes one string up/down (no modifier)
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !ctrl && !e.shiftKey && ids.size > 0) {
+        e.preventDefault()
+        const delta = e.key === 'ArrowUp' ? 1 : -1
+        const sel = state.notes.filter(n => ids.has(n.id))
+        if (sel.length === 0) return
+        if (!sel.every(n => n.string + delta >= 0 && n.string + delta <= 5)) return
+        pushHistory()
+        for (const n of sel) updateNote(n.id, { string: n.string + delta }, tuningArr, scaleNotes)
+        return
+      }
+
       // Ctrl+G: create progression from selected chord groups
       if (ctrl && e.key === 'g' && !e.shiftKey && selectedChordGroupIdsRef.current.size > 0) {
         e.preventDefault()

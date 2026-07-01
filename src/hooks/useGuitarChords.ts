@@ -1,6 +1,6 @@
 // src/composables/guitar-chords.ts
 import { Note, Interval, ChordType, type NoteLiteral } from 'tonal';
-import { TONAL_CHORD_TYPES, CHORD_NAME_MAPPINGS, getTonalChordName } from '../data/tonalChordsMapping';
+import { TONAL_CHORD_TYPES, CHORD_NAME_MAPPINGS, getTonalChordName, TonalChordType } from '../data/tonalChordsMapping';
 import { CHORDS } from '../data/chords';
 
 // Default reference tuning used for chord chart lookups (CHORDS data).
@@ -27,7 +27,7 @@ export function getFretPositions(
 ): number[] {
   // Récupère la structure de l'accord
   const tonalChordName = getTonalChordName(chordType);
-  const chordData = CHORDS[tonalChordName];
+  const chordData = CHORDS[tonalChordName as TonalChordType];
   if (!chordData || chordData.positions.length === 0) {
     return tuning.map(() => -1); // Accord non trouvé
   }
@@ -80,7 +80,7 @@ export function getOptimalFretPositions(
 ): number[] {
   // Récupère la structure de l'accord
   const tonalChordName = getTonalChordName(chordType);
-  const chordData = CHORDS[tonalChordName];
+  const chordData = CHORDS[tonalChordName as TonalChordType];
   if (!chordData || chordData.positions.length === 0) {
     return tuning.map(() => -1);
   }

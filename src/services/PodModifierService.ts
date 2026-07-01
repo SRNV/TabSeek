@@ -13,10 +13,11 @@
 import { Note, Chord } from 'tonal'
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import { chordProgressions } from '../data/progressions'
-import type { ChordProgression, ChordGroup, ProgressionGroup, TablatureNote, ArpeggioDirection, RhythmModifier } from '../types'
+import type { ChordProgression, ChordGroup, ProgressionGroup, TablatureNote, ArpeggioDirection, RhythmModifier, Voicing } from '../types'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { TONAL_CHORD_TYPES, formatChordName } from '../data/tonalChordsMapping'
+import type { TonalChordType } from '../data/tonalChordsMapping'
 import { numeralToChordName } from '../utils/chordUtils'
 import { findBestChordFrets, findRankedChordVoicings, findNearestFretForMidi } from '../utils/guitarUtils'
 import { RhythmModifierService } from './RhythmModifierService'
@@ -35,9 +36,9 @@ function detectChordTypeId(chordName: string): string {
   const chord = Chord.get(chordName)
   if (chord.empty || !chord.tonic) return TONAL_CHORD_TYPES[0]
   const suffix = chordName.slice(chord.tonic.length)
-  if (TONAL_CHORD_TYPES.includes(suffix)) return suffix
+  if (TONAL_CHORD_TYPES.includes(suffix as TonalChordType)) return suffix
   for (const alias of chord.aliases) {
-    if (TONAL_CHORD_TYPES.includes(alias)) return alias
+    if (TONAL_CHORD_TYPES.includes(alias as TonalChordType)) return alias
   }
   return TONAL_CHORD_TYPES[0]
 }
@@ -353,11 +354,13 @@ function applyProgressionTemplate(prog: ProgressionGroup, template: ChordProgres
   const anchorNote = firstGroupNotes.find(n => n.string === anchorSi)
 
   const numerals = template.numerals.split('-')
+  let prevTemplateVoicing: Voicing[] | undefined = undefined
   const chordEntries = numerals.map((numeral, ci) => {
     const chordName = numeralToChordName(numeral, rootPc)
     const notesPc = Chord.get(chordName).notes
     const forcedRoot = (ci === 0 && anchorNote) ? { si: anchorNote.string, fret: anchorNote.fret } : undefined
-    const voicing = findBestChordFrets(tuning, notesPc, anchorSi, forcedRoot)
+    const voicing = findBestChordFrets(tuning, notesPc, anchorSi, forcedRoot, prevTemplateVoicing)
+    prevTemplateVoicing = voicing
     const entryStart = startBeat + ci * dur
     return {
       chordName,
@@ -403,7 +406,7 @@ export const PodModifierService = {
   // ── Chord pod: type navigation ────────────────────────────────────────────
   getChordTypeNav(group: ChordGroup) {
     const typeId = detectChordTypeId(group.chordName)
-    const idx = Math.max(0, TONAL_CHORD_TYPES.indexOf(typeId))
+    const idx = Math.max(0, TONAL_CHORD_TYPES.indexOf(typeId as TonalChordType))
     return {
       label: group.chordName,
       prev: () => applyChordType(group, TONAL_CHORD_TYPES[(idx - 1 + TONAL_CHORD_TYPES.length) % TONAL_CHORD_TYPES.length]),

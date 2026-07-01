@@ -109,11 +109,13 @@ function scoreVoicing(
   let octaveDupPenalty = 0
   for (const cnt of chromaCounts.values()) if (cnt > 1) octaveDupPenalty += (cnt - 1) * 80
 
-  // Voice-leading: total distance of each note to its nearest counterpart in the previous chord
+  // Voice-leading: total distance of each note to its nearest counterpart in the previous chord.
+  // Weight ×20 (was ×15) so proximity to the previous chord outweighs small span differences,
+  // steering the backtracking toward the octave/position that keeps the hand in place.
   let voiceLeadCost = 0
   if (prevMidis && prevMidis.length > 0) {
     for (const m of midis)
-      voiceLeadCost += Math.min(...prevMidis.map(pm => Math.abs(pm - m))) * 15
+      voiceLeadCost += Math.min(...prevMidis.map(pm => Math.abs(pm - m))) * 20
   }
 
   return (span * 100) - rootPosBonus + (stringGaps * 50) + (siOffset * 30) +

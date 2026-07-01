@@ -30,6 +30,7 @@ import type {
   RhythmModifier,
   ModeZone,
 } from '../types'
+import type { ProjectData } from '../types/project'
 
 // ── Legato ─────────────────────────────────────────────────────────────
 
@@ -58,6 +59,11 @@ interface State {
   legatoSourceId:    string | null
   past:             HistoryEntry[]
   future:           HistoryEntry[]
+
+  projectName: string
+  isProjectDirty: boolean
+  setProjectName: (name: string) => void
+  importProject: (data: ProjectData) => void
 
   setLegatoSourceId: (id: string | null) => void
 
@@ -133,11 +139,31 @@ function randomHexColor(): string {
 export const useTablatureR3FStore = create<State>((set) => ({
   notes: [], chordGroups: [], progressionGroups: [], rhythmModifiers: [], modeZones: [], past: [], future: [],
   legatoSourceId: null,
+  projectName: 'Nouveau projet',
+  isProjectDirty: false,
   isPlaying: false,
   playbackBeat: 0,
   tempo: 120,
   isLooping: true,
   isFollowing: false,
+
+  setProjectName: (name) => set({ projectName: name, isProjectDirty: true }),
+
+  importProject: (data) => set({
+    notes:             data.notes,
+    chordGroups:       data.chordGroups,
+    progressionGroups: data.progressionGroups,
+    rhythmModifiers:   data.rhythmModifiers,
+    modeZones:         data.modeZones,
+    tempo:             data.settings.tempo,
+    projectName:       data.name,
+    isProjectDirty:    false,
+    past:              [],
+    future:            [],
+    legatoSourceId:    null,
+    isPlaying:         false,
+    playbackBeat:      0,
+  }),
 
   setLegatoSourceId: (id) => set({ legatoSourceId: id }),
 

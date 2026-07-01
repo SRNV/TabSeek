@@ -667,11 +667,11 @@ export const chordProgressions: ChordProgression[] = [
   
   // Progressions classiques et modernes
   {
-    name: "Romanesca",
+    name: "Basse baroque en majeur (proto-Canon)",
     numerals: "I-V-vi-iii-IV-I-IV-V",
-    description: "Progression baroque ancienne, ancêtre du Canon de Pachelbel.",
+    description: "Progression baroque majeure considérée comme l'ancêtre du Canon de Pachelbel. Son cycle descendant par degrés (I→V→vi→iii→IV→I→IV→V) anticipe la structure en basse contrainte utilisée par Pachelbel. Elle diffère de la Romanesca (mineure, bIII-bVII-i-V) mais partage l'esprit de la basse obstinée Renaissance.",
     compatibleModes: ["Majeur"],
-    examples: ["Greensleeves (version majeure)", "Ground bass baroque"]
+    examples: ["Pré-Canon (Renaissance/début Baroque)", "Queen Elizabeth's Galliard (attribution)"]
   },
   {
     name: "Passamezzo Moderno",
@@ -683,9 +683,9 @@ export const chordProgressions: ChordProgression[] = [
   {
     name: "Chaconne",
     numerals: "i-bVII-bVI-V",
-    description: "Progression baroque descendante utilisée comme base d'ostinato et de variations.",
-    compatibleModes: ["Mineur"],
-    examples: ["Chaconne en Ré mineur (Bach)", "Dido's Lament (Purcell)"]
+    description: "La chaconne (ciaccona italienne) est une forme de variations sur une progression harmonique mineure répétée, généralement en mesure ternaire (3/4). Son cycle i-bVII-bVI-V crée une rotation perpétuelle qui permet des variations infinies sans rupture. La Chaconne de la Partita n°2 en ré mineur de Bach (BWV 1004) en est l'expression absolue : 64 variations sur ce même cycle. Frescobaldi, Purcell et Monteverdi en ont chacun défini les contours.",
+    compatibleModes: ["Mineur", "Mineur harmonique", "Éolien"],
+    examples: ["Chaconne (Bach, Partita BWV 1004, ré mineur)", "Ciaccona (Frescobaldi)", "Sarabande (Händel, HWV 437)", "Mr. Jones (Counting Crows — structure dérivée)"]
   },
   {
     name: "Lament Bass",
@@ -1038,5 +1038,74 @@ export const chordProgressions: ChordProgression[] = [
     description: "Cadence caractéristique de la seguiriya, le cante jondo le plus profond et le plus dramatique du flamenco. Le mouvement bII-bVII-bVI-V7 représente la descente émotionnelle typique des pièces por seguiriyas, associées à la mort, à la douleur existentielle et au duende. La seguiriya est souvent jouée en cycle de 12 temps avec des accents atypiques. Federico García Lorca l'a immortalisée dans ses écrits sur le duende.",
     compatibleModes: ["Phrygian dominant", "Mode flamenco", "Arabian"],
     examples: ["Seguiriya (Manuel Torre)", "Seguiriya gitana (traditionnel andalou)", "Siguiriyas (Paco de Lucía)"]
+  },
+
+  // ─── PROGRESSIONS BALKAN / AKSAK (C-7) ───────────────────────────────────
+
+  {
+    name: "Pajduško horo (5/8, aksak bulgare)",
+    numerals: "i-V",
+    description: "Le pajduško est une danse populaire bulgare en 5 temps (aksak 2+3), le cycle asymétrique le plus répandu des Balkans. Le mot 'pajduško' désigne une boiterie — le rythme 'boite' entre un groupe de 2 et un groupe de 3 pulsations. La progression harmonique est volontairement dépouillée (i-V), laissant toute la richesse au cycle rythmique. On la retrouve dans la musique traditionnelle de Thrace (Bulgarie du Sud) et dans les arrangements du collecteur Philip Koutev. Dave Brubeck s'est inspiré des mètres asymétriques balkaniques pour Blue Rondo à la Turk (9/8).",
+    compatibleModes: ["Mineur", "Éolien", "Dorien"],
+    examples: ["Pajduško horo (traditionnel bulgare)", "Blue Rondo à la Turk (Dave Brubeck — 9/8 voisin)", "Philip Koutev State Ensemble"]
+  },
+  {
+    name: "Račenica / Kopanitsa (7/8, aksak 2+2+3)",
+    numerals: "i-iv-V",
+    description: "La račenica est la danse la plus populaire de Bulgarie, souvent improvisée individuellement — on l'appelle 'la danse du coq'. Son cycle de 7 pulsations (2+2+3 croches) génère un balancement syncopé irrésistible. La progression i-iv-V couvre le cycle en trois blocs harmoniques dont la durée ne s'aligne jamais exactement avec la métrique asymétrique, créant une tension permanente entre harmonie et rythme. La kopanitsa (11/8 = 2+2+3+2+2) est une variante plus longue de même esprit.",
+    compatibleModes: ["Mineur", "Phrygien dominant", "Éolien"],
+    examples: ["Račenica (Ivo Papasov)", "Djanguvarkata (traditionnel)","Yuri Yunakov Ensemble", "Kopanitsa (Bulgarie du Nord)"]
+  },
+  {
+    name: "Oro macédonien (7/8, aksak 3+2+2)",
+    numerals: "i-bII-V",
+    description: "L'oro est la danse en ronde nationale de Macédoine du Nord, exécutée en chaîne (la signification de 'oro'). Son cycle de 7 pulsations en groupement 3+2+2 crée un mouvement ondulant différent du 2+2+3 bulgare. La progression i-bII-V est typiquement macédonienne : le degré bII (napolitain ou phrygien) avant la dominante crée une couleur orientale marquée. Cette couleur phrygienne se retrouve dans de nombreuses danses macédoniennes comme le Čačak et le Teškoto.",
+    compatibleModes: ["Phrygien dominant", "Phrygien", "Mineur harmonique"],
+    examples: ["Teškoto (traditionnel macédonien — 7/16)", "Čačak (Serbie/Macédoine)", "Goran Bregović — Ederlezi (adapté)"]
+  },
+  {
+    name: "Čoček rrom (9/8, aksak 2+2+2+3)",
+    numerals: "i-bVII-bVI-V7",
+    description: "Le čoček (tsatchak) est la danse traditionnelle des Roms des Balkans, caractérisée par ses mouvements de hanches sensuels et son rythme aksak en 9/8 (2+2+2+3). C'est l'une des danses les plus répandues dans la musique romani d'Europe du Sud-Est : Serbie, Macédoine, Bulgarie, Roumanie. Sa progression i-bVII-bVI-V correspond à la 'descente éolienne' balkanique, en tension constante avec la pulsation asymétrique. Goran Bregović et le compositeur Esma Redžepova en ont fait des versions mondialement connues.",
+    compatibleModes: ["Éolien", "Mineur", "Phrygien dominant"],
+    examples: ["Čoček (Esma Redžepova)", "Kalašnjikov (Goran Bregović)", "Fanfare Ciocărlia", "Boban Marković Orkestar"]
+  },
+  {
+    name: "Leventiko / Zeibekiko (9/8, aksak 3+2+2+2)",
+    numerals: "i-iv-i-V",
+    description: "Le zeibekiko est une danse grecque solitaire d'improvisation, souvent associée au rebetiko (blues grec). Sa mesure de 9/8 en groupement 3+2+2+2 est différente du karşılama turc (2+2+2+3) — le groupe de 3 vient en premier, donnant un élan initial plus pesant. Le danseur improvise seul, les bras étendus, dans un état proche de la transe. Le leventiko (macédonien/grec) partage cette structure. La progression i-iv-i-V est le cadre harmonique mineur classique de ces danses.",
+    compatibleModes: ["Éolien", "Mineur harmonique", "Dorien"],
+    examples: ["Zeibekiko (Mikis Theodorakis)", "Rebetiko traditionnel (Markos Vamvakaris)", "Vassilis Tsitsanis"]
+  },
+
+  // ─── PROGRESSIONS RENAISSANCE / BAROQUE (C-6) ────────────────────────────
+
+  {
+    name: "Lamento bass (basse chromatique descendante)",
+    numerals: "i-VII-bVII-bVI-V",
+    description: "La descente chromatique du i au V est l'un des dispositifs les plus expressifs du contrepoint baroque : la basse descend par demi-tons de la tonique jusqu'à la dominante, créant une inexorable sensation de chute et de douleur. Théorisée par les madrigalistes italiens (Monteverdi, Gesualdo), elle atteint son apogée chez Purcell (Dido's Lament, 1689) et Bach (Crucifixus de la Messe en si mineur, BWV 232). En jazz modal et en neo-soul contemporain, cette descente chromate reste un outil harmonique puissant pour exprimer le deuil ou la nostalgie.",
+    compatibleModes: ["Mineur harmonique", "Mineur", "Phrygien dominant"],
+    examples: ["Dido's Lament (Purcell, 1689)", "Crucifixus (Bach, BWV 232)", "When I Am Laid in Earth (Purcell)", "Miserere (Allegri)", "Eleanor Rigby (Beatles — descente chromatique de la voix supérieure)"]
+  },
+  {
+    name: "Basse obstinée (Ground bass)",
+    numerals: "i-iv-V-i",
+    description: "Le ground bass, ou basso ostinato, est une ligne de basse répétée sur laquelle le compositeur construit un édifice de variations mélodiques et harmoniques. La progression i-iv-V7-i est le cycle le plus répandu : il établit fermement la tonalité mineure (tonique, sous-dominante, dominante sensible, retour tonique). Popularisé par les virginalistes anglais (John Bull, William Byrd) et les luthistes de la Renaissance, il structure les plus grandes formes baroques — chaconne, passacaille, ground. Il reste vivant dans le walking bass du jazz, le blues mineur et la basse du flamenco.",
+    compatibleModes: ["Mineur", "Mineur harmonique", "Dorien"],
+    examples: ["Greensleeves (traditionnel anglais, Renaissance)", "The Queen's Command (John Bull)", "Gound (Henry Purcell)", "Prelude in C minor (Bach, BWV 999)", "Summertime (Gershwin — i-iv recontextualisé)"]
+  },
+  {
+    name: "Romanesca",
+    numerals: "bIII-bVII-i-V",
+    description: "La romanesca est l'une des formules de basse les plus populaires de la Renaissance et du premier Baroque (XVIe–XVIIe siècle) : bIII-bVII-i-V. On la retrouve dans des centaines de pièces pour luth, guitare baroque, viole et clavecin. Sa structure ternaire naturelle et son caractère dansant (proche de la zarabanda espagnole) en ont fait un terrain privilégié pour les divisions (ornementations improvisées). Monteverdi, Frescobaldi et Sanz l'ont chacun exploitée. Contrairement à La Folia (déjà dans cette liste), la romanesca commence sur le relatif majeur bIII, créant une couleur plus douce et pastorale.",
+    compatibleModes: ["Mineur", "Éolien", "Dorien"],
+    examples: ["Romanesca (Gaspar Sanz, 1674)", "Romanesca (Claudio Merulo)", "S'io parto, i' moro (Monteverdi — madrigal)", "Divisions on the Romanesca (Marin Marais)"]
+  },
+  {
+    name: "Passacaille (ostinato descente de quarte)",
+    numerals: "i-iv-i-V-i-bVI-bIII-V",
+    description: "La passacaille (passacaglia italienne) est, au sens strict, une forme de variations sur une basse obstinée — distinguée de la chaconne par la répétition de la ligne de basse elle-même (et non seulement de l'harmonie). Le modèle classique décrit un cycle de 8 mesures par descente de quarte (i→V) qui se referme sur lui-même. La Passacaille en ut mineur de Bach (BWV 582, pour orgue) représente l'aboutissement absolu de la forme : 20 variations sur une même basse immuable. Contemporains et musiciens de film (Ennio Morricone, Hans Zimmer) ont repris ce principe pour créer des crescendos émotionnels inexorables.",
+    compatibleModes: ["Mineur harmonique", "Mineur", "Phrygien dominant"],
+    examples: ["Passacaille en ut mineur (Bach, BWV 582, orgue)", "Passacaglia et Fugue (Händel)", "Crucifixus (Lotti)", "Colonel Bogey March (Alford — basse obstinée)", "Muse — Hysteria (basse répétée)"]
   }
 ];

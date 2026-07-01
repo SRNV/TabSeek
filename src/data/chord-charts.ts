@@ -401,5 +401,102 @@ import type { ChordChart } from '../types'
         "Autumn Leaves (Miles Davis, 1958 — Cannonball Adderley Quintet)",
         "Autumn Leaves (Bill Evans, Waltz for Debby)"
       ]
-    }
+    },
+
+  // ─── JAZZ STANDARDS (C-5) ─────────────────────────────────────────────────
+
+  {
+    name: "'Round Midnight",
+    genre: ["Jazz standard", "Bebop", "Ballade"],
+    structure: "AABA de 32 mesures (8+8+8+8)",
+    description: "Standard de Thelonious Monk (1944), l'un des thèmes de jazz les plus enregistrés. Sa progression chromatique et ses harmonies substitutées sont emblématiques du style Monk : aucune note superflue, chaque accord génère une tension colorée et inattendue. La structure AABA en mode mineur avec l'arpège descendant de l'intro est immédiatement reconnaissable.",
+    chords: {
+      minorKey: "im6 | iiø7-V7b9 | im-IVm7 | bVII7-bVImaj7 | VIIdim7-V7b9 | im | iiø7-V7b9 | im6 | im6 | iiø7-V7b9 | im-IVm7 | bVII7-bVImaj7 | VIIdim7-V7b9 | im | iiø7-V7b9 | V7b9 | bIIImaj7-bVI7 | bIImaj7-V7 | iim7b5-V7b9 | im | IVm7-bVII7 | bVImaj7-bII7 | iiø7-V7b9 | V7b9 | im6 | iiø7-V7b9 | im-IVm7 | bVII7-bVImaj7 | VIIdim7-V7b9 | im | iiø7-V7b9 | im6"
+    },
+    examples: [
+      "'Round Midnight (Thelonious Monk Quartet, 1947)",
+      "'Round Midnight (Miles Davis, Columbia, 1957)",
+      "'Round About Midnight (Charlie Parker, 1948)"
+    ],
+    variations: [
+      "Intro canonique : im(maj7)-im7-im6-iiø7-V7b9 (arpège descendant Monk)",
+      "Substitution tritone : V7b9 → bII7 pour renforcer le chromatisme"
+    ]
+  },
+
+  {
+    name: "Cherokee",
+    genre: ["Jazz standard", "Bebop"],
+    structure: "AABA de 64 mesures (16+16+32+16)",
+    description: "Standard de Ray Noble (1938), terrain d'improvisation bebop rendu célèbre par Charlie Parker. Son bridge module par tons entiers descendants — le même principe que Coltrane utilisera 20 ans plus tard dans Giant Steps. Le thème A est simple, mais le pont est une leçon complète en modulations par tierces majeures.",
+    chords: {
+      majorKey: "Imaj7 | IVmaj7 | Imaj7 | iim7-V7 | iim7 | V7 | Imaj7 | Imaj7 | Imaj7 | IVmaj7 | Imaj7 | iim7-V7 | iim7 | V7 | Imaj7 | Imaj7 | bIImaj7 | V7/bII | bIImaj7 | V7/bII | bVImaj7 | V7/bVI | bIVmaj7 | V7/bIV | bIVmaj7 | V7/bIV | bIImaj7 | V7/bII | iim7 | V7 | Imaj7 | V7 | Imaj7 | IVmaj7 | Imaj7 | iim7-V7 | iim7 | V7 | Imaj7 | Imaj7 | Imaj7 | IVmaj7 | Imaj7 | iim7-V7 | iim7 | V7 | Imaj7 | Imaj7"
+    },
+    examples: [
+      "Cherokee (Charlie Barnet, 1939 — version originale populaire)",
+      "Ko-Ko (Charlie Parker, 1945 — bebop sur les changes de Cherokee)",
+      "Cherokee (Clifford Brown, 1955)"
+    ],
+    variations: [
+      "Bebop bridge : iiø7-V7b9-im sur chaque tonalité de passage",
+      "Version accélérée : 240+ bpm, test de virtuosité bebop"
+    ]
+  },
+
+  {
+    name: "Wave (A Onda)",
+    genre: ["Bossa Nova", "Jazz standard"],
+    structure: "AABA de 32 mesures",
+    description: "Composition d'Antônio Carlos Jobim (1967). Son harmonie utilise des médiantes chromatiques et des II-V-I en cascade vers des tonalités éloignées, créant un effet de 'vague' harmonique. Wave est l'une des compositions de Jobim les plus harmoniquement sophistiquées tout en restant mélodiquement immédiate.",
+    chords: {
+      majorKey: "Imaj7 | bVII7 | IIImaj7-VI7 | iim7-V7 | bVImaj7 | bII7 | Imaj7 | iim7-V7 | IIImaj7 | VI7 | IImaj7 | V7/II | iim7 | bII7 | Imaj7 | V7sus4 | Imaj7 | bVII7 | IIImaj7-VI7 | iim7-V7 | bVImaj7 | bII7 | Imaj7 | iim7-V7"
+    },
+    examples: [
+      "Wave (Antônio Carlos Jobim, Wave LP, 1967)",
+      "Wave (João Gilberto, 1969)",
+      "Wave (Frank Sinatra & Tom Jobim, 1967)"
+    ],
+    variations: [
+      "Guitare solo : voicings 4 sons sur les degrés altérés, position ouverte",
+      "Trio piano : pédale de tonique pendant la descente chromatique des soprani"
+    ]
+  },
+
+  {
+    name: "Corcovado (Quiet Nights of Quiet Stars)",
+    genre: ["Bossa Nova", "Jazz standard"],
+    structure: "Couplet-refrain en 2 sections de 16 mesures",
+    description: "Composition de Jobim (1960), l'une des plus intimes de la bossa nova. Sa progression alterne ii-V-I majeurs et mineurs avec des accords chromatiques intermédiaires (im-IV7-bVIImaj7-bIII7). Le titre fait référence au quartier Corcovado de Rio. La mélodie plane sur une harmonie dont les changements semblent flotter entre tension et résolution.",
+    chords: {
+      majorKey: "Imaj7 | im7-IV7 | bVIImaj7 | bIII7 | vim7 | bVI7 | iim7 | V7b9 | vim7 | bVI7 | Imaj7 | bII7 | iim7 | V7 | Imaj7 | Imaj7"
+    },
+    examples: [
+      "Corcovado (Antônio Carlos Jobim, 1960)",
+      "Quiet Nights of Quiet Stars (Stan Getz & João Gilberto, 1963)",
+      "Quiet Nights (Ella Fitzgerald, 1982)"
+    ],
+    variations: [
+      "Version lente : extensions 9 et 13 sur les dominants",
+      "Version samba : accords en position fermée pour la basse"
+    ]
+  },
+
+  {
+    name: "Have You Met Miss Jones?",
+    genre: ["Jazz standard", "Swing"],
+    structure: "AABA de 32 mesures (8+8+8+8)",
+    description: "Standard de Richard Rodgers / Lorenz Hart (1937). Son bridge module par tierces majeures (I → bVI → bIV → I), anticipant de 20 ans les Coltrane Changes. Cette modulation symétrique par tierces était unique en 1937 et a fasciné les boppers qui l'ont étudiée comme démonstration précoce des substitutions par tierces.",
+    chords: {
+      majorKey: "Imaj7 | iim7-V7 | Imaj7 | iiim7-VI7 | IVmaj7-V7 | iim7-bVII7 | Imaj7 | iiø7-V7b9 | Imaj7 | iim7-V7 | Imaj7 | iiim7-VI7 | IVmaj7-V7 | iim7-bVII7 | Imaj7 | Imaj7 | bVImaj7 | iim7/bVI-V7/bVI | bIVmaj7 | iim7/bIV-V7/bIV | Imaj7 | iim7-V7 | Imaj7 | V7 | Imaj7 | iim7-V7 | Imaj7 | iiim7-VI7 | IVmaj7-V7 | iim7-bVII7 | Imaj7 | Imaj7"
+    },
+    examples: [
+      "Have You Met Miss Jones? (Hal McIntyre, 1937 — version originale)",
+      "Have You Met Miss Jones? (Fats Waller, 1937)",
+      "Have You Met Miss Jones? (Oscar Peterson Trio, 1959)"
+    ],
+    variations: [
+      "Bridge tritone subs : V7/bVI → bII7 sur chaque tonalité de passage",
+      "Arrangement Bill Evans : IVmaj7#11 sur les mesures A"
+    ]
+  }
   ];

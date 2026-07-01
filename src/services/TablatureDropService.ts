@@ -67,6 +67,7 @@ export const TablatureDropService = {
     
     ph()
     const addedGroupIds: string[] = []
+    let prevDropVoicing: Voicing[] | undefined = undefined
 
     let effectiveScalePc = scalePc
     let forcedRoot: Voicing | undefined = undefined
@@ -137,7 +138,7 @@ export const TablatureDropService = {
       const notesPc   = chordData.notes
       const addedIds: string[] = []
 
-      const rawVoicing = findBestChordFrets(tuning, notesPc, si, ci === 0 ? forcedRoot : undefined)
+      const rawVoicing = findBestChordFrets(tuning, notesPc, si, ci === 0 ? forcedRoot : undefined, prevDropVoicing)
       // Defensive: deduplicate strings in case the algorithm still returns conflicts
       // (should not happen after the fallback fix, but guards against edge cases).
       const seenSi = new Set<number>()
@@ -145,7 +146,8 @@ export const TablatureDropService = {
         if (seenSi.has(v.si)) return false
         seenSi.add(v.si); return true
       })
-      
+      prevDropVoicing = voicing
+
       voicing.forEach(v => {
         const targetSi = v.si
         

@@ -3436,4 +3436,416 @@ export const rhythmPatterns: RhythmPatternDef[] = [
     examples: ["Donna Donna (Klezmer)", "Shpil-Zhe Mir (Dave Tarras)", "David Krakauer Klezmer Madness"],
   },
 
+  // ═══════════════════════════════════════════════════════
+  // FLAMENCO COMPLÉMENTAIRE (C-1)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Flamenco Alegrías",
+    emoji: ':dancer:',
+    description: "Cycle de 12 pulsations en croches — le compás por alegrías. Les accents tombent sur les temps 1, 4, 7, 8, 10, 12 (index 0-based : 0, 3, 6, 7, 9, 11), différenciant les alegrías de la soleá (accents sur 3,6,8,10,12). Le caracttère des alegrías est festif et brillant — les compás commencent sur le temps 1 fort, contrairement à la soleá qui commence 'en levé'. Palos 'por alegrías' : alegrías proprement dite, cantiñas, romera, mirabras.",
+    timeSignature: '12/8',
+    tempo: { min: 130, max: 200, typical: 160 },
+    feel: 'latin',
+    bars: 1,
+    tracks: [
+      {
+        part: 'perc',
+        // Accents alegrías : 0, 3, 6, 7, 9, 11 (vs soleá : 2, 5, 7, 9, 11)
+        steps: withAccents(
+          [1,0,0,1,0,0,1,1,0,1,0,1],
+          [0, 3, 6, 7, 9, 11], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,0,1,1,0,1,0,1] — compás alegrías (accents 1,4,7,8,10,12)"
+      },
+      {
+        part: 'kick',
+        // Cajon bajo : temps forts 1, 4, 7 — golpe grave
+        steps: withAccents(
+          [1,0,0,1,0,0,1,0,0,0,0,0],
+          [0, 3, 6], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual kick — temps forts alegrías"
+      },
+      {
+        part: 'hihat',
+        // Palmas chicas continues (croches égales)
+        steps: withVelocity(RhythmPattern.euclid(12, 12), 0.45),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(12, 12) — palmas chicas continues"
+      },
+    ],
+    compatibleGenres: ["Flamenco", "Alegrías", "Cantiñas", "Musique andalouse"],
+    examples: ["Alegrías (Paco de Lucía)", "Cantiñas (Camarón de la Isla)", "Romera (Tomatito)"],
+  },
+
+  {
+    name: "Flamenco Tangos",
+    emoji: ':dancer:',
+    description: "Le tangos flamenco est en mesure binaire (4/4 à 2 tiempos), contrairement aux palos de 12 temps. Chaque compás compte 4 pulsations avec un fort accent syncopé caractéristique : le contretemps avant le 2 et avant le 4 donnent la sensation de balancement 'dos por cuatro'. Le tangos regroupe les palos : tangos, tientos (variante lente), farruca, garrotín, rumba gitana. Tempo vif, caractère joyeux et populaire.",
+    timeSignature: '4/4',
+    tempo: { min: 140, max: 220, typical: 175 },
+    feel: 'latin',
+    bars: 1,
+    tracks: [
+      {
+        part: 'perc',
+        // Tangos : accent sur les 16ths 0, 4, 6, 8, 12, 14 → [1,0,0,0, 1,0,1,1, 1,0,0,0, 1,0,1,0]
+        steps: withAccents(
+          [1,0,0,0, 1,0,1,1, 1,0,0,0, 1,0,1,0],
+          [0, 4, 8, 12], 1.0, 0.8
+        ),
+        division: 's',
+        tonal: "Manual 16ths [1,0,0,0,1,0,1,1,1,0,0,0,1,0,1,0] — tangos flamenco syncopé"
+      },
+      {
+        part: 'kick',
+        // Cajon bajo sur le 1 et 9 (beats 1 et 3)
+        steps: withAccents(RhythmPattern.euclid(16, 2), [0], 1.0, 0.8),
+        division: 's',
+        tonal: "RhythmPattern.euclid(16, 2) — cajon grave beats 1 et 3"
+      },
+      {
+        part: 'hihat',
+        // Croches continues
+        steps: withVelocity(RhythmPattern.euclid(16, 8), 0.45),
+        division: 's',
+        tonal: "RhythmPattern.euclid(16, 8) — croches continues tangos"
+      },
+    ],
+    compatibleGenres: ["Flamenco", "Tangos", "Rumba flamenca", "Tientos", "Garrotín"],
+    examples: ["Tangos (Paco de Lucía)", "Entre Dos Aguas (Paco de Lucía — rumba)", "Tangos del Sacromonte (traditionnel)"],
+  },
+
+  {
+    name: "Flamenco Farruca",
+    emoji: ':dancer:',
+    description: "La farruca est l'un des palos les plus graves et les plus exigeants du flamenco — danse exclusivement masculine à l'origine. En mesure binaire (4/4), son compás est marqué, sévère, sans fioritures : chaque temps est clairement afirmé. Le cycle 'por farruca' se déroule sur 4 compases de 4 tiempos (16 temps au total). Le caractère dramatique et sobre de la farruca en fait un palo difficile à maîtriser — ses tempos lents exigent un contrôle maximal du corps.",
+    timeSignature: '4/4',
+    tempo: { min: 60, max: 120, typical: 80 },
+    feel: 'straight',
+    bars: 2,
+    tracks: [
+      {
+        part: 'perc',
+        // Farruca : accent marqué sur 1 et 3, contretemps syncopé entre 2 et 3
+        steps: withAccents(
+          [...[1,0,1,0,0,1,0,1], ...[1,0,1,0,0,1,0,1]],
+          [0, 2, 8, 10], 1.0, 0.75
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,1,0,0,1,0,1] × 2 — compás farruca grave et marqué"
+      },
+      {
+        part: 'kick',
+        // Golpe (coup de talon) : temps 1 et 3
+        steps: withVelocity(
+          [...RhythmPattern.euclid(8, 2), ...RhythmPattern.euclid(8, 2)],
+          1.0
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 2) × 2 — golpe farruca beats 1 et 3"
+      },
+      {
+        part: 'snare',
+        // Caisse claire (planta) : temps 2 et 4
+        steps: withVelocity(
+          [...RhythmPattern.rotate(RhythmPattern.euclid(8, 2), 2), ...RhythmPattern.rotate(RhythmPattern.euclid(8, 2), 2)],
+          0.85
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.rotate(euclid(8,2), 2) × 2 — planta farruca beats 2 et 4"
+      },
+    ],
+    compatibleGenres: ["Flamenco", "Farruca", "Danse flamenca masculine", "Palo grave"],
+    examples: ["Farruca (Vicente Escudero — pionnier)", "Farruca (Mario Maya)", "Farruca (Farruquito)"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // TÂLAS CARNATIC (C-2)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Misra Chapu (7 matras = 3+4)",
+    emoji: ':musical_note:',
+    description: "Le Misra Chapu est un talam de la musique carnatique (Inde du Sud) à 7 matras structurées en 3+4. Le solkattu (vocalisation rythmique) : Ta-Ki-Ṭa (3) + Ta-Ka-Di-Mi (4). Ce talam 'chapu' (mot tamoule désignant une subdivision inégale) est asymétrique : la première cellule de 3 et la seconde de 4 créent un mouvement en 'boitement' caractéristique. Utilisé dans de nombreuses kritis (compositions vocales carnatiques) et dans la musique de danse Bharatanatyam.",
+    timeSignature: '7/8',
+    tempo: { min: 60, max: 180, typical: 100 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        // Mridangam : accent sur le début de chaque cellule — positions 0 (Ta-Ki-Ṭa) et 3 (Ta-Ka-Di-Mi)
+        steps: withAccents(
+          [1, 0, 0, 1, 0, 0, 0],
+          [0, 3], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,0,0] — Misra Chapu groupement 3+4"
+      },
+      {
+        part: 'snare',
+        // Thavil (percussion lead) : accents secondaires en euclid(7,3)
+        steps: withVelocity(RhythmPattern.euclid(7, 3), 0.8),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(7, 3) — accents thavil Misra Chapu"
+      },
+      {
+        part: 'hihat',
+        // Tâla (battement de mains) : toutes les 7 pulsations
+        steps: withVelocity(RhythmPattern.euclid(7, 7), 0.5),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(7, 7) — pulsation continue Misra Chapu"
+      },
+    ],
+    compatibleGenres: ["Musique carnatique", "Bharatanatyam", "Musique classique indienne du Sud"],
+    examples: ["Kriti 'Vatapi Ganapatim' (Muthuswami Dikshitar, adapté en Misra)", "Pallavi carnatique en Misra Chapu"],
+  },
+
+  {
+    name: "Khanda Chapu (5 matras = 2+3)",
+    emoji: ':musical_note:',
+    description: "Le Khanda Chapu est un talam carnatique à 5 matras en groupement 2+3. Solkattu : Ta-Ka (2) + Ta-Ka-Ṭa (3). C'est le pendant quinaire du Misra Chapu septénaire. Très populaire dans les compositions vocales légères (bhajan, keertana), il est proche de la mesure à 5/8 du jazz progressif (Dave Brubeck, Take Five en 5/4) et des polyrythmes du funk (James Brown, '5/4 groove'). En danse Bharatanatyam, ses groupes inégaux créent une ondulation naturelle.",
+    timeSignature: '5/8',
+    tempo: { min: 60, max: 200, typical: 110 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        // Mridangam : début des deux cellules — positions 0 (Ta-Ka) et 2 (Ta-Ka-Ṭa)
+        // euclid(5,2) = [1,0,1,0,0] — exactement le groupement 2+3
+        steps: withAccents(RhythmPattern.euclid(5, 2), [0, 2], 1.0, 0.8),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(5, 2) = [1,0,1,0,0] — groupement 2+3 Khanda Chapu"
+      },
+      {
+        part: 'snare',
+        // Accents secondaires : euclid(5,3) = [1,0,1,0,1]
+        steps: withVelocity(RhythmPattern.euclid(5, 3), 0.75),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(5, 3) — thavil Khanda Chapu"
+      },
+      {
+        part: 'hihat',
+        // Pulsation de base : toutes les 5 croches
+        steps: withVelocity(RhythmPattern.euclid(5, 5), 0.5),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(5, 5) — pulsation continue Khanda Chapu"
+      },
+    ],
+    compatibleGenres: ["Musique carnatique", "Bharatanatyam", "Jazz progressif", "Fusion"],
+    examples: ["Take Five (Dave Brubeck, 5/4 — esprit proche)", "Bhajan en Khanda Chapu", "Compositions Tyagaraja adaptées"],
+  },
+
+  {
+    name: "Rupakam (6 matras = 3+2+1)",
+    emoji: ':musical_note:',
+    description: "Le Rupaka talam est l'un des Sapta (7) talas fondamentaux de la musique carnatique. En version 'chapu', son cycle de 6 matras se découpe en 3+2+1 — une cellule de 3 (laghu), une de 2 (drutam) et une de 1 (anudruta). Solkattu : Dhin-na-dhin (3) + Ta-Ka (2) + Dhin (1). Ce découpage asymétrique croissant-décroissant lui donne un caractère unique parmi les talas. Très utilisé dans les compositions du saint compositeur Thyagaraja et dans les raga alapanas (exposés mélodiques).",
+    timeSignature: '6/8',
+    tempo: { min: 40, max: 160, typical: 80 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        // Mridangam : début des 3 cellules — positions 0 (×3), 3 (×2), 5 (×1)
+        steps: withAccents(
+          [1, 0, 0, 1, 0, 1],
+          [0, 3, 5], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,1] — Rupakam groupement 3+2+1"
+      },
+      {
+        part: 'snare',
+        // Kanjira (percussion secondaire) : euclid(6,3) = points de subdivision
+        steps: withVelocity(RhythmPattern.euclid(6, 3), 0.7),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(6, 3) — kanjira Rupakam"
+      },
+      {
+        part: 'hihat',
+        // Tâla : toutes les 6 pulsations
+        steps: withVelocity(RhythmPattern.euclid(6, 6), 0.45),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(6, 6) — pulsation continue Rupakam"
+      },
+    ],
+    compatibleGenres: ["Musique carnatique", "Kritis Thyagaraja", "Raga alapana", "Musique classique indienne du Sud"],
+    examples: ["Endaro Mahanubhavulu (Thyagaraja, Rupaka talam)", "Sri Gananatha (Muthuswami Dikshitar)"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // USUL TURCS (C-3)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Düyek (8/8 = 3+2+3)",
+    emoji: ':crescent_moon:',
+    description: "Le Düyek est l'un des usul (cycles rythmiques) les plus importants de la musique ottomane et turque classique. Son découpage 3+2+3 en 8 croches crée un mouvement asymétrique distinct du waltz (3/4) et du binaire (4/4). La darbuka (tombak) joue le düm (grave, ouvert) sur les positions 0 et 5, et le tek/ka (aigu, fermé) sur les positions intermédiaires. Le Düyek est le cadre rythmique de nombreuses pièces du répertoire makam (modal turc) et de l'art saz şiiri (poésie avec saz).",
+    timeSignature: '8/8',
+    tempo: { min: 80, max: 180, typical: 120 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        // Darbuka düm (grave) : positions 0, 3, 5 (début de chaque groupe 3+2+3)
+        steps: withAccents(
+          [1, 0, 0, 1, 0, 1, 0, 0],
+          [0, 3, 5], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,1,0,0] — düm düyek groupement 3+2+3"
+      },
+      {
+        part: 'snare',
+        // Darbuka tek/ka (aigu) : positions non-düm
+        steps: withAccents(
+          [0, 1, 0, 0, 1, 0, 1, 1],
+          [1, 4, 6, 7], 0.85, 0.65
+        ),
+        division: 'e',
+        tonal: "Manual tek/ka darbuka — Düyek 3+2+3"
+      },
+      {
+        part: 'hihat',
+        // Zil (cymbale) : croches continues
+        steps: withVelocity(RhythmPattern.euclid(8, 8), 0.45),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 8) — zil continu Düyek"
+      },
+    ],
+    compatibleGenres: ["Musique ottomane classique", "Makam turc", "Musique moyen-orientale", "Musique des Balkans"],
+    examples: ["Saz semaisi (répertoire makam en Düyek)", "Fasıl turc (soirée musicale ottomane)", "Müzeyyen Senar"],
+  },
+
+  {
+    name: "Sengin Semai (10/8 = 3+2+2+3)",
+    emoji: ':crescent_moon:',
+    description: "Le Sengin Semai (ou Aksak Semai) est un usul turc en 10/8, découpé en groupes 3+2+2+3. C'est la version en 10 temps du principe aksak, complémentaire du Karşılama (9/8 = 2+2+2+3) déjà présent dans cette bibliothèque. Son nom 'semai' désigne la forme musicale chantée et son association avec certaines maqamat (maquams) spécifiques. Les darbuka jouent un düm grave sur les positions 0, 3, 5, 7, les tek sur les positions intermédiaires.",
+    timeSignature: '10/8',
+    tempo: { min: 70, max: 160, typical: 110 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        // Darbuka düm : débuts de groupes 3+2+2+3 = positions 0, 3, 5, 7
+        steps: withAccents(
+          [1, 0, 0, 1, 0, 1, 0, 1, 0, 0],
+          [0, 3, 5, 7], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,1,0,1,0,0] — düm Sengin Semai 3+2+2+3"
+      },
+      {
+        part: 'snare',
+        // Tek/ka aux positions non-düm
+        steps: withAccents(
+          [0, 1, 0, 0, 1, 0, 1, 0, 1, 1],
+          [1, 4, 6, 8, 9], 0.85, 0.6
+        ),
+        division: 'e',
+        tonal: "Manual tek/ka — Sengin Semai contretemps"
+      },
+      {
+        part: 'hihat',
+        steps: withVelocity(RhythmPattern.euclid(10, 10), 0.45),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(10, 10) — zil continu Sengin Semai"
+      },
+    ],
+    compatibleGenres: ["Musique ottomane classique", "Makam turc", "Semai", "Musique moyen-orientale"],
+    examples: ["Semai (répertoire fasıl ottoman en 10/8)", "Şarkı turcs en Aksak Semai", "Tanburi Cemil Bey"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // POLYRHYTHMIE AFRICAINE (C-4)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Bell Pattern Ewe (12/8, 7 frappes sur 12)",
+    emoji: ':drum:',
+    description: "Le 'standard pattern' ou 'timeline' des musiques Ewe (Ghana, Togo, Bénin) : 7 frappes asymétriques réparties sur 12 pulsations de 8e, créant un cycle qui ne se répète qu'après 12 temps. Ce pattern de cloche (gankogui) est fondamental dans les musiques d'Afrique de l'Ouest : agbadza, kpanlogo, borborbor (Ewe), highlife, afrobeat. Sa structure correspond à euclid(12,7) et est identique au clave 6-3 cubain tourné, démontrant l'influence africaine dans les musiques afro-caribéennes. Ethnomusicologue Kofi Agawu et Victor Kofi Agawu en ont fait l'analyse fondatrice.",
+    timeSignature: '12/8',
+    tempo: { min: 80, max: 160, typical: 115 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'perc',
+        // Gankogui (double cloche en fer) — standard pattern Ewe
+        // 7 frappes sur 12 : positions 0, 2, 4, 6, 7, 9, 11
+        steps: withAccents(
+          [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
+          [0, 6, 7], 1.0, 0.8
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,1,0,1,0,1,1,0,1,0,1] — gankogui Ewe standard pattern (7/12)"
+      },
+      {
+        part: 'kick',
+        // Atsimevu (master drum) : euclid(12,4) — points pivots du cycle
+        steps: withVelocity(RhythmPattern.euclid(12, 4), 0.9),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(12, 4) — atsimevu Ewe points pivots"
+      },
+      {
+        part: 'snare',
+        // Kidi (tambour de réponse) : euclid(12,3) — tierce de la cloche
+        steps: withVelocity(RhythmPattern.euclid(12, 3), 0.75),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(12, 3) — kidi Ewe réponse"
+      },
+    ],
+    compatibleGenres: ["Musique Ewe", "Agbadza", "Kpanlogo", "Afrobeat", "Highlife", "Musique afro-caribéenne"],
+    examples: ["Agbadza (traditionnel Ewe, Ghana/Togo)", "Kpanlogo (Accra, Ghana)", "Fela Kuti (influence bell pattern)"],
+  },
+
+  {
+    name: "Fanga malien (6/8, pattern Mandingue)",
+    emoji: ':drum:',
+    description: "Le Fanga est un rythme cérémoniel traditionnel originaire de Guinée et du Mali, joué dans les sociétés mandingues (Malinké, Bambara, Dioula) pour accueillir les hôtes de marque et célébrer les unions. Son cycle de 6 pulsations en 6/8 est animé par le djembe (frappe basse-soufflet-ton : B-S-T) et le dundun (basse tambour à deux faces). Le motif dundun est répétitif et ancré sur les temps forts 1 et 4, tandis que le djembe lead improvise au-dessus. Source historique : Mamady Keïta (maître djembéfola guinéen).",
+    timeSignature: '6/8',
+    tempo: { min: 90, max: 150, typical: 116 },
+    feel: 'straight',
+    bars: 2,
+    tracks: [
+      {
+        part: 'kick',
+        // Dundun (basse) : frappe sur les temps 1 et 4 (pos. 0 et 3) sur 2 mesures
+        steps: withAccents(
+          [...[1, 0, 0, 1, 0, 0], ...[1, 0, 0, 1, 0, 0]],
+          [0, 3, 6, 9], 1.0, 0.0
+        ),
+        division: 'e',
+        tonal: "Manual [1,0,0,1,0,0] × 2 — dundun Fanga temps 1 et 4"
+      },
+      {
+        part: 'snare',
+        // Djembe accompagnement : pattern de base ton-soufflet en euclid(6,3)
+        steps: withAccents(
+          [...RhythmPattern.euclid(6, 3), ...RhythmPattern.rotate(RhythmPattern.euclid(6, 3), 1)],
+          [0, 2, 4, 7, 9, 11], 0.85, 0.65
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(6, 3) + rotate — djembe accompagnement Fanga"
+      },
+      {
+        part: 'hihat',
+        // Sangban (cloche) : euclid(12,6) = croches égales sur 2 mesures
+        steps: withVelocity(RhythmPattern.euclid(12, 6), 0.5),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(12, 6) — sangban cloche Fanga"
+      },
+    ],
+    compatibleGenres: ["Musique mandingue", "Djembe", "Musique guinéenne", "Musique malienne", "Percussion africaine"],
+    examples: ["Fanga (Mamady Keïta, maître djembéfola)", "Fanga (Famoudou Konaté)", "Djembe Guinea traditionnel"],
+  },
+
 ]

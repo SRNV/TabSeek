@@ -29,7 +29,10 @@
       "Bash(npx vitest *)",
       "Bash(grep -n \"^  {$\\\\|name:\" \"c:/Users/rudy_/Documents/TabSeek/src/data/rhythmPatterns.ts\")",
       "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"data/\" })",
-      "Bash(git -C \"c:/Users/rudy_/Documents/TabSeek\" diff --stat HEAD)"
+      "Bash(git -C \"c:/Users/rudy_/Documents/TabSeek\" diff --stat HEAD)",
+      "WebSearch",
+      "Bash(python3 -c ' *)",
+      "Bash(node \"C:/Users/rudy_/AppData/Local/Temp/claude/c--Users-rudy--Documents-TabSeek/9fe4979b-2f06-474b-bb95-281230d2a1de/scratchpad/fix_chords.js\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\rudy_\\.claude\\projects\\c--Users-rudy--Documents-TabSeek\\memory"

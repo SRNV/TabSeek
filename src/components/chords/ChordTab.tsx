@@ -2,12 +2,21 @@
 import './ChordTab.scss'
 import { Note } from 'tonal'
 import { useMainStore } from '../../stores/useMainStore'
-import { ALL_CHORDS, getReadableChordName } from '../../data/tonalChordsMapping'
+import { useTablatureStore } from '../../stores/useTablatureStore'
+import { ALL_CHORDS, getReadableChordName, TonalChordType } from '../../data/tonalChordsMapping'
 import Tab from '../tab/Tab'
 import Notes from '../Notes'
 import { useMidiUtils } from '../../hooks/useMidiUtils'
+import { detectChordVoicings } from '../../hooks/useGuitarChords'
+import { CHORDS } from '../../data/chords'
 
 import { ChordsCompleteDef } from '../../types'
+
+type VoicingDisplay = {
+  position: number
+  frets: (number | null)[]
+  fingers?: (number | null)[]
+}
 
 interface ChordTabProps {
   chordType: string
@@ -31,6 +40,7 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
   }, [hoveredRootNote, chordRootNote])
 
   const { notesToMidi } = useMidiUtils()
+  const tuningStr = useTablatureStore(s => s.tuning)
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const currentIdx = useMemo(() => {
@@ -63,6 +73,28 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
   }, [chordData, effectiveRoot])
 
   const chordMidiList = useMemo(() => notesToMidi(chordNotes), [chordNotes, notesToMidi])
+
+  // ── Dynamic voicings (tuning-aware) ──────────────────────────────────────
+  const voicings = useMemo((): VoicingDisplay[] => {
+    if (!chordData) return []
+    const rootPc = Note.get(effectiveRoot).pc || 'C'
+    const tuning = tuningStr.split(',')
+    const dynamic = detectChordVoicings(chordType, rootPc, tuning)
+    if (dynamic.length > 0) {
+      return dynamic.slice(0, 3).map((v, i) => ({
+        position: i + 1,
+        frets: v.frets.map(f => f === -1 ? null : f),
+      }))
+    }
+    // Fallback: static templates from chords.ts (for chord types unknown to Tonal.js)
+    const staticDef = CHORDS[chordType as TonalChordType]
+    if (!staticDef) return []
+    return staticDef.positions.slice(0, 3).map(p => ({
+      position: p.position,
+      frets: p.frets,
+      fingers: p.fingers,
+    }))
+  }, [chordData, chordType, effectiveRoot, tuningStr])
 
   const formattedChordName = useMemo(() => {
     if (!chordData) return '—'
@@ -138,18 +170,18 @@ export default function ChordTab({ chordType, chordData, hideFretboard = false }
               </div>
             )}
 
-            {chordData.positions?.length > 0 && (
+            {voicings.length > 0 && (
               <div className="chord-fingering">
-                <h4>Positions des doigts:</h4>
+                <h4>Positions ({voicings.length}):</h4>
                 <div className="fingering-list">
-                  {chordData.positions.slice(0, 1).map((pos: any, pi: number) => (
+                  {voicings.map((pos, pi) => (
                     <div key={pi} className="position-card">
-                      <div className="position-number">Position {pos.position || pi + 1}</div>
+                      <div className="position-number">Position {pos.position}</div>
                       <div className="position-frets">
-                        {pos.frets?.map((fret: any, fi: number) => (
+                        {pos.frets.map((fret, fi) => (
                           <span key={fi} className={['fret-value', fret === null ? 'muted' : ''].filter(Boolean).join(' ')}>
                             {fret === null ? 'x' : fret}
-                            {pos.fingers?.[fi] !== null && (
+                            {pos.fingers?.[fi] != null && pos.fingers[fi] !== 0 && (
                               <small className="finger-indicator">{pos.fingers[fi]}</small>
                             )}
                           </span>

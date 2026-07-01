@@ -32,6 +32,9 @@ import { useTablatureDragHandler } from '../../hooks/useTablatureDragHandler'
 import { useTablatureKeyboard } from '../../hooks/useTablatureKeyboard'
 import { useTablatureCamera } from '../../hooks/useTablatureCamera'
 import { useTablatureFileDrop } from '../../hooks/useTablatureFileDrop'
+import { useProjectAutoSave } from '../../hooks/useProjectAutoSave'
+import { ProjectSerializerService } from '../../services/ProjectSerializerService'
+import { TablaturePDFService } from '../../services/TablaturePDFService'
 import { BEHAVIORS, BEHAVIOR_KEYS } from '../../data/legatoBehaviors'
 import { ModeZoneTint } from './scene/ModeZoneTint'
 import { PlaybackIndicator } from './scene/PlaybackIndicator'
@@ -724,11 +727,75 @@ export default function TablatureR3F() {
   const tuning    = useTablatureStore(s => s.tuning)
   const tuningArr = useMemo(() => tuning.split(','), [tuning])
 
-  const { 
+  const {
     notes,
-    isPlaying, playbackBeat, togglePlayback, setPlaybackBeat, tempo, setTempo, 
-    isLooping, setLooping, isFollowing, setFollowing
+    isPlaying, playbackBeat, togglePlayback, setPlaybackBeat, tempo, setTempo,
+    isLooping, setLooping, isFollowing, setFollowing,
+    projectName, isProjectDirty, importProject, setProjectName,
   } = useTablatureR3FStore()
+
+  const [renamingProject, setRenamingProject] = useState(false)
+  const [nameInput, setNameInput] = useState(projectName)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  function commitRename() {
+    const trimmed = nameInput.trim()
+    if (trimmed) setProjectName(trimmed)
+    else setNameInput(projectName)
+    setRenamingProject(false)
+  }
+
+  useProjectAutoSave()
+
+  // Sync document title with project name and dirty state
+  useEffect(() => {
+    document.title = `${isProjectDirty ? '● ' : ''}${projectName} — TabSeek`
+  }, [projectName, isProjectDirty])
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleSave() {
+    const r3f    = useTablatureR3FStore.getState()
+    const data   = ProjectSerializerService.serialize(
+      {
+        notes:             r3f.notes,
+        chordGroups:       r3f.chordGroups,
+        progressionGroups: r3f.progressionGroups,
+        rhythmModifiers:   r3f.rhythmModifiers,
+        modeZones:         r3f.modeZones,
+        tempo:             r3f.tempo,
+        projectName:       r3f.projectName,
+      },
+      tuning
+    )
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${r3f.projectName.replace(/[^a-z0-9_\-]/gi, '_')}.tabseek`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleFileLoad(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const result = ProjectSerializerService.deserialize(ev.target?.result as string)
+      if (result.ok) {
+        importProject(result.data)
+        if (result.data.settings.tuning) {
+          useTablatureStore.setState({ tuning: result.data.settings.tuning })
+        }
+      } else {
+        alert(`Impossible d'ouvrir le projet :\n${result.error}`)
+      }
+    }
+    reader.readAsText(file)
+    // Reset input so the same file can be re-opened
+    e.target.value = ''
+  }
 
   const rawMaxBeat = notes.length > 0 
     ? Math.max(...notes.map(n => n.startBeat + n.duration)) 
@@ -793,13 +860,72 @@ export default function TablatureR3F() {
         </div>
 
         <div className="tempo-section">
-          <input 
-            type="number" 
-            className="tempo-input" 
-            value={tempo} 
-            onChange={e => setTempo(Math.max(1, parseInt(e.target.value) || 1))} 
+          <input
+            type="number"
+            className="tempo-input"
+            value={tempo}
+            onChange={e => setTempo(Math.max(1, parseInt(e.target.value) || 1))}
           />
           <span className="bpm-label">BPM</span>
+        </div>
+
+        <div className="project-toolbar">
+          {renamingProject ? (
+            <input
+              ref={nameInputRef}
+              className="project-name-input"
+              value={nameInput}
+              autoFocus
+              onChange={e => setNameInput(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+                if (e.key === 'Escape') { setNameInput(projectName); setRenamingProject(false) }
+              }}
+            />
+          ) : (
+            <span
+              className={`project-name${isProjectDirty ? ' dirty' : ''}`}
+              title="Double-cliquer pour renommer"
+              onDoubleClick={() => { setNameInput(projectName); setRenamingProject(true) }}
+            >
+              {isProjectDirty ? `● ${projectName}` : projectName}
+            </span>
+          )}
+          <button className="ctrl-btn" onClick={handleSave} title="Sauvegarder le projet (.tabseek)">
+            <span className="material-symbols-outlined">save</span>
+          </button>
+          <button className="ctrl-btn" onClick={() => fileInputRef.current?.click()} title="Ouvrir un projet">
+            <span className="material-symbols-outlined">folder_open</span>
+          </button>
+          <button
+            className="ctrl-btn"
+            title="Exporter en PDF"
+            onClick={() => {
+              const r3f  = useTablatureR3FStore.getState()
+              TablaturePDFService.generatePDF({
+                version:          1,
+                name:             r3f.projectName,
+                createdAt:        new Date().toISOString(),
+                updatedAt:        new Date().toISOString(),
+                settings:         { tuning, tempo: r3f.tempo },
+                notes:            r3f.notes,
+                chordGroups:      r3f.chordGroups,
+                progressionGroups: r3f.progressionGroups,
+                rhythmModifiers:  r3f.rhythmModifiers,
+                modeZones:        r3f.modeZones,
+              })
+            }}
+          >
+            <span className="material-symbols-outlined">picture_as_pdf</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".tabseek,.json"
+            style={{ display: 'none' }}
+            onChange={handleFileLoad}
+          />
         </div>
       </div>
     </div>

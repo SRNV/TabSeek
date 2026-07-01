@@ -17,7 +17,7 @@
  */
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import { rhythmPatterns } from '../data/rhythmPatterns'
-import type { RhythmPatternDef, TablatureNote, RhythmModifier } from '../types'
+import type { RhythmPatternDef, TablatureNote, RhythmModifier, ChordGroup, ProgressionGroup } from '../types'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
 
 export interface VirtualNote {
@@ -448,4 +448,57 @@ export const RhythmModifierService = {
       return !!base?.legatoNext
     })
   }
+}
+
+/**
+ * Pure expansion of notes using rhythm modifiers — no store access.
+ * Used by TablaturePDFService to include virtual sub-notes in the PDF output.
+ *
+ * - Materialized modifiers (mod.legato = true): notes are already real in the store → pass through.
+ * - Virtual modifiers (mod.legato = false): expand the note into sub-notes using the pattern.
+ */
+export function expandNotesWithModifiers(
+  notes: TablatureNote[],
+  rhythmModifiers: RhythmModifier[],
+  chordGroups: ChordGroup[],
+  progressionGroups: ProgressionGroup[],
+): TablatureNote[] {
+  const enabledMods = rhythmModifiers.filter(m => m.enabled)
+  const result: TablatureNote[] = []
+
+  for (const note of notes) {
+    // Hierarchy: note → chord → progression
+    let activeMod = enabledMods.find(m => m.targetType === 'note' && m.targetId === note.id)
+    if (!activeMod) {
+      const chord = chordGroups.find(g => g.noteIds.includes(note.id))
+      if (chord) {
+        activeMod = enabledMods.find(m => m.targetType === 'chord' && m.targetId === chord.id)
+        if (!activeMod) {
+          const prog = progressionGroups.find(p => p.chordGroupIds.includes(chord.id))
+          if (prog) {
+            activeMod = enabledMods.find(m => m.targetType === 'progression' && m.targetId === prog.id)
+          }
+        }
+      }
+    }
+
+    if (!activeMod || activeMod.legato) {
+      // No modifier, or already materialized as real notes
+      result.push(note)
+      continue
+    }
+
+    const virtual = computeVirtualNotes(activeMod, note)
+    if (!virtual || virtual.length === 0) {
+      result.push(note)
+      continue
+    }
+
+    // Replace the base note with its virtual sub-notes (same string/fret, different timing)
+    for (const vn of virtual) {
+      result.push({ ...note, id: vn.id, startBeat: vn.startBeat, duration: vn.duration })
+    }
+  }
+
+  return result
 }

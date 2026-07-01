@@ -23,8 +23,12 @@ export const TONAL_CHORD_TYPES = [
   // Accords de 6/9
   "69", "m69",
   // Autres
-  "5", "m#5", "sus24"
-];
+  "5", "m#5", "sus24",
+  // Accords étendus B-2 (non-Tonal natifs, enregistrés pour lookup local)
+  "maj9#11", "min9maj7", "13sus4", "7#9#5", "min13#11", "add#11"
+] as const;
+
+export type TonalChordType = typeof TONAL_CHORD_TYPES[number];
 
 // Mappings entre les noms d'accords communs et les noms Tonal.js
 export const CHORD_NAME_MAPPINGS: Record<string, string> = {
