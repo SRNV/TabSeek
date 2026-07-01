@@ -6,6 +6,13 @@
 
 ## ✅ FEATURES TERMINÉES
 
+### [RGRS-02] Pods de notes inertes (InstancedMesh raycast figé) — DONE
+- **Bug majeur** : plus aucune action possible sur le corps d'un pod de note (clic, sélection, drag) après la migration Phase B vers `NotePodsInstanced`. Le disque (`NoteDisc`, DOM `<Html>`) continuait de répondre — piège qui a fait durer le diagnostic 5-6 sessions.
+- **Root cause** : `THREE.InstancedMesh.raycast()` met en cache `boundingSphere` de façon définitive dès le premier calcul (lazy) — jamais réinvalidé par R3F quand `instanceMatrix`/`count` changent ensuite. Confirmé dans `node_modules/three/src/objects/InstancedMesh.js:270`.
+- **Fix** : `mesh.boundingSphere = null` à la fin des `useEffect` de synchro `bodyMesh`/`selMesh` dans `NotePodsInstanced.tsx`, forçant le recalcul au prochain raycast.
+- **Vérifié en live** via `agent-browser` (clic précis sur canvas par dispatch d'événements natifs) : sélection + drag confirmés fonctionnels après fix, captures à l'appui.
+- **Postmortem complet** : `IA/MEMORY.md` §18. Règle architecturale généralisée : §16.6b. Test anti-régression : `T-NOTE` N-21. Process QA formalisé (vérification live `agent-browser` obligatoire pour bugs d'interaction R3F) : `IA/ROLES.md`, étape 11 du Ticket Review.
+
 ### [F2] Export PDF/tablature imprimable — DONE
 - A4 portrait, Courier Bold 9pt, 3 mesures/ligne, espacement 6 mm
 - Widths proportionnels au nombre de notes par mesure

@@ -41,7 +41,8 @@
       "Bash(agent-browser press *)",
       "Bash(agent-browser type *)",
       "Bash(agent-browser mouse *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(taskkill //F //PID 18284)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rudy_\\.claude\\projects\\c--Users-rudy--Documents-TabSeek\\memory"

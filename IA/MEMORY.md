@@ -687,6 +687,7 @@ Deux services distincts selon le type de note :
 | N-18 | Resize-right note locked | Aucun changement |
 | N-19 | Drag vertical note locked | Seulement la corde change |
 | N-20 | Ctrl+A puis Suppr | Toutes les notes supprimées |
+| N-21 | Créer une note, cliquer son **corps** (hors disque/bulle) | `gl.domElement.style.cursor` passe à `grab`/zone-cursor ; la note se sélectionne (bordure) et devient draggable — test anti-régression RGRS-02 (voir §18) |
 
 ### T-CHORD — Pods d'Accord (18 tests)
 
@@ -967,6 +968,19 @@ const source = notes.find(n => n.id === sourceId)    // dérivé localement
 
 Ce piège a causé le bug de `LegatoLine` en session 8 lors de la tentative de fix P4-4.
 
+### 16.6b `InstancedMesh` dynamique → toujours invalider `boundingSphere` (RGRS-02, Juillet 2026)
+
+> **Toute `InstancedMesh` dont `count`/`instanceMatrix` change après le premier rendu DOIT remettre `mesh.boundingSphere = null` (et `boundingBox = null` si utilisé) à la fin de chaque `useEffect` de synchronisation, avant tout `needsUpdate`.**
+
+`THREE.InstancedMesh.raycast()` ne calcule `this.boundingSphere` **qu'une seule fois**, de façon paresseuse (`if (this.boundingSphere === null) this.computeBoundingSphere()`), puis le met en cache indéfiniment. Si ce premier calcul a lieu avant que les instances ne soient réellement positionnées (ex: premier `pointermove` sur un mesh encore à `count=0`), toute interaction future est **silencieusement bloquée** par l'early-out `raycaster.ray.intersectsSphere(_sphere) === false` — aucune erreur, le rendu visuel reste parfait, mais plus aucun clic/hover ne trouve d'intersection. Voir §18 pour l'anatomie complète de la régression RGRS-02 causée par ce piège dans `NotePodsInstanced.tsx`.
+
+```ts
+// ✅ REQUIS après toute mise à jour des matrices d'instance
+mesh.count = count
+mesh.instanceMatrix.needsUpdate = true
+mesh.boundingSphere = null   // sinon le raycast reste figé sur l'état du tout premier calcul
+```
+
 ### 16.6 Guarde-fou sélecteurs — Sélecteurs objet-littéral
 
 > **Interdiction d'utiliser des sélecteurs renvoyant un objet littéral `{ ... }` sans `useShallow`.**
@@ -1026,3 +1040,71 @@ Ce format **n'est pas** parsé par `split('-')` — il est affiché directement 
 ### 17.3 `extraModes.ts` — Disclaimer 12-TET
 
 Toutes les entrées dont l'origine culturelle implique des micro-intervalles (maqams, ragas, gammes japonaises/chinoises, byzantine) doivent avoir un disclaimer 12-TET en fin de champ `description`. Voir le script `add_12tet.js` (scratchpad session 13) pour la liste exhaustive des 20 entrées concernées et les textes standardisés par famille culturelle.
+
+---
+
+## 18. Post-mortem RGRS-02 — Pods de notes totalement inertes (résolu Juillet 2026)
+
+> **Contexte** : régression **majeure** signalée par l'utilisateur — "plus aucune action n'est possible sur un pod note". Introduite pendant la migration Phase B (remplacement de la hitbox individuelle par note, `SubNoteBody` + `<mesh onPointerDown>` par pod, par un rendu mutualisé `NotePodsInstanced` en `InstancedMesh`). **Il a fallu ré-expliquer ce bug 5 à 6 fois sur autant de sessions avant qu'il soit correctement diagnostiqué et corrigé** — ce post-mortem existe pour que ça ne se reproduise jamais.
+
+### 18.1 Symptôme
+
+Après la migration Phase B, sur `TablatureR3F` (route `/tablature`) :
+- Les pods de notes se **rendent visuellement** de façon parfaitement correcte (couleur, forme, dégradé, position).
+- **Aucun clic sur le corps d'un pod** ne produit d'effet : pas de sélection (pas de bordure orange), pas de démarrage de drag, pas de changement de curseur (`grab`/`grabbing`), pas de zone resize.
+- Le **disque `NoteDisc`** (badge fret + nom de note, rendu en `<Html>` DOM par `@react-three/drei`, donc **hors raycasting Three.js**) continuait, lui, à répondre normalement aux clics (ouverture de l'éditeur de frette).
+
+C'est ce dernier point qui a rendu le diagnostic difficile sur plusieurs sessions : "une partie du pod répond" laissait croire à un problème de **zone de clic** (`noteZoneCompact`, verrouillage rythme/legato, `stopPropagation` mal placé) — donc un bug **applicatif React** — alors que le problème était en réalité **entièrement interne à Three.js**, sur le mesh mutualisé qui gère tout le reste de la surface cliquable du pod (corps, resize, bulle legato, drag).
+
+### 18.2 Root cause
+
+Confirmé en lisant directement `node_modules/three/src/objects/InstancedMesh.js` (three r185), méthode `raycast()` :
+
+```js
+raycast( raycaster, intersects ) {
+    ...
+    if ( this.boundingSphere === null ) this.computeBoundingSphere();
+    _sphere.copy( this.boundingSphere );
+    _sphere.applyMatrix4( matrixWorld );
+    if ( raycaster.ray.intersectsSphere( _sphere ) === false ) return;  // ← early-out silencieux
+    ...
+}
+```
+
+`InstancedMesh.boundingSphere` est calculé **une seule fois**, de façon paresseuse, à la toute première invocation de `raycast()` — puis **mis en cache indéfiniment**. Rien dans le cycle de vie React/R3F ne le réinvalide automatiquement quand `instanceMatrix` change ensuite.
+
+Dans `NotePodsInstanced.tsx`, le tout premier raycast contre `bodyMeshRef` survient dès le premier `pointermove` de l'utilisateur au-dessus du canvas — un événement qui peut très bien arriver **avant** que le `useEffect` de synchronisation n'ait rempli `instanceMatrix` avec les vraies positions des notes (mount initial avec `notes = []`, donc `count = 0`, matrices non significatives). La sphère englobante calculée à cet instant est donc soit vide, soit sans rapport avec la position réelle des pods créés ensuite. Comme elle n'est **jamais recalculée**, chaque raycast suivant échoue à `intersectsSphere()` avant même d'atteindre le test géométrie/instance — silencieusement, sans erreur console, sans warning.
+
+**Parenté avec RGRS-01** (session 15, `<primitive object={instancedMesh}>` au lieu du JSX natif `<instancedMesh>`, qui empêchait `e.instanceId` d'être peuplé) : même famille de piège — un rendu visuel intact masquant une interaction totalement mais silencieusement cassée au niveau du raycasting Three.js. RGRS-01 cassait le **mapping** instance→note ; RGRS-02 casse le **raycast lui-même**, en amont.
+
+### 18.3 Fix
+
+Dans `NotePodsInstanced.tsx`, à la fin des deux `useEffect` de synchronisation (`bodyMesh` et `selMesh`), après la mise à jour de `count`/`instanceMatrix` :
+
+```ts
+bodyMesh.count = count
+bodyMesh.instanceMatrix.needsUpdate = true
+bodyMesh.boundingSphere = null   // force le recalcul au prochain raycast — RGRS-02
+```
+
+Même correctif sur `selMeshRef` (mesh de bordure de sélection). Deux lignes au total — mais invisibles tant qu'on ignore le comportement de cache interne de `InstancedMesh`. Règle générale formalisée en §16.6b.
+
+### 18.4 Méthodologie de debug — à réutiliser systématiquement pour tout bug d'interaction R3F/WebGL
+
+> Ce qui a permis de trancher en une session au lieu de six : **arrêter de relire le code React et reproduire en live dans un vrai navigateur**, avec des clics à coordonnées précises sur le canvas.
+
+1. **Ne jamais présumer qu'un bug d'interaction R3F est forcément côté React.** Si la revue de code (handlers, `useCallback`, deps, z-index, `stopPropagation`) ne révèle rien après une relecture sérieuse, envisager sérieusement une cause interne à Three.js (raycasting, cache de bounding volume, `frustumCulled`, `raycast` custom, etc.) — surtout après une migration récente vers `InstancedMesh`.
+2. **Reproduire en live via le skill `agent-browser`**, dev server lancé en tâche de fond (`npm run dev`). Une lecture statique du diff ne suffit pas à confirmer un comportement runtime de lib externe.
+3. **⚠️ Piège d'outillage identifié en route** : `agent-browser click <selector> --x --y` et `agent-browser dblclick <selector> --x --y` **ignorent silencieusement `--x`/`--y`** (non supportés, absents du `--help`) et cliquent toujours le **centre géométrique** de l'élément matché. Sur un `<canvas>` R3F plein-écran, ça revient à toujours cliquer le même point — impossible de cibler un pod précis, et ça peut faire croire à un bug fantôme ou masquer le vrai bug. `agent-browser mouse move/down/up` accepte des coordonnées absolues mais **ne génère pas d'événement `dblclick` natif** même répété rapidement (Chrome/CDP exige un `clickCount` incrémenté explicitement, que ces sous-commandes ne posent pas).
+   **Méthode fiable retenue** : `agent-browser eval --stdin` avec un script JS qui fait `document.elementFromPoint(x, y)` puis dispatche manuellement la séquence d'événements natifs sur l'élément trouvé (`pointerdown`→`mousedown`→`pointerup`→`mouseup`→`click`, répétée avec `detail:2` + `dblclick` final pour un double-clic), en fixant `clientX`/`clientY` exacts. Fonctionne aussi bien sur le canvas WebGL (raycasting R3F, via de vrais événements `pointerdown` capturés par les listeners R3F) que sur les overlays `<Html>` (DOM classique) — et donne des coordonnées **exactes et reproductibles**, contrairement aux sélecteurs `click`/`dblclick` classiques.
+4. **Signal de diagnostic clé — comparer deux surfaces cliquables de nature différente sur le même composant.** Ici : le disque `NoteDisc` (DOM `<Html>`, hors raycasting Three.js) répondait à un `el.click()` direct, alors que le corps du pod (canvas raycasté) ne répondait à rien. Dès que l'une répond et l'autre non **sur le même composant logique**, ça isole immédiatement le problème côté raycasting Three.js plutôt que côté logique métier React (qui, elle, était intacte des deux côtés).
+5. **Test à faible coût : observer le curseur sur un simple `pointermove` (sans clic).** `NotePods.tsx` positionne `gl.domElement.style.cursor` (`grab`, `ew-resize`, etc.) dès qu'un hit-test réussit sur le pod. Si le curseur change → le raycast fonctionne, le bug est en aval (logique métier). S'il reste `default` → le raycast échoue en amont de toute logique applicative, ce qui pointe direct vers Three.js.
+6. **Une fois l'hypothèse formée, aller lire le code source de la lib dans `node_modules`** (ici : `grep -n boundingSphere node_modules/three/src/objects/InstancedMesh.js`) pour confirmer noir sur blanc le mécanisme avant de patcher. Évite d'empiler un énième fix "au petit bonheur" sur un bug déjà mal compris cinq fois de suite.
+7. **Valider le fix en live, pas seulement à la compilation.** `tsc -b` et les tests unitaires (`@react-three/test-renderer`) ne prouvent rien ici : ils ne simulent probablement pas le cache interne `boundingSphere` de Three.js. Seule la reproduction du scénario exact (créer un pod → cliquer son corps → vérifier `cursor` + drag visible à l'écran, captures d'écran à l'appui) constitue une preuve valable de correction.
+
+### 18.5 Ce qui a fait perdre du temps sur les sessions précédentes (à ne plus refaire)
+
+- Confondre "le disque répond" avec "le pod répond" — le disque est un DOM overlay indépendant du raycasting Three.js du corps du pod ; tester les deux séparément dès le premier signalement.
+- Relire uniquement le code React/TS des handlers (`handlePodPointerDown`, `onNoteDown`, dépendances `useCallback`) sans jamais remettre en question le comportement interne de `InstancedMesh` — alors que la migration Phase B vers `InstancedMesh` est un changement d'architecture récent et donc le premier suspect logique.
+- Tenter de reproduire le bug avec des clics `agent-browser` non vérifiés pixel-près (coordonnées `--x`/`--y` silencieusement ignorées) — donnant l'illusion de tester le bon endroit alors que le clic tombait toujours au centre du canvas.
+- Ne pas comparer avec RGRS-01 (session 15, même famille de piège InstancedMesh/raycasting) alors que la parenté aurait dû immédiatement orienter les soupçons vers le raycasting plutôt que vers la logique métier.
