@@ -11,7 +11,7 @@
 import React, { useRef } from 'react'
 import * as THREE from 'three'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
-import type { ProgressionGroup } from '../../../stores/useTablatureR3FStore'
+import type { ProgressionGroup } from '../../../types'
 import { RhythmModifierService } from '../../../services/RhythmModifierService'
 import { RhythmModifierPod } from './RhythmModifierPod'
 import { roundedRect } from '../../../utils/tablatureGeometry'

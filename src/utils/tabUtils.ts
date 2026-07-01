@@ -12,7 +12,7 @@
  * do not need to pass the full notes array on every call (would cause re-renders).
  */
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
-import type { TablatureNote } from '../stores/useTablatureR3FStore'
+import type { TablatureNote } from '../types'
 import type { NoteZone } from '../types/drag'
 export type { NoteZone }
 

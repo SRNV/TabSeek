@@ -5,7 +5,7 @@ import type { ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import { Note, Chord } from 'tonal'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
-import type { TablatureNote, LegatoBehavior } from '../../../stores/useTablatureR3FStore'
+import type { TablatureNote, LegatoBehavior } from '../../../types'
 import { 
   BEAT_W, N_STRINGS, LANE_H, NOTE_H as PODH,
   stringY, zoneCursor, noteZoneCompact, POD_HEADER_OFF

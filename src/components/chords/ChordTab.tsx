@@ -7,9 +7,11 @@ import Tab from '../tab/Tab'
 import Notes from '../Notes'
 import { useMidiUtils } from '../../hooks/useMidiUtils'
 
+import { ChordsCompleteDef } from '../../types'
+
 interface ChordTabProps {
   chordType: string
-  chordData: any
+  chordData: ChordsCompleteDef | null
   hideFretboard?: boolean
 }
 

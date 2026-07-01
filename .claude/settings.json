@@ -25,7 +25,11 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" -Recurse -Include *.ts,*.tsx)",
       "Bash(git mv *)",
       "Bash(node -e \"require\\('zustand/react/shallow'\\)\")",
-      "Bash(grep -v \"//\\\\|Math\\\\.\")"
+      "Bash(grep -v \"//\\\\|Math\\\\.\")",
+      "Bash(npx vitest *)",
+      "Bash(grep -n \"^  {$\\\\|name:\" \"c:/Users/rudy_/Documents/TabSeek/src/data/rhythmPatterns.ts\")",
+      "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"data/\" })",
+      "Bash(git -C \"c:/Users/rudy_/Documents/TabSeek\" diff --stat HEAD)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rudy_\\.claude\\projects\\c--Users-rudy--Documents-TabSeek\\memory"

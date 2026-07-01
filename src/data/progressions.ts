@@ -1,14 +1,6 @@
 ﻿// src/data/progressions.ts
 
-// Définition du type pour une progression d'accords
-export type ChordProgression = {
-  name: string;
-  numerals: string;
-  description: string;
-  compatibleModes: string[];
-  examples?: string[];
-  _chordType?: string; // chord type id (Tonal) when dragging a single chord from ChordsList
-};
+import type { ChordProgression } from '../types'
 
 // Liste des progressions d'accords communes à exporter
 export const chordProgressions: ChordProgression[] = [
@@ -954,5 +946,97 @@ export const chordProgressions: ChordProgression[] = [
     description: "Progression utilisant des superpositions bitonales d'accords, créant des textures harmoniques complexes.",
     compatibleModes: ["Polytonal", "Lydien augmenté"],
     examples: ["In a Silent Way (Miles Davis)", "Time Remembered (Bill Evans)"]
+  },
+
+  // ─── PROGRESSIONS ARABES & MAQAMAT ──────────────────────────────────────────
+
+  {
+    name: "Cadence Hijaz",
+    numerals: "i-bII-V7-i",
+    description: "Progression caractéristique du maqam Hijaz (gamme arabe) et du flamenco andalou. Le bII (seconde napolitaine) crée l'intervalle de seconde augmentée typique des musiques du Moyen-Orient et de la péninsule ibérique. On y retrouve l'héritage de l'Espagne maure (711-1492). Fondamentale dans les improvisations des musiciens arabes, turcs et dans le cante jondo.",
+    compatibleModes: ["Arabian", "Phrygian dominant", "Mode flamenco"],
+    examples: ["Habibi (musique égyptienne)", "Cadence flamenco andalouse", "Improvisation maqam Hijaz (oud)"]
+  },
+  {
+    name: "Maqam Nahawand",
+    numerals: "im-iv-V7-i-bVI-bVII-im",
+    description: "Progression basée sur le maqam Nahawand, équivalent arabe de la gamme mineure harmonique. Très utilisée dans la musique arabe classique (musiqa tarab), la chanson égyptienne et le takht (ensemble orchestral oriental). Sa cadence V7-i correspond à la résolution classique européenne, facilitant les échanges interculturels au carrefour du monde méditerranéen.",
+    compatibleModes: ["Harmonic minor", "Mineur harmonique"],
+    examples: ["Inta Omri (Oum Kalthoum)", "Ya Rayah (Dahmane El Harrachi)", "Chansons libanaises classiques"]
+  },
+  {
+    name: "Vamp Bayati",
+    numerals: "i-bII-i-V7sus4-V7-i",
+    description: "Vamp basé sur le maqam Bayati, le plus populaire de la musique arabe. Le bII en ouverture évoque la couleur orientale distinctive, puis la résolution sur V7-i ancre harmoniquement le retour. Ce type de vamp structure de nombreux taqasim (improvisations libres) et morceaux de danse orientale (raqs sharqi). Oum Kalthoum et Fairuz l'ont utilisé dans de nombreuses compositions emblématiques.",
+    compatibleModes: ["Maqam bayati", "Phrygian", "Dorian b2"],
+    examples: ["Introductions de taqasim (oud ou nay)", "Danse orientale raqs sharqi", "Fairuz (nombreux titres)"]
+  },
+
+  // ─── PROGRESSIONS INDIENNES — VAMPS RAGA ──────────────────────────────────
+
+  {
+    name: "Drone Raga (Vamp modal)",
+    numerals: "Im7-Im7-Im7-bVIImaj7",
+    description: "Structure harmonique modale inspirée des vamps de raga indien. La tonique (Im7) tient longuement, créant l'espace d'improvisation du raga, avec un simple mouvement vers le subtonal (bVII) qui enrichit le drone sans le quitter. Reflète l'esthétique hindustanie où l'accord est un espace de méditation plutôt qu'une fonction harmonique. Proche de la musique de Pat Metheny influencée par les ragas.",
+    compatibleModes: ["Dorian", "Mixolydien", "Raga yaman", "Raga bhairavi"],
+    examples: ["Ragas sur tampura (Ravi Shankar)", "Alaap de raga Yaman (R. Shankar)", "Pat Metheny Indian style"]
+  },
+  {
+    name: "Vamp Todi (Raga exotique)",
+    numerals: "im(#4)-im-bII-im",
+    description: "Progression inspirée du raga Todi, l'un des ragas les plus expressifs et complexes de la musique hindustanie. La couleur caractéristique du Todi (b2, b3, #4, b6) crée une tension harmonique unique sans équivalent occidental. En harmonisation guitaristique, on peut l'approcher avec un accord mineur avec quarte augmentée et seconde mineure, suivi du degré bII napolitain. Très expressif pour les passages contemplatifs ou d'une grande intensité intérieure.",
+    compatibleModes: ["Raga todi", "Altered", "Altéré"],
+    examples: ["Raag Todi (Pandit Bhimsen Joshi)", "Raga Todi du matin — alaap", "Nikhil Banerjee — Todi"]
+  },
+
+  // ─── PROGRESSIONS TSIGANES & KLEZMER ──────────────────────────────────────
+
+  {
+    name: "Vamp Tsigane (Dorian #4)",
+    numerals: "im7-IV#4-im7-V7",
+    description: "Progression caractéristique du jazz manouche et des musiques roms d'Europe centrale. La gamme dorien #4 (aussi appelée gamme roumaine mineure) — avec sa quarte augmentée sur fond dorien — est au cœur de l'improvisation des guitaristes roms des Balkans, de Roumanie et de Hongrie. Django Reinhardt la pratiquait instinctivement. Ce vamp permet d'explorer les ornements caractéristiques (pirouettes, glissandos, sauts d'octave) de la tradition tsigane.",
+    compatibleModes: ["Romanian minor", "Dorian #4", "Dorien #4"],
+    examples: ["Minor Swing (Django Reinhardt)", "Dark Eyes (traditionnel romani)", "Ciorile de la Marginea (traditionnel roumain)"]
+  },
+  {
+    name: "Freylekhs Klezmer",
+    numerals: "i-bVII-bVI-V7-i-iv-V7-i",
+    description: "Suite harmonique type du freylekhs (danse joyeuse klezmer). Le chromatisme descendant i-bVII-bVI-V7 crée la montée de tension caractéristique, résolue sur la tonique. Omniprésent dans les mariages ashkénazes d'Europe de l'Est, rescapé de la Shoah et renaissant depuis les années 80 avec des musiciens comme Giora Feidman, David Krakauer et l'Ensemble Masques. Le mode dorian tsigane (#4) ou le phrygien dominant (maqam Hijaz) y sont souvent utilisés.",
+    compatibleModes: ["Harmonic minor", "Romanian minor", "Phrygian dominant"],
+    examples: ["Hava Nagila (traditionnel)", "Oy Tumbalaika (Klezmer)", "David Krakauer — Klezmer Madness"]
+  },
+
+  // ─── PROGRESSIONS AFRICAINES ──────────────────────────────────────────────
+
+  {
+    name: "Pentatonique Afrique de l'Ouest",
+    numerals: "I-IV-I-bVII-I",
+    description: "Vamp pentatonique caractéristique de la musique mandingue (kora, balafon, ngoni) d'Afrique de l'Ouest. La relation I-IV-I-bVII évite les demi-tons, créant une fluidité harmonique propice à l'improvisation ornementale des griots. On retrouve ce type de mouvement dans la musique de Toumani Diabaté (kora), des maîtres du balafon du Mali et dans de nombreux genres dérivés (afrojazz, afrofusion). L'économie harmonique laisse l'espace à la virtuosité mélodique et rythmique.",
+    compatibleModes: ["Major pentatonic", "Mixolydien", "Zhi"],
+    examples: ["Toumani Diabaté (kora solo)", "Salif Keïta", "Oumou Sangaré", "Rokia Traoré"]
+  },
+  {
+    name: "Highlife Harmony",
+    numerals: "I-IV-I-V-I-bVII-IV-I",
+    description: "Structure harmonique du highlife, genre né au Ghana dans les années 1920 à la croisée des musiques traditionnelles akan, twi et de la musique de fanfare coloniale britannique. Sa progression utilise les degrés majeurs naturels sans altération, dans un esprit festif et dansant. Le highlife a influencé le jùjú nigérian, le soukous congolais et les musiques pop d'Afrique de l'Ouest.",
+    compatibleModes: ["Majeur", "Mixolydien", "Major pentatonic"],
+    examples: ["Highlife (E.T. Mensah & The Tempo's Band)", "Waka Waka (Fela Kuti spirit)", "Afrobeats contemporain"]
+  },
+
+  // ─── PROGRESSIONS FLAMENCO ────────────────────────────────────────────────
+
+  {
+    name: "Cadence Andalouse (Por Soleares)",
+    numerals: "bII-i-bVII-bVI-V7",
+    description: "La cadence andalouse descend par degrés conjoints du bII vers le V7, créant la tension phrygienne caractéristique du flamenco. Elle est la grille harmonique fondamentale des palos 'par soleares' : soleá, alegrías, cantinas, rumba. Le bII (accord phrygien ou napolitain) joue ici un rôle de dominante secondaire avant la résolution sur V7. C'est l'une des progressions les plus reconnaissables de toute la musique mondiale.",
+    compatibleModes: ["Phrygian dominant", "Mode flamenco", "Spanish", "Arabian"],
+    examples: ["Soleá (Paco de Lucía)", "Alegrías (Camarón de la Isla)", "Garrotín (Tomatito)"]
+  },
+  {
+    name: "Remate Flamenco (Por Seguiriyas)",
+    numerals: "i-bII-bVII-bVI-V7-i",
+    description: "Cadence caractéristique de la seguiriya, le cante jondo le plus profond et le plus dramatique du flamenco. Le mouvement bII-bVII-bVI-V7 représente la descente émotionnelle typique des pièces por seguiriyas, associées à la mort, à la douleur existentielle et au duende. La seguiriya est souvent jouée en cycle de 12 temps avec des accents atypiques. Federico García Lorca l'a immortalisée dans ses écrits sur le duende.",
+    compatibleModes: ["Phrygian dominant", "Mode flamenco", "Arabian"],
+    examples: ["Seguiriya (Manuel Torre)", "Seguiriya gitana (traditionnel andalou)", "Siguiriyas (Paco de Lucía)"]
   }
 ];

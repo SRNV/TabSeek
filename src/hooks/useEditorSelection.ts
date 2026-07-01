@@ -10,41 +10,9 @@
  * that event handlers in `useEffect` closures (which capture a stale copy of state)
  * can still read the current selection without depending on the reactive value.
  */
-import { useState, useRef, useEffect, Dispatch, SetStateAction } from 'react'
-
-/** All note/chord IDs currently selected (orange border). */
-export type SelectionState = {
-  selectedIds: Set<string>
-  setSelectedIds: Dispatch<SetStateAction<Set<string>>>
-  selectedIdsRef: React.MutableRefObject<Set<string>>
-
-  editingId: string | null
-  setEditingId: Dispatch<SetStateAction<string | null>>
-  inputVal: string
-  setInputVal: Dispatch<SetStateAction<string>>
-
-  /** Tracks note IDs created in the current gesture — used to auto-open fret editor. */
-  newNoteIds: React.MutableRefObject<Set<string>>
-  /** Copy/paste clipboard data. */
-  clipboard: React.MutableRefObject<ClipData>
-
-  /** Rectangle selection box (world coords). Null when inactive. */
-  rectBox: { x0: number; y0: number; x1: number; y1: number } | null
-  setRectBox: Dispatch<SetStateAction<{ x0: number; y0: number; x1: number; y1: number } | null>>
-
-  selectedChordGroupIds: Set<string>
-  setSelectedChordGroupIds: Dispatch<SetStateAction<Set<string>>>
-  selectedChordGroupIdsRef: React.MutableRefObject<Set<string>>
-
-  editingProgId: string | null
-  setEditingProgId: Dispatch<SetStateAction<string | null>>
-  editingProgName: string
-  setEditingProgName: Dispatch<SetStateAction<string>>
-}
-
-type ClipNote  = { string: number; fret: number; duration: number; startBeat: number }
-type ClipGroup = { noteIndices: number[]; chordName: string }
-type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
+import { useState, useRef, useEffect } from 'react'
+import type { SelectionState } from '../types/editor'
+import type { ClipData } from '../types/tablature'
 
 /**
  * Returns all selection and inline-edit state needed by `TablatureScene`.

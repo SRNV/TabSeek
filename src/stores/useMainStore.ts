@@ -9,9 +9,7 @@
  */
 import { create } from 'zustand'
 import { Note } from 'tonal'
-import type { ModeGuitar } from '../types/mode'
-import type { ChordsCompleteDef } from '../data/chords'
-import type { RhythmPatternDef } from '../data/rhythmPatterns'
+import type { ModeGuitar, RhythmPatternDef, ChordsCompleteDef } from '../types'
 
 const defaultMode: ModeGuitar = {
   name: 'ionian',

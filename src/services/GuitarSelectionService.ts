@@ -1,12 +1,6 @@
 import { create } from 'zustand';
 import { PreferencesService } from './PreferencesService';
-
-export interface GuitarPreset {
-  bank: number;
-  preset: number;
-  name: string;
-  category: string;
-}
+import { GuitarPreset } from '../types';
 
 const DEFAULT_PRESET: GuitarPreset = {
   bank: 0,

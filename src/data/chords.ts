@@ -1,33 +1,5 @@
-export interface ChordPosition {
-    position: number;
-    frets: (number | null)[];
-    fingers: (number | null)[];
-    barres: number[];
-  }
-  
-  export interface ChordTypeDef {
-    notes: string[];
-    positions: ChordPosition[];
-    category?: string;
-    description?: string;
-    intervals: string[];
-  }
-  
-  export interface Chords {
-    [key: string]: ChordTypeDef;
-  }
-export interface ChordsCompleteDef {
-    id: string;
-    name: string;
-    symbol: string;
-    alt: string[];
-    description: string;
-    lickDescription: string;
-    arpegeDescription: string;
-    riffDescription: string;
-    intervals: string[];
-}
-  
+import { Chords } from '../types'
+
 export const CHORDS: Chords = {
     // Triades de base
     "major": {
@@ -892,6 +864,73 @@ export const CHORDS: Chords = {
       category: "Autres accords spécifiques",
       description:
         "L’accord 9sus4 combine la suspension de la quarte avec la neuvième, tout en conservant la septième mineure ... (etc.)"
+    },
+
+    // Accords avec 11 (suppléments manquants)
+    "maj11": {
+      notes: ["1", "3", "5", "7", "9", "11"],
+      intervals: ["1P", "3M", "5P", "7M", "9M", "11P"],
+      positions: [
+        {
+          position: 1,
+          frets: [null, 3, 3, 4, 3, 3],
+          fingers: [0, 1, 1, 2, 1, 1],
+          barres: [3]
+        },
+        {
+          position: 2,
+          frets: [8, null, 9, 9, 8, 8],
+          fingers: [1, 0, 3, 4, 1, 1],
+          barres: [8]
+        }
+      ],
+      category: "Accords avec 11 et 13",
+      description:
+        "L’accord maj11 enrichit le maj9 d’une quarte juste (onzième), créant une couleur ouverte et planante typique du jazz modal. La tierce est souvent omise pour éviter la dissonance de neuvième mineure avec l’onzième. Voicing fondamental de Herbie Hancock et Bill Evans."
+    },
+    "min11": {
+      notes: ["1", "b3", "5", "b7", "9", "11"],
+      intervals: ["1P", "3m", "5P", "7m", "9M", "11P"],
+      positions: [
+        {
+          position: 1,
+          frets: [null, 0, 0, 0, 1, 3],
+          fingers: [0, 0, 0, 0, 1, 3],
+          barres: []
+        },
+        {
+          position: 2,
+          frets: [5, 7, 5, 7, 8, 5],
+          fingers: [1, 3, 1, 3, 4, 1],
+          barres: [5, 7]
+        }
+      ],
+      category: "Accords avec 11 et 13",
+      description:
+        "L’accord min11 est l’un des plus riches de l’harmonie jazz, combinant profondeur mineure, septième, neuvième et quarte. Contrairement au maj11, la quarte ne crée pas de dissonance avec la tierce mineure, permettant de jouer l’accord complet. Indispensable en jazz modal et néo-soul."
+    },
+
+    // Accords spécifiques (suppléments manquants)
+    "min7#5": {
+      notes: ["1", "b3", "#5", "b7"],
+      intervals: ["1P", "3m", "5A", "7m"],
+      positions: [
+        {
+          position: 1,
+          frets: [null, 0, 3, 2, 1, 3],
+          fingers: [0, 0, 3, 2, 1, 4],
+          barres: []
+        },
+        {
+          position: 2,
+          frets: [null, 3, 6, 5, 4, null],
+          fingers: [0, 1, 4, 3, 2, 0],
+          barres: []
+        }
+      ],
+      category: "Accords de septième",
+      description:
+        "L’accord min7#5 superpose tierce mineure, quinte augmentée et septième mineure, créant une tension expressive ambiguë entre couleur sombre et instabilité ascendante. Utilisé dans le jazz moderne et le rock progressif pour des moments de haute intensité dramatique. On le retrouve souvent en tant que V7alt partiel ou accord de couleur."
     }
   };
   

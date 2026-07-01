@@ -1,10 +1,5 @@
 import { useMainStore } from '../stores/useMainStore'
-
-export interface FretHighlight {
-  si: number
-  fret: number
-  color?: string
-}
+import { FretHighlight } from '../types'
 
 /**
  * Service to manage specific fretboard highlights.

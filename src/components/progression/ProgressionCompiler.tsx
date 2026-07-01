@@ -7,7 +7,7 @@ import { romanToDegree, getMajorScaleNotes } from '../../utils/chordUtils'
 import ProgressionsList from '../sidebars/ProgressionsList'
 import ProgressionDropZone from './ProgressionDropZone'
 import eventBus from '../../eventBus'
-import type { ChordProgression } from '../../data/progressions'
+import type { ChordProgression } from '../../types'
 
 export default function ProgressionCompiler() {
   const userScaleRaw = useMainStore(s => s.userScale)

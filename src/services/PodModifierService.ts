@@ -11,11 +11,12 @@
  * pattern: dematerialize first, navigate, then the caller decides whether to rematerialize).
  */
 import { Note, Chord } from 'tonal'
-import { useTablatureR3FStore, ChordGroup, ProgressionGroup, TablatureNote, ArpeggioDirection, RhythmModifier } from '../stores/useTablatureR3FStore'
+import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
+import { chordProgressions } from '../data/progressions'
+import type { ChordProgression, ChordGroup, ProgressionGroup, TablatureNote, ArpeggioDirection, RhythmModifier } from '../types'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { TONAL_CHORD_TYPES, formatChordName } from '../data/tonalChordsMapping'
-import { chordProgressions, ChordProgression } from '../data/progressions'
 import { numeralToChordName } from '../utils/chordUtils'
 import { findBestChordFrets, findRankedChordVoicings, findNearestFretForMidi } from '../utils/guitarUtils'
 import { RhythmModifierService } from './RhythmModifierService'
@@ -69,8 +70,8 @@ function dematerializeArpeggio(mod: RhythmModifier) {
 
   // No tuning passed to deleteNote: skip its auto chord-name re-detection — the group's
   // chordName must stay the source chord's name throughout, not whatever a lone note detects as.
-  const extras = new Set(mod.legatoExtras ?? [])
-  extras.forEach(id => state.deleteNote(id))
+  const extras = new Set<string>(mod.legatoExtras ?? [])
+  extras.forEach((id: string) => state.deleteNote(id))
 
   state.updateNote(baseNote.id, {
     startBeat: mod.legatoOrigRange.startBeat,
@@ -329,17 +330,17 @@ function applyProgressionTemplate(prog: ProgressionGroup, template: ChordProgres
   useTablatureR3FStore.getState().pushHistory()
 
   // Navigation always takes priority over any chord's arpeggio lock in this progression.
-  prog.chordGroupIds.forEach(id => {
+  prog.chordGroupIds.forEach((id: string) => {
     const arpMod = getArpeggioForGroup(id)
     if (arpMod) dematerializeArpeggio(arpMod)
   })
 
   const state = useTablatureR3FStore.getState()
-  const groups = prog.chordGroupIds.map(id => state.chordGroups.find(g => g.id === id)).filter((g): g is ChordGroup => !!g)
+  const groups = prog.chordGroupIds.map((id: string) => state.chordGroups.find((g: ChordGroup) => g.id === id)).filter((g): g is ChordGroup => !!g)
   if (groups.length === 0) return
 
   const tuning = getTuning()
-  const allNotes = groups.flatMap(g => state.notes.filter(n => g.noteIds.includes(n.id)))
+  const allNotes = groups.flatMap((g: ChordGroup) => state.notes.filter(n => g.noteIds.includes(n.id)))
   if (allNotes.length === 0) return
 
   const { startBeat } = groupBounds(allNotes)

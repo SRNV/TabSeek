@@ -1430,6 +1430,8 @@ export const MODE_CHORD_ASSOCIATIONS = {
   }
 };
 
+import { ChordsCompleteDef } from '../types'
+
 // Emoji per chord type — reflects the emotional/sonic character
 export const CHORD_ICONS: Record<string, string> = {
   major:      'light_mode',
@@ -1483,7 +1485,7 @@ export const CHORD_ICONS: Record<string, string> = {
 }
 
 // Flat list of all chord types for navigation (null = no chord selected)
-export const ALL_CHORDS: Array<any> = [
+export const ALL_CHORDS: Array<ChordsCompleteDef | null> = [
   null,
   ...Object.values(CHORD_TYPES_BY_CATEGORY).flatMap((cat: any) => cat.chords),
 ]

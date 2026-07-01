@@ -959,5 +959,185 @@ export const EXTRA_MODES: ModeGuitar[] = [
       "La gamme hexatonique majeure, dépourvue de quarte et de septième mineure, confère un caractère à la fois lumineux et dépouillé à la musique. Elle évoque la sérénité, la légèreté et un sentiment d’espace, car elle évite certaines tensions propres à la gamme diatonique complète. Utilisée par des pianistes comme Kenny Barron ou des guitaristes comme Pat Metheny, elle apporte une fraîcheur modale dans l’improvisation jazz. Sa structure simplifiée de six notes facilite aussi le jeu rapide et l’ornementation subtile. L’hexatonique majeure incarne la tendance moderne à rechercher la pureté mélodique, en mettant l’accent sur la couleur globale plutôt que sur la tension-résolution traditionnelle.",
     culture: "Jazz moderne",
     category: "Modes additionnels"
+  },
+
+  // ─── RAGAS INDIENS (Hindustani & Carnatic) ────────────────────────────────────
+
+  {
+    name: "raga yaman",
+    aliases: ["yaman", "yaman kalyan", "kalyani", "kalyan thaat"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2M", "3M", "4A", "5P", "6M", "7M"],
+    alt: ["#4"],
+    triad: "major",
+    seventh: "maj7",
+    description:
+      "Le raga Yaman (Yaman Kalyan en hindustani, Kalyani en carnatic) est souvent le premier raga de haut niveau enseigné aux étudiants : sa structure élégante ne diffère de la gamme majeure que par la seule quarte augmentée (Ma tivra), qui lui confère une lumière sereine et grandiose. Associé au début de soirée, il évoque la paix intérieure, la beauté spirituelle et l’élévation. L’alaap (développement lent sans rythme) d’un grand maître dans ce raga, comme Pandit Bhimsen Joshi ou Ustad Rashid Khan, est une expérience transformatrice. Bien que ses intervalles correspondent au mode lydien occidental, son répertoire ornamental (gamak, meend, taan) et sa grammaire mélodique (vadi-samvadi, pakad) le distinguent radicalement de toute conception européenne.",
+    culture: "Indienne (Hindustani & Carnatic)",
+    category: "Ragas indiens"
+  },
+  {
+    name: "raga todi",
+    aliases: ["todi", "miyan ki todi", "todi thaat"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3m", "4A", "5P", "6m", "7M"],
+    alt: ["b2", "b3", "#4", "b6"],
+    triad: "minor",
+    seventh: "minMaj7",
+    description:
+      "Le raga Todi est considéré comme l’un des plus complexes et des plus expressifs de la tradition hindustanie. Sa structure intervalique — seconde mineure, tierce mineure, quarte augmentée, sixte mineure et septième majeure — n’a aucun équivalent exact dans les modes occidentaux, ce qui en fait l’un des ragas les plus ‘purement indiens’. Associé au matin et à la saison froide, il incarne la quête spirituelle, la dévotion intense et la douleur noble. L’image poétique traditionnelle montre une musicienne jouant du veena au lever du soleil, si bien que les animaux sauvages s’arrêtent pour écouter. Pandit Bhimsen Joshi, Ustad Vilayat Khan et Ustad Rashid Khan en ont donné des interprétations légendaires. Techniquement, sa progression ascendante favorise les ornements (gamak) alors que la descente utilise des glissandos (meend) expressifs.",
+    culture: "Indienne (Hindustani)",
+    category: "Ragas indiens"
+  },
+  {
+    name: "raga marwa",
+    aliases: ["marwa", "marwa thaat"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3M", "4A", "5P", "6M", "7M"],
+    alt: ["b2", "#4"],
+    triad: "major",
+    seventh: "maj7",
+    description:
+      "Le raga Marwa appartient au coucher de soleil et dégage une atmosphère de sérénité mélancolique, presque mystique. Sa caractéristique la plus frappante est l’absence de quinte juste lors de la montée — seule la quarte augmentée y est employée — ce qui lui confère une instabilité harmonique particulièrement expressive. La seconde mineure (komal re) et la quarte augmentée (tivra ma) coexistent dans un système sans quinte, créant une échelle unique dans les annales des musiques mondiales. Associé au crépuscule, il évoque la transition entre le monde terrestre et l’au-delà, entre le connu et l’inconnaissable. Ses ornements (meend, gamak) sont d’une délicatesse extrême, et chaque note est traitée avec une gravité solennelle.",
+    culture: "Indienne (Hindustani)",
+    category: "Ragas indiens"
+  },
+  {
+    name: "raga poorvi",
+    aliases: ["poorvi", "purvi", "poorvi thaat"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3M", "4A", "5P", "6m", "7M"],
+    alt: ["b2", "#4", "b6"],
+    triad: "major",
+    seventh: "maj7",
+    description:
+      "Le raga Poorvi est étroitement apparenté à Marwa mais ajoute la sixte mineure (komal dha) à sa palette, renforçant encore sa couleur crépusculaire et solennelle. Cette association de seconde mineure, quarte augmentée et sixte mineure crée une tension modale sans équivalent dans les gammes occidentales. Joué en fin d’après-midi, il incarne la beauté austère de la lumière déclinante, une nostalgie grave et sereine. La combinaison tierce majeure + quarte augmentée (caractéristique du thaat Poorvi) produit un effet lumineux mais teinté d’une mélancolie profonde, reflétant le sentiment humain de voir le beau disparaître. La tradition du Kirana gharana lui a donné certaines de ses plus belles interprétations.",
+    culture: "Indienne (Hindustani)",
+    category: "Ragas indiens"
+  },
+  {
+    name: "raga bhairavi",
+    aliases: ["bhairavi", "bhairavi thaat"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3m", "4P", "5P", "6m", "7m"],
+    alt: ["b2", "b3", "b6", "b7"],
+    triad: "minor",
+    seventh: "min7",
+    description:
+      "Le raga Bhairavi, appelé ‘la reine des ragas’, est l’un des plus universellement aimés de la musique indienne classique. Ses intervalles approchent le mode phrygien occidental, mais son univers expressif en est radicalement distinct : il incarne la dévotion absolue (bhakti), la tendresse profonde, le deuil des adieux et la nostalgie sereine. Il est traditionnellement interprété en clôture de concert, comme dernier adieu. Bhairavi accepte de nombreux emprunts chromatiques (swar) aux ragas voisins, ce qui le rend harmoniquement plus riche que sa gamme de base ne le laisse paraître. Son équivalent le plus proche dans d’autres cultures est le flamenco phrygien andalou, lui-même influencé par les maqamat arabes via l’histoire de l’Espagne.",
+    culture: "Indienne (Hindustani & Carnatic)",
+    category: "Ragas indiens"
+  },
+
+  // ─── MAQAMAT ARABES ───────────────────────────────────────────────────────────
+
+  {
+    name: "maqam bayati",
+    aliases: ["bayati", "bayyati", "husayni"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3m", "4P", "5P", "6m", "7m"],
+    alt: ["b2", "b3", "b6", "b7"],
+    triad: "minor",
+    seventh: "min7",
+    description:
+      "Le maqam Bayati est le plus populaire des maqamat arabes, reconnaissable à sa seconde mineure et à sa tierce mineure. Dans la tradition arabe authentique, la seconde et la tierce sont des quarts de tons (intervalles microtonaux entre le b2 et la 2M, et entre le b3 et la 3M) — ici approximées pour la guitare. Il exprime la nostalgie profonde (tarab), la mélancolie douce et la sensibilité orientale. Omniprésent dans la musique égyptienne, syrienne, libanaise et irakienne, il structure de nombreux classiques arabes. Oum Kalthoum l’a utilisé dans ses œuvres les plus emblématiques. Son jins (cellule mélodique de base) de quatre notes est l’un des plus reconnaissables de toute la tradition maqam.",
+    culture: "Arabique & Proche-Orientale",
+    category: "Maqamat arabes"
+  },
+  {
+    name: "maqam saba",
+    aliases: ["saba", "sabaa", "saba rast"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3m", "4d", "5P", "6m", "7m"],
+    alt: ["b2", "b3", "b4", "b6", "b7"],
+    triad: "minor",
+    seventh: "min7",
+    description:
+      "Le maqam Saba est unique dans la tradition arabe par son quatrième degré abaissé (quarte diminuée, approximant un micro-intervalle oriental entre la tierce majeure et la quarte juste). Cette couleur harmonique singulièrement sombre et plaintive est associée aux lamentations, au deuil et aux funérailles dans la culture arabe classique. La tension produite par la succession b3-b4 (deux notes rapprochées) est d’une intensité dramatique sans équivalent dans les systèmes tempérés. Note : dans la pratique réelle, ce quatrième degré est un quart de ton spécifique, inimitable sur un instrument à tempérament égal — cette notation est une approximation. Le Saba peut aussi s’entendre dans la musique turque et persane sous des noms apparentés.",
+    culture: "Arabique",
+    category: "Maqamat arabes"
+  },
+
+  // ─── CULTURES EST-ASIATIQUES (compléments) ────────────────────────────────────
+
+  {
+    name: "zhi",
+    aliases: ["zhi scale", "徵音階", "fourth chinese mode", "kora pentatonic", "mandingue pentatonic"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2M", "4P", "5P", "6M"],
+    alt: [],
+    triad: "sus4",
+    seventh: "sus4add6",
+    description:
+      "La gamme Zhi (徵) est le quatrième mode du système pentatonique chinois classique (les cinq modes Gong, Shang, Jue, Zhi, Yu correspondant aux notes C-D-E-G-A). Cette même pentatonique est au cœur de la musique de la kora en Afrique de l’Ouest mandingue — jouée par les griots (dieli/jali) du Mali, de la Guinée et du Sénégal. Cette convergence entre les traditions musicales chinoises et africaines illustre l’universalité de certaines structures intervaliques humaines. Dans la tradition kora, des maîtres comme Toumani Diabaté en font le véhicule de siècles de transmission de l’histoire et de la sagesse. Sa texture ouverte (sans tierce) favorise les ornements et la modalité libre.",
+    culture: "Chinoise classique & Africaine (Mandé)",
+    category: "Cultures est-asiatiques"
+  },
+  {
+    name: "shang",
+    aliases: ["shang scale", "商音階", "second chinese mode"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2M", "4P", "5P", "7m"],
+    alt: ["b7"],
+    triad: "sus4",
+    seventh: "7sus4",
+    description:
+      "La gamme Shang (商) est le second mode du système pentatonique Gong de la musique chinoise classique. Son rapport à la septième mineure (sans tierce) génère une couleur suspendue, mélancolique et nostalgique, très différente de la gamme Zhi (avec sixte). Elle est particulièrement utilisée dans la musique de guqin (cithare à 7 cordes), l’un des plus anciens instruments de la culture lettrée chinoise, ainsi que dans la poésie musicale classique. Le guqin est depuis 2003 reconnu par l’UNESCO au patrimoine culturel immatériel de l’humanité. Chaque mode pentatonique chinois possède des associations poétiques et saisonnières : le Shang est associé à l’automne et à l’or.",
+    culture: "Chinoise classique",
+    category: "Cultures est-asiatiques"
+  },
+  {
+    name: "pelog selisir",
+    aliases: ["pelog", "selisir", "pelog 1", "balinese pelog"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3M", "5P", "6m"],
+    alt: ["b2", "b6"],
+    triad: "major",
+    seventh: "maj6b2",
+    description:
+      "Le pelog selisir est le mode principal du système d’accord pelog balinais, l’un des deux systèmes (avec le slendro) du gamelan de Bali. Chaque ensemble de gamelan est accordé individuellement, et ses intervalles dévient intentionnellement du tempérament égal — chaque village, chaque temple, chaque gamelan possède sa propre identité sonore unique. La guitare offre une approximation en douze tons. Le pelog balinais evoque les cérémonies hindoues-balinaises, les danses sacrées (Kecak, Legong, Barong) et la musique du temple d’Ubud. L’UNESCO a inscrit la musique de gamelan balinais au patrimoine culturel immatériel de l’humanité en 2021.",
+    culture: "Balinaise",
+    category: "Cultures est-asiatiques"
+  },
+  {
+    name: "slendro",
+    aliases: ["sléndro", "gamelan slendro", "javanaise slendro"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2M", "3m", "5P", "6M"],
+    alt: ["b3"],
+    triad: "minor",
+    seventh: "min6",
+    description:
+      "Le slendro est l’un des deux systèmes d’accord du gamelan javanais et balinais, utilisant cinq tons approximativement équidistants. Sur la guitare, c’est une approximation en demi-tons. Le slendro est associé aux sujets humains et terrestres dans l’esthétique du wayang kulit (théâtre d’ombres javanais), contrastant avec le caractère céleste et cérémoniel du pelog. Son atmosphère évoque un espace sonore non occidental, immersif et cyclique, loin de la tension-résolution de la musique tonale européenne. Les ensembles de gamelan comportent généralement les deux systèmes, et la bascule entre slendro et pelog constitue un élément fondamental de la dramaturgie du wayang.",
+    culture: "Javanaise & Balinaise",
+    category: "Cultures est-asiatiques"
+  },
+
+  // ─── CULTURES TSIGANE, ROUMAINE, ESPAGNOLE ────────────────────────────────────
+
+  {
+    name: "gamme csardas",
+    aliases: ["csárdás scale", "verbunkos", "hungarian csardas", "major b2"],
+    modeNum: 0,
+    mode: 0,
+    intervals: ["1P", "2m", "3M", "4P", "5P", "6M", "7M"],
+    alt: ["b2"],
+    triad: "major",
+    seventh: "maj7",
+    description:
+      "La gamme csárdás (ou verbunkos) est au cœur de la musique de danse hongroise et des compositions de style hongrois-rom. Sa seule altération par rapport à la gamme majeure — la seconde mineure — suffit à instaurer un caractère à la fois héroïque, passionné et nostalgique. Franz Liszt l’a magnifiée dans ses Rhapsodies Hongroises (1846-1885), Brahms dans ses Danses Hongroises, et Bartók a puisé dans ces traditions rurales roms pour renouveler la composition contemporaine. Dans la pratique des orchestres roms (rézibanda), cette gamme alterne souvent avec le mode mineur ordinaire et l’hongrois mineur, créant des contrastes saisissants de lumière et d’ombre. Elle représente la contribution des communautés Gens du voyage à l’identité musicale européenne.",
+    culture: "Hongroise & Tsigane & Romani",
+    category: "Cultures tsigane et romane"
   }
 ];

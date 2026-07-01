@@ -7,7 +7,7 @@
 
 import { Note, Chord } from 'tonal'
 import { findNearestFretForMidi } from './guitarUtils'
-import type { TablatureNote, RhythmModifier, LegatoBehavior } from '../stores/useTablatureR3FStore'
+import type { TablatureNote, RhythmModifier, LegatoBehavior, LegatoChain } from '../types'
 
 // ── Note name helper ──────────────────────────────────────────────────────────
 

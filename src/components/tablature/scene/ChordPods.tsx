@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber'
 import { ThreeEvent } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
-import type { ChordGroup } from '../../../stores/useTablatureR3FStore'
+import type { ChordGroup } from '../../../types'
 import { 
   BEAT_W, POD_HEADER_OFF, stringY, zoneCursor, noteZone, INFO_LANE_H, infoLaneY
 } from '../../../utils/tabUtils'

@@ -9,30 +9,7 @@
 //   TimeSignature.get(name)     → métadonnées d'une signature rythmique
 
 import { RhythmPattern, DurationValue, TimeSignature } from 'tonal'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type RhythmTrack = {
-  part: string      // 'kick' | 'snare' | 'hihat' | 'ride' | 'clave' | 'perc' | 'bass' | 'chord'
-  steps: number[]   // 0 = silence, 0.4 = ghost, 0.7 = normal, 1.0 = accent fort
-  division: string  // Tonal DurationValue shorthand : 'q'=noire, 'e'=croche, 's'=double-croche
-  tonal?: string    // Formule Tonal.js qui génère le pattern 0/1 sous-jacent
-}
-
-export type RhythmPatternDef = {
-  name: string
-  emoji?: string
-  description: string
-  timeSignature: string   // Nom Tonal : '4/4' | '3/4' | '6/8' | '12/8' | '2/4' | '2/2'
-  tempo: { min: number; max: number; typical: number }
-  feel: string            // 'straight' | 'swing' | 'shuffle' | 'latin' | 'funk' | 'half-time'
-  bars: number            // longueur d'un cycle en mesures
-  tracks: RhythmTrack[]
-  compatibleGenres: string[]
-  examples?: string[]
-}
+import type { RhythmTrack, RhythmPatternDef } from '../types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilitaires
@@ -3136,6 +3113,327 @@ export const rhythmPatterns: RhythmPatternDef[] = [
     ],
     compatibleGenres: ["Classique", "Bolero espagnol"],
     examples: ["Boléro (Ravel)", "Boléro (Ravel — crescendo intégral)"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // MUSIQUE INDIENNE CLASSIQUE (TALAS HINDUSTANI)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Teentaal",
+    emoji: ':drum:',
+    description: "Le taal le plus utilisé de la musique hindustanie classique. 16 matras (temps) en 4 vibhags égaux de 4 (4+4+4+4). Le sam (temps 1, fort) est la résolution ; le khali (temps 9, vide) est joué plus légèrement, sans frappe grave. Theka de base au tabla : Dha Dhin Dhin Dha | Dha Dhin Dhin Dha | Dha Tin Tin Na | Ta Dhin Dhin Dha. Chaque syllabe ('bols') indique un timbre spécifique du tabla double.",
+    timeSignature: '4/4',
+    tempo: { min: 30, max: 300, typical: 80 },
+    feel: 'straight',
+    bars: 2,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+          [0, 4, 8, 12], 1.0, 0.7
+        ),
+        division: 'e',
+        tonal: "// Bayan (tabla grave) : Dum sur chaque vibhag — sam(1) fort, khali(9) léger"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          [1,1,1,0, 1,1,1,0, 1,1,1,1, 1,1,1,0],
+          [0, 4, 8, 12], 1.0, 0.6
+        ),
+        division: 'e',
+        tonal: "// Dayan (tabla aigu) : Dha-Dhin-Dhin / Dha-Tin-Tin-Na / Ta-Dhin-Dhin"
+      },
+    ],
+    compatibleGenres: ["Musique hindustanie classique", "Raga", "Khyal", "Bandish", "Thumri"],
+    examples: ["Raag Yaman en Teentaal (Pandit Ravi Shankar)", "Khyal vilambit (Ustad Rashid Khan)", "Tabla solo (Ustad Zakir Hussain)"],
+  },
+
+  {
+    name: "Rupak Taal",
+    emoji: ':pray:',
+    description: "Taal de 7 matras en 3 vibhags (3+2+2) de la musique hindustanie. Particularité unique : le premier vibhag (3 temps) est un KHALI (vide, non-résolu), renversant l'ordre conventionnel. Le sam se confond avec le khali. Theka : Tin Tin Na | Dhi Na | Dhi Na. Très utilisé dans les thumris romantiques et le semi-classique. Sa mesure à 7 temps crée un balancement naturel distinct de la carrure occidentale.",
+    timeSignature: '7/8',
+    tempo: { min: 40, max: 200, typical: 90 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [0,0,0, 1,0, 1,0],
+          [3, 5], 0.95, 0.65
+        ),
+        division: 'e',
+        tonal: "// Bayan : vide sur les 3 premiers temps (khali), Dhi sur vibhags 2 et 3"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          [1,1,1, 1,0, 1,0],
+          [0,1,2, 3, 5], 0.55, 0.9
+        ),
+        division: 'e',
+        tonal: "// Dayan : Tin-Tin-Na (khali léger) | Dhi-Na | Dhi-Na"
+      },
+    ],
+    compatibleGenres: ["Musique hindustanie", "Thumri", "Ghazal", "Semi-classique indien"],
+    examples: ["Thumri en Rupak (Girija Devi)", "Raag Bhairavi rupak (Pandit Ajoy Chakraborty)"],
+  },
+
+  {
+    name: "Adi Talam",
+    emoji: ':musical_note:',
+    description: "Le talam le plus fondamental de la musique carnatique (Inde du Sud). 8 matras en structure Chatusra-Laghu (4) + Drutam (2) + Drutam (2) = 4+2+2. Correspond au cycle de la plupart des krithis (compositions) de la tradition trindé Thyagaraja-Muthuswami Dikshitar-Syama Sastri. Le solkattu (vocalisation rythmique) : Ta-Ka-Di-Mi Ta-Ka Ta-Ka. Équivalent à 8/8 avec accentuation 4+2+2.",
+    timeSignature: '4/4',
+    tempo: { min: 40, max: 240, typical: 80 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [1,0,0,0, 1,0, 1,0],
+          [0, 4, 6], 1.0, 0.75
+        ),
+        division: 'e',
+        tonal: "// Mridangam thattu (pouce) : 4+2+2 — 3 points d'accentuation du cycle"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          [1,1,1,1, 1,1, 1,1],
+          [0, 4, 6], 0.65, 0.95
+        ),
+        division: 'e',
+        tonal: "// Konnakol : Ta-Ka-Di-Mi | Ta-Ka | Ta-Ka — toutes les matras marquées"
+      },
+    ],
+    compatibleGenres: ["Musique carnatique", "Krithi", "Varnam", "Bhajan du Sud"],
+    examples: ["Sri Gananatham (Muthuswami Dikshitar)", "Venkateswara Suprabhatam"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // FLAMENCO (COMPLÉMENTS)
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Flamenco Seguiriya",
+    emoji: ':rose:',
+    description: "La seguiriya est considérée comme le cante jondo le plus profond du flamenco — une expression de la douleur et de la mort. Son cycle de 12 temps a des accents différents de la soleá et de la bulería : 1, 3, 6, 8, 11 (soit + 1 que la bulería mais décalé). Commence sur le temps 12 (anacrouse). Structure 12/4 découpée comme 3+3+2+2+2. Associée au duende de Federico García Lorca.",
+    timeSignature: '12/8',
+    tempo: { min: 35, max: 65, typical: 48 },
+    feel: 'latin',
+    bars: 1,
+    tracks: [
+      {
+        part: 'perc',
+        steps: withAccents(
+          RhythmPattern.binary(0b100100101001),
+          [0, 2, 5, 7, 10],
+          1.0, 0.6
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.binary(0b100100101001) // accents : 1, 3, 6, 8, 11"
+      },
+    ],
+    compatibleGenres: ["Flamenco", "Cante jondo"],
+    examples: ["Seguiriya (Manuel Torre)", "Seguiriya (Camarón de la Isla)", "Seguiriya (Enrique Morente)"],
+  },
+
+  {
+    name: "Rumba Flamenca",
+    emoji: ':guitar:',
+    description: "La rumba flamenca, différente de la rumba cubaine, est un style léger et festif du flamenco. Son pattern de palmas (mains) à 4/4 crée un contretemps caractéristique. La guitare utilise le rasgueado (grattage avec les doigts) en pattern syncopé. Très populaire dans les fiestas andalouses et reprise mondialement par les Gitans catalans.",
+    timeSignature: '4/4',
+    tempo: { min: 120, max: 180, typical: 150 },
+    feel: 'latin',
+    bars: 2,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withVelocity(
+          [...RhythmPattern.euclid(8, 3), ...RhythmPattern.rotate(RhythmPattern.euclid(8, 3), 1)],
+          1.0
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 3) + rotation — golpe guitare flamenco"
+      },
+      {
+        part: 'snare',
+        steps: withVelocity(
+          [...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1),
+           ...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 3)],
+          0.85
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1) — palmas en contretemps"
+      },
+      {
+        part: 'chord',
+        steps: withAccents(
+          [...RhythmPattern.euclid(16, 5), ...RhythmPattern.rotate(RhythmPattern.euclid(16, 5), 3)],
+          [1,5,9,13,17,21,25,29], 0.9, 0.5
+        ),
+        division: 's',
+        tonal: "RhythmPattern.euclid(16, 5) — rasgueado rumba flamenca"
+      },
+    ],
+    compatibleGenres: ["Flamenco", "Rumba Gitane", "Flamenco Fusion"],
+    examples: ["Entre dos Aguas (Paco de Lucía)", "La Negra Flor (Gipsy Kings)", "Bamboleo (Gipsy Kings)"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // AFRIQUE DU NORD — GNAOUA / AMAZIGH
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Gnaoua",
+    emoji: ':moon:',
+    description: "Rythme rituel des confréries Gnaoua (Gnawa) du Maroc, descendants d'esclaves subsahariens. Le guembri (3 cordes, basse) et les qraqeb (crotales métalliques) créent un hypnotisme rythmique particulier. Les cérémonies lila visent la transe et la guérison. Le pattern de base : temps forts sur 1 et 4 d'une mesure à 6/8, avec subdivision ternaire syncopée. Influence majeure sur les bluesmen américains via les Berbères et l'esclavage transatlantique.",
+    timeSignature: '6/8',
+    tempo: { min: 80, max: 160, typical: 115 },
+    feel: 'latin',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          RhythmPattern.binary(0b100100),
+          [0, 3], 1.0, 0.75
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.binary(0b100100) // guembri : temps 1 et 4 du 6/8"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          RhythmPattern.binary(0b010110),
+          [1, 3, 4], 0.9, 0.55
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.binary(0b010110) // qraqeb : syncopé entre les temps"
+      },
+    ],
+    compatibleGenres: ["Gnaoua", "Lila marocaine", "World fusion", "Trance rituelle"],
+    examples: ["Boulalie (Master Musicians of Joujouka)", "Lila Gnaoua (Maâlem Mahmoud Guinia)", "Gnawa Diffusion"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // MUSIQUES D'ASIE ORIENTALE
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Taiko Matsuri",
+    emoji: ':drum:',
+    description: "Pattern de taiko (grandes tambours japonais) typique des matsuri (festivals shinto). Le taiko utilise deux baguettes (bachi) de frappe différenciée : frappe forte centrale (don) et frappe légère sur le bord (ka). Pattern de base en 4/4 : don-ko-don-ko avec variations propulsives. Essentiel dans les processions et les danses bon-odori. L'ensemble de taiko (kumi-daiko) créé par Daihachi Oguchi dans les années 1950 a popularisé ce style mondialement.",
+    timeSignature: '4/4',
+    tempo: { min: 80, max: 200, typical: 130 },
+    feel: 'straight',
+    bars: 2,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [...RhythmPattern.euclid(8, 4), ...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 2)],
+          [0, 4, 8, 12], 1.0, 0.7
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 4) + rotation — Don (frappe centrale forte)"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          [...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1),
+           ...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 3)],
+          [2, 6, 10, 14], 0.75, 0.45
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1) — Ka (frappe bord)"
+      },
+    ],
+    compatibleGenres: ["Musique japonaise traditionnelle", "Matsuri", "J-Pop fusion"],
+    examples: ["Matsuri (Kodo)", "Yatai Bayashi (Kodo)", "Hiten (Kodo)"],
+  },
+
+  {
+    name: "Gamelan Gong",
+    emoji: ':bell:',
+    description: "Cycle de gong balinais représentant la structure temporelle du gamelan. Le gong ageng (grand gong) marque la fin du cycle (gongan), le kempur marque les mi-cycles, les kenong et kempli subdivisent. Structure en puissance de 2 : 8 ou 16 beats par gong. Ici représenté en 8 beats (gongan de 8). Le gamelan utilise un système de stratification rythmique (subdivisions imbriquées) sans équivalent dans les musiques occidentales.",
+    timeSignature: '4/4',
+    tempo: { min: 40, max: 120, typical: 70 },
+    feel: 'straight',
+    bars: 1,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [1, 0, 1, 0, 1, 0, 1, 1],
+          [0, 7], 0.5, 0.9
+        ),
+        division: 'e',
+        tonal: "// Kenong : subdivision kenong sur beats 1,3,5,7 + gong ageng final"
+      },
+      {
+        part: 'chord',
+        steps: withAccents(
+          RhythmPattern.euclid(8, 8),
+          [0, 2, 4, 6], 0.6, 0.4
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 8) — kempli (petite cloche) : subdivision continue"
+      },
+    ],
+    compatibleGenres: ["Gamelan balinais", "Musique javanaise", "World", "Néo-classique"],
+    examples: ["Kecak (gamelan de feu de Bali)", "Legong (gamelan de palais)", "Music for 18 Musicians — Reich (inspiration)"],
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // KLEZMER / MUSIQUE TSIGANE & ASHKÉNAZE
+  // ═══════════════════════════════════════════════════════
+
+  {
+    name: "Klezmer Freylekhs",
+    emoji: ':violin:',
+    description: "Le freylekhs (de l'yiddish : joyeux) est la danse la plus répandue du répertoire klezmer ashkénaze d'Europe de l'Est. Mesure à 4/4 avec un feel 'bulgar' (entre straight et swing), accent fort sur le 1 et contretemps syncopés caractéristiques. Le klarineter (clarinettiste) et le fiddler (violoniste) jouent au-dessus d'une base rythmique de tsimbl (cymbalum) et de tshimap (tambour). Musique des mariages juifs d'Europe centrale, rescapée de la Shoah et renaissante depuis les années 1980.",
+    timeSignature: '4/4',
+    tempo: { min: 120, max: 200, typical: 160 },
+    feel: 'straight',
+    bars: 2,
+    tracks: [
+      {
+        part: 'kick',
+        steps: withAccents(
+          [...RhythmPattern.euclid(8, 3), ...RhythmPattern.rotate(RhythmPattern.euclid(8, 3), 2)],
+          [0, 8], 1.0, 0.7
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.euclid(8, 3) — grosse caisse freylekhs syncopée"
+      },
+      {
+        part: 'snare',
+        steps: withAccents(
+          [...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1),
+           ...RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 3)],
+          [2, 6, 10, 14], 0.95, 0.6
+        ),
+        division: 'e',
+        tonal: "RhythmPattern.rotate(RhythmPattern.euclid(8, 4), 1) — tsimbl/snare contretemps"
+      },
+      {
+        part: 'hihat',
+        steps: withVelocity(
+          [...RhythmPattern.euclid(16, 8), ...RhythmPattern.euclid(16, 8)],
+          0.6
+        ),
+        division: 's',
+        tonal: "RhythmPattern.euclid(16, 8) — croches continues freylekhs"
+      },
+    ],
+    compatibleGenres: ["Klezmer", "Musique ashkénaze", "Musique tsigane", "Mariage juif"],
+    examples: ["Donna Donna (Klezmer)", "Shpil-Zhe Mir (Dave Tarras)", "David Krakauer Klezmer Madness"],
   },
 
 ]

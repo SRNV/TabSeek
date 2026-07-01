@@ -21,7 +21,7 @@ export default function MainGrid() {
   useEffect(() => {
     const { chordRootObject: cur, setChordObject, setChordRootNoteType, setChordRootNote, userScale } = useMainStore.getState()
     if (!cur) {
-      const majorChord = (CHORD_TYPES_BY_CATEGORY as any)['Triades'].chords[0]
+      const majorChord = CHORD_TYPES_BY_CATEGORY['Triades'].chords[0]
       setChordObject(majorChord)
       setChordRootNoteType('major')
       setChordRootNote(userScale)

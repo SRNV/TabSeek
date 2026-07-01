@@ -15,29 +15,9 @@
  * `hoveredGroupId` and `labelHoveredGroupId` — both owned by this hook.
  */
 import { useState, useEffect } from 'react'
-import type { ChordGroup } from '../stores/useTablatureR3FStore'
+import type { ChordGroup } from '../types'
+import type { EditorHoverState } from '../types/editor'
 import { useMainStore } from '../stores/useMainStore'
-
-export type EditorHoverState = {
-  hoveredGroupId: string | null
-  setHoveredGroupId: (id: string | null) => void
-
-  labelHoveredGroupId: string | null
-  setLabelHoveredGroupId: (id: string | null) => void
-
-  hoveredProgId: string | null
-  setHoveredProgId: (id: string | null) => void
-
-  hoveredModId: string | null
-  setHoveredModId: (id: string | null) => void
-
-  hoveredModeZoneId: string | null
-  setHoveredModeZoneId: (id: string | null) => void
-
-  /** String index (0 = low E) highlighted while dragging a chord/rhythm over the canvas. */
-  dragHoverSi: number | null
-  setDragHoverSi: (si: number | null) => void
-}
 
 /**
  * Returns hover state for all pod types and the drag-lane indicator.

@@ -1,19 +1,11 @@
 import { create } from 'zustand'
-
-export type PanelId = 'notes' | 'modes' | 'chords' | 'guitar'
+import type { PanelId, UIState } from '../types/ui'
 
 export const routePanels: Record<string, PanelId[]> = {
   '/':             ['notes', 'modes', 'chords', 'guitar'],
   '/chords':       ['notes', 'chords', 'guitar'],
   '/progressions': ['notes', 'modes', 'guitar'],
   '/tablature':    ['notes', 'modes', 'chords', 'guitar'],
-}
-
-interface UIState {
-  activePanel: PanelId | null
-  togglePanel: (id: PanelId) => void
-  closePanel: () => void
-  closePanelIfUnavailable: (routePath: string) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({

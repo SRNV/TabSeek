@@ -14,7 +14,8 @@
  *   ascending/descending phrases resolve to the musically correct octave.
  */
 import { Note } from 'tonal'
-import { useTablatureR3FStore, ModeZone, TablatureNote } from '../stores/useTablatureR3FStore'
+import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
+import type { ModeZone, TablatureNote } from '../types'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { EXTRA_MODES } from '../data/extraModes'

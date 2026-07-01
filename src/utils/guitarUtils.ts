@@ -13,6 +13,7 @@
  * destination notes (more physically plausible fingering).
  */
 import { Note, Interval } from 'tonal'
+import type { Voicing } from '../types'
 
 /** Returns the note name (e.g. `"E3"`) produced by playing `fret` on string `cord`. */
 export function getNoteName(cord: string, fret: number): string {
@@ -35,8 +36,6 @@ export function nextFretSamePc(openNote: string, currentFret: number): number {
   const idx = matches.indexOf(currentFret)
   return matches[(idx + 1) % matches.length]
 }
-
-export interface Voicing { si: number; fret: number }
 
 export function findFretForPc(openNote: string, pc: string, minFret = 0): number {
   const openMidi = Note.midi(openNote) ?? 0

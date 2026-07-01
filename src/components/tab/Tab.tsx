@@ -217,6 +217,13 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
   // ── Popover ───────────────────────────────────────────────────────────────
   const chordRootObject        = useMainStore(s => s.chordRootObject)
   const legatoFretHighlights   = useMainStore(s => s.legatoFretHighlights)
+
+  // Set of "visualSi:fret" keys for O(1) legato chain lookup in the labels render.
+  // h.si uses store convention (0 = low E); c.si uses visual convention (0 = high e).
+  const legatoVisSet = useMemo(
+    () => new Set(legatoFretHighlights.map(h => `${N_STRINGS - 1 - h.si}:${h.fret}`)),
+    [legatoFretHighlights]
+  )
   const [popoverCell, setPopoverCell]         = useState<CellData | null>(null)
   const [popoverVisible, _setPopoverVisible]  = useState(false)
   const popoverVisibleRef    = useRef(false)
@@ -840,7 +847,10 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
       })()}
 
       {cells.map(c => {
-        const ink = ColorService.getContrastColor(`#${c.color.getHexString()}`)
+        const isLegato = legatoVisSet.has(`${c.si}:${c.fretSemi}`)
+        const effectiveColor = isLegato ? c.naturalColor : c.color
+        const ink = ColorService.getContrastColor(`#${effectiveColor.getHexString()}`)
+        const showFull = c.isHighlighted || isLegato
         return (
           <Html
             key={`${c.si}-${c.slotIdx}`}
@@ -849,7 +859,7 @@ function FretboardScene({ cells, nSlots, matchType, chordPos, onCellClick }: Sce
             zIndexRange={[10, 0]}
             style={{ pointerEvents: 'none', userSelect: 'none' }}
           >
-            <div className={`fret-label${c.isHighlighted ? ' hl' : ''}`} style={c.isHighlighted ? undefined : { opacity: 0.35 }}>
+            <div className={`fret-label${showFull ? ' hl' : ''}`} style={showFull ? undefined : { opacity: 0.35 }}>
               <span className="fret-note" style={{ color: ink }}>{c.label}</span>
               {c.degreeLabel && (
                 <span className="fret-degree" style={{ color: ink }}>{c.degreeLabel}</span>

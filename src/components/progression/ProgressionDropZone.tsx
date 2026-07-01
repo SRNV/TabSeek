@@ -2,7 +2,7 @@
 import './ProgressionDropZone.scss'
 import CompiledProgressionItem from './CompiledProgressionItem'
 import PlaybackControls from './PlaybackControls'
-import type { ChordProgression } from '../../data/progressions'
+import type { ChordProgression } from '../../types'
 
 interface ProgressionDropZoneProps {
   compiledProgressions: ChordProgression[]

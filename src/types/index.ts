@@ -1,11 +1,34 @@
-﻿/**
+/**
  * Barrel re-export for project-wide types.
  * Import from here rather than from individual source files when the consuming
  * module doesn't need direct access to the data or service that owns the type.
  */
 export type { ModeGuitar } from '../types/mode'
-export type { ChordProgression } from '../data/progressions'
-export type { RhythmPatternDef } from '../data/rhythmPatterns'
+export type {
+  LegatoBehavior,
+  TablatureNote,
+  ChordGroup,
+  ProgressionGroup,
+  RhythmModifierMode,
+  ArpeggioDirection,
+  LegatoChain,
+  RhythmModifier,
+  ModeZone,
+  Voicing,
+  ClipNote,
+  ClipGroup,
+  ClipData,
+  RibbonWaypoint,
+  ChordProgression,
+  ChordChart,
+  RhythmTrack,
+  RhythmPatternDef,
+  ChordPosition,
+  ChordTypeDef,
+  Chords,
+  ChordsCompleteDef,
+} from './tablature'
+export { MODE_ZONE_MIN_LENGTH } from './tablature'
 export type {
   DragNoteState,
   DragChordGroupState,
@@ -15,10 +38,8 @@ export type {
   DragPlaybackState,
   DragModeZoneState,
   AnyDragState,
+  DropPayload,
 } from './drag'
-
-import type { TablatureNote } from '../stores/useTablatureR3FStore'
-
-export type ClipNote  = Pick<TablatureNote, 'string'|'fret'|'duration'> & { startBeat: number }
-export type ClipGroup = { noteIndices: number[]; chordName: string }
-export type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
+export type { PanelId, UIState, FretHighlight, GuitarPreset } from './ui'
+export type { SelectionState, EditorHoverState } from './editor'
+export type { Events } from './events'

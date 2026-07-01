@@ -11,6 +11,8 @@
  * hit-zone detection (`noteZone()` / `noteZoneCompact()` in tabUtils.ts).
  */
 
+import type { RhythmPatternDef, ChordProgression } from './tablature'
+
 export type NoteZone =
   | 'resize-left'
   | 'bubble-prev'
@@ -57,7 +59,7 @@ export type DragRectState = { kind: 'rect'; x0: number; y0: number; x1: number; 
 export type DragNewProgState = { kind: 'new-prog'; startBeat: number; endBeat: number; fromGroupId?: string; ctrlKey?: boolean }
 export type DragPlaybackState = { kind: 'playback-beat' }
 export type DragModeZoneState = { kind: 'mode-zone'; type: 'move' | 'resize-right'; zoneId: string; startX: number; origStartBeat: number; origLength: number }
-export type DragRhythmState = { kind: 'rhythm'; pattern: import('../data/rhythmPatterns').RhythmPatternDef }
+export type DragRhythmState = { kind: 'rhythm'; pattern: RhythmPatternDef }
 
 export type AnyDragState =
   | DragNoteState
@@ -69,3 +71,8 @@ export type AnyDragState =
   | DragModeZoneState
   | DragRhythmState
   | null
+
+export type DropPayload =
+  | { kind: 'mode'; modeName: string }
+  | { kind: 'rhythm'; pattern: RhythmPatternDef; trackIndex: number }
+  | (ChordProgression & { _chordType?: string })

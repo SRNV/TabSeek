@@ -5,8 +5,8 @@ import { PodModifierService } from '../../services/PodModifierService'
 import { ModeZoneService } from '../../services/ModeZoneService'
 import { RhythmModifierService } from '../../services/RhythmModifierService'
 import { useTablatureR3FStore } from '../../stores/useTablatureR3FStore'
-import { rhythmPatterns, type RhythmPatternDef } from '../../data/rhythmPatterns'
-import type { ArpeggioDirection, ChordGroup, RhythmModifier, ModeZone } from '../../stores/useTablatureR3FStore'
+import { rhythmPatterns } from '../../data/rhythmPatterns'
+import type { RhythmPatternDef, ArpeggioDirection, ChordGroup, RhythmModifier, ModeZone } from '../../types'
 
 // ── Floating overlay root — a single DOM node appended to <body>, outside the
 // R3F Html stacking entirely. Popovers portal into it so they (a) can never be
@@ -49,18 +49,18 @@ function getOverlayRoot(): HTMLDivElement {
 // Floating popover: tracks the anchor disc's live screen position every frame
 // (so it follows pan/zoom) and renders via portal at a fixed screen position —
 // above the disc by default, flipped below if there isn't room above the viewport.
-function FloatingPodPopover({ anchorRef, children }: {
+function FloatingPodPopover({ anchorRef, popoverRef, children }: {
   anchorRef: React.RefObject<HTMLElement>
+  popoverRef: React.RefObject<HTMLDivElement>
   children: React.ReactNode
 }) {
-  const popRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; placement: 'above' | 'below'; arrowLeft: number } | null>(null)
 
   useEffect(() => {
     let raf = 0
     function update() {
       const anchor = anchorRef.current
-      const pop = popRef.current
+      const pop = popoverRef.current
       if (anchor) {
         const r = anchor.getBoundingClientRect()
         const popH = pop?.offsetHeight ?? 40
@@ -72,9 +72,7 @@ function FloatingPodPopover({ anchorRef, children }: {
         const anchorCx   = r.left + r.width / 2
         const anchorLeft = r.left
         const maxLeft    = window.innerWidth - popW - 8
-        // Left-align popover with the disc's left edge, clamped to viewport bounds
         const left       = Math.max(8, Math.min(maxLeft, anchorLeft))
-        // Arrow still points to the center of the disc
         const arrowLeft  = Math.max(10, Math.min(popW - 10, anchorCx - left))
         setPos({ left, top, placement, arrowLeft })
       }
@@ -82,11 +80,11 @@ function FloatingPodPopover({ anchorRef, children }: {
     }
     raf = requestAnimationFrame(update)
     return () => cancelAnimationFrame(raf)
-  }, [anchorRef])
+  }, [anchorRef, popoverRef])
 
   return createPortal(
     <div
-      ref={popRef}
+      ref={popoverRef}
       className={`floating-pod-popover${pos ? ` placement-${pos.placement}` : ''}`}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, visibility: pos ? 'visible' : 'hidden' }}
       onClick={e => e.stopPropagation()}
@@ -118,7 +116,22 @@ export function PodModifierDisc({
   onDoubleClick?: (e: React.MouseEvent) => void
 }) {
   const [popoverVisible, setPopoverVisible] = useState(false)
-  const anchorRef = useRef<HTMLDivElement>(null)
+  const anchorRef  = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  // Close when clicking outside the disc or the popover.
+  // Bubbling phase (not capture) so R3F processes canvas events first.
+  useEffect(() => {
+    if (!popoverVisible) return
+    function handleOutside(e: PointerEvent) {
+      if (anchorRef.current?.contains(e.target as Node)) return
+      if (popoverRef.current?.contains(e.target as Node)) return
+      setPopoverVisible(false)
+    }
+    document.addEventListener('pointerdown', handleOutside)
+    return () => document.removeEventListener('pointerdown', handleOutside)
+  }, [popoverVisible])
+
   return (
     <div style={{ position: 'relative', ...style }} onWheel={passWheel}>
       <div
@@ -137,7 +150,7 @@ export function PodModifierDisc({
         />
       </div>
       {popoverVisible && (
-        <FloatingPodPopover anchorRef={anchorRef}>
+        <FloatingPodPopover anchorRef={anchorRef} popoverRef={popoverRef}>
           {popoverContent(() => setPopoverVisible(false))}
         </FloatingPodPopover>
       )}
@@ -318,7 +331,7 @@ function RhythmPopoverBody({ mod, pattern, onUpdate }: {
                   onChange={e => {
                     const next = e.target.checked
                       ? [...mod.activeTracks, t.part]
-                      : mod.activeTracks.filter(p => p !== t.part)
+                      : mod.activeTracks.filter((p: string) => p !== t.part)
                     onUpdate({ activeTracks: next })
                   }}
                 />

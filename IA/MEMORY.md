@@ -558,7 +558,7 @@ Les 3 types de pods (Chord, Progression, Rhythm Modifier) partagent désormais l
 - **`PodModifierPopover`** : coquille commune (nav précédent/suivant optionnelle + zone enfants + bouton supprimer optionnel + bouton fermer). `className` pour le thème CSS (`chord-popover`/`progression-popover`/`rhythm-popover`).
 - **`FloatingPodPopover`** : ⚠️ **portail flottant** — rendu via `createPortal` dans un nœud DOM dédié ajouté à `document.body` (`getOverlayRoot()`), **complètement hors de la hiérarchie `<Html>` de R3F**. Recalcule sa position (`getBoundingClientRect()` de l'ancre) à chaque frame via `requestAnimationFrame`, donc suit le pan/zoom de la caméra. Placement intelligent : au-dessus de l'ancre par défaut, bascule en dessous si pas de place (`placement: 'above'|'below'`), avec petit connecteur triangulaire CSS pointant vers le disque.
   - **Pourquoi un portail et pas un `<Html>` imbriqué** : plusieurs `<Html>` R3F empilés (disque du pod + popover + sous-popovers) pouvaient se voler les événements de clic selon l'ordre de stacking DOM — cause la plus probable des boutons de popover qui ne répondaient plus. Le portail élimine ce risque structurellement.
-  - **Pas de fermeture au clic extérieur** : seulement via le bouton ✕ explicite (un `document.addEventListener('pointerdown', ..., {capture:true})` global a été essayé puis retiré — risque d'interférer avec le système de pointer du canvas R3F, notamment le drag des pods).
+  - **Fermeture au clic extérieur** : `PodModifierDisc` crée `popoverRef = useRef<HTMLDivElement>(null)` et passe la ref à `FloatingPodPopover`. Un `useEffect` actif uniquement quand `popoverVisible = true` enregistre un listener `pointerdown` en phase **bubbling** (pas capture — le capture a été essayé puis retiré, il interférait avec le drag R3F). Handler : `contains()` sur `anchorRef` et `popoverRef` — si ni l'un ni l'autre ne contient la cible, `setPopoverVisible(false)`. Nettoyage automatique au unmount ou quand `popoverVisible` passe à `false`.
   - ⚠️ **`passWheel`** (`PodModifierUI.tsx`) : le portail sortant le disque/la popover de la hiérarchie du canvas, le listener `wheel` natif du canvas (zoom/pan) ne reçoit plus l'événement quand le curseur survole un disque ou une popover (`pointer-events:auto`). `passWheel(e)` redispatch un `WheelEvent` synthétique vers `.tab-r3f-canvas-area canvas`, monté en `onWheel` sur le wrapper du disque (`PodModifierDisc`) et sur la popover flottante elle-même — sans ça, zoomer/scroller la molette ne fonctionne plus dès que le curseur est sur un disque de pod.
 - **`RhythmModifierDisc`** : disque+popover rythme factorisé, réutilisé à la fois par le pod flottant (cible `note`/`progression`) et par le Chord Pod (cible `chord`, voir 11.8.3).
 - **`InstrumentTrackDisc`** : voir 11.8.3.
@@ -966,3 +966,23 @@ const source = notes.find(n => n.id === sourceId)    // dérivé localement
 ```
 
 Ce piège a causé le bug de `LegatoLine` en session 8 lors de la tentative de fix P4-4.
+
+### 16.6 Guarde-fou sélecteurs — Sélecteurs objet-littéral
+
+> **Interdiction d'utiliser des sélecteurs renvoyant un objet littéral `{ ... }` sans `useShallow`.**
+
+Même si les valeurs individuelles sont identiques, `{ a: 1 } !== { a: 1 }`. React détecte un changement de snapshot et déclenche un re-render, menant à une erreur `Maximum update depth exceeded`.
+
+**Règle** : Toujours envelopper un sélecteur multi-propriétés dans `useShallow()`, ou utiliser des sélecteurs atomiques individuels.
+
+```ts
+// ❌ INTERDIT — boucle infinie
+const { a, b } = useStore(s => ({ a: s.a, b: s.b }))
+
+// ✅ REQUIS — comparaison superficielle (shallow)
+const { a, b } = useStore(useShallow(s => ({ a: s.a, b: s.b })))
+
+// ✅ REQUIS — sélecteurs atomiques
+const a = useStore(s => s.a)
+const b = useStore(s => s.b)
+```

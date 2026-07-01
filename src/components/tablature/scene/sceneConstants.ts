@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three'
 import { ColorService } from '../../../services/ColorService'
-import { MEASURE_W, LANE_H, GAP_WU, STRING_H, N_STRINGS } from '../../../utils/tabUtils'
+import { MEASURE_W, LANE_H, GAP_WU, STRING_H, N_STRINGS, BEAT_W } from '../../../utils/tabUtils'
 
 function darkenHex(hex: string, pct: number): string {
   const c = new THREE.Color(hex)
@@ -37,6 +37,11 @@ export const DISC_PALETTE: Record<string, { fill: string; border: string; text: 
   }
   return map
 })()
+
+export const INITIAL_MEASURES = 1000
+export const TRIGGER_FRAC     = 0.85
+export const EXTEND_FRAC      = 0.5
+export const SCROLL_SPEED     = BEAT_W / 50
 
 export const BG_COL          = '#3a3a3a'
 export const LANE_COL        = '#2e2e2e'

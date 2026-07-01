@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { RibbonWaypoint } from '../types'
 
 // ── Shared GLSL ───────────────────────────────────────────────────────────────
 // uInvStretchX: set to 1.0 for isotropic scenes (fretboard), or to the
@@ -78,13 +79,6 @@ export function createRibbonGeometry(maxSegments: number): THREE.BufferGeometry 
 }
 
 // ── Linear in-place fill ──────────────────────────────────────────────────────
-
-export interface RibbonWaypoint {
-  x: number
-  y: number
-  z?: number
-  color: THREE.Color
-}
 
 /**
  * Fill a pre-allocated ribbon geometry with linear segments between waypoints.

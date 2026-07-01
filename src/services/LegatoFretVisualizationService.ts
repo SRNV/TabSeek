@@ -1,9 +1,9 @@
 import { useMainStore } from '../stores/useMainStore'
-import type { TablatureNote } from '../stores/useTablatureR3FStore'
+import type { TablatureNote } from '../types'
 
 export const LegatoFretVisualizationService = {
   show: (noteId: string, notes: TablatureNote[]) => {
-    const note = notes.find(n => n.id === noteId)
+    const note = notes.find((n: TablatureNote) => n.id === noteId)
     if (!note) return
 
     // Find the source note of this legato chain
@@ -11,17 +11,17 @@ export const LegatoFretVisualizationService = {
     if (note.legatoNext) {
       source = note
     } else if (note.legatoPrev) {
-      source = notes.find(n => n.id === note.legatoPrev)
+      source = notes.find((n: TablatureNote) => n.id === note.legatoPrev)
     } else {
-      source = notes.find(n => n.intermediateNoteIds?.includes(noteId))
+      source = notes.find((n: TablatureNote) => n.intermediateNoteIds?.includes(noteId))
     }
 
     if (!source?.legatoNext) return
 
     const intermediates = (source.intermediateNoteIds ?? [])
-      .map(id => notes.find(n => n.id === id))
+      .map((id: string) => notes.find((n: TablatureNote) => n.id === id))
       .filter((n): n is TablatureNote => !!n)
-      .sort((a, b) => a.startBeat - b.startBeat)
+      .sort((a: TablatureNote, b: TablatureNote) => a.startBeat - b.startBeat)
 
     const destination = notes.find(n => n.id === source!.legatoNext)
 

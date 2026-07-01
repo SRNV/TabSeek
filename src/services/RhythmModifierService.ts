@@ -15,8 +15,9 @@
  * Pre-flight check (P4-3): notes already in a legato chain (`legatoNext` present)
  * are skipped during materialisation to avoid silently overwriting existing chains.
  */
-import { useTablatureR3FStore, TablatureNote, RhythmModifier } from '../stores/useTablatureR3FStore'
-import { rhythmPatterns, RhythmPatternDef } from '../data/rhythmPatterns'
+import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
+import { rhythmPatterns } from '../data/rhythmPatterns'
+import type { RhythmPatternDef, TablatureNote, RhythmModifier } from '../types'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
 
 export interface VirtualNote {

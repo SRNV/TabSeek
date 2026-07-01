@@ -17,10 +17,9 @@ import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { getNoteName } from '../hooks/useNoteHelpers'
-import { findBestChordFrets, Voicing } from '../utils/guitarUtils'
+import { findBestChordFrets } from '../utils/guitarUtils'
+import type { Voicing, ChordProgression, RhythmPatternDef } from '../types'
 import { RhythmModifierService } from './RhythmModifierService'
-import type { ChordProgression } from '../data/progressions'
-import type { RhythmPatternDef } from '../data/rhythmPatterns'
 
 const CHORD_DUR = 4 // Default duration for each chord in a progression
 

@@ -16,7 +16,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { createRibbonMaterial, buildRibbonGeoCatmullRom } from '../../../services/RibbonLineService'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
-import type { TablatureNote } from '../../../stores/useTablatureR3FStore'
+import type { TablatureNote } from '../../../types'
 import { ColorService } from '../../../services/ColorService'
 import { BEAT_W, stringY } from '../../../utils/tabUtils'
 
