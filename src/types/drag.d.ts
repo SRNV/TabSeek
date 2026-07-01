@@ -57,6 +57,7 @@ export type DragRectState = { kind: 'rect'; x0: number; y0: number; x1: number; 
 export type DragNewProgState = { kind: 'new-prog'; startBeat: number; endBeat: number; fromGroupId?: string; ctrlKey?: boolean }
 export type DragPlaybackState = { kind: 'playback-beat' }
 export type DragModeZoneState = { kind: 'mode-zone'; type: 'move' | 'resize-right'; zoneId: string; startX: number; origStartBeat: number; origLength: number }
+export type DragRhythmState = { kind: 'rhythm'; pattern: import('../data/rhythmPatterns').RhythmPatternDef }
 
 export type AnyDragState =
   | DragNoteState
@@ -66,4 +67,5 @@ export type AnyDragState =
   | DragNewProgState
   | DragPlaybackState
   | DragModeZoneState
+  | DragRhythmState
   | null

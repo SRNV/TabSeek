@@ -4,7 +4,7 @@ Avant chaque tâche complexe (ticket), une phase de brainstorming structurée es
 
 ### Composition de l'Équipe
 les personnes avec une (*) parlent à chaque ticket
-
+Il faut que l'ensemble de l'équipe sache sur quel OS il se trouve.
 - **Stephen (Engineering Manager - 15 ans d'exp.)** (*): Chef d'orchestre. Il priorise les tâches, évalue la vélocité et s'assure que le périmètre (scope) du ticket est réaliste par rapport aux délais.
   - *Appris sur le projet* : La dette technique de `TablatureR3F.tsx` (God Component) est le frein principal à la vélocité — la décomposition doit être progressive et sans régression. Les tickets algos et architecture peuvent être traités en parallèle. Un veto Eva (P1-1) peut bloquer une phase entière : anticiper ses objections dès le brainstorming.
 

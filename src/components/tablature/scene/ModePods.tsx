@@ -19,16 +19,12 @@ import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
 import { ModeZoneService } from '../../../services/ModeZoneService'
 import { PodModifierDisc, PodModifierPopover, ModePopoverButtons } from '../PodModifierUI'
 import { roundedRect } from '../../../utils/tablatureGeometry'
-import { BEAT_W, HEADER_H, POD_HEADER_OFF, N_STRINGS, stringY, LEFT_MARGIN_W } from '../../../utils/tabUtils'
+import { BEAT_W, HEADER_H, POD_HEADER_OFF, N_STRINGS, stringY, LEFT_MARGIN_W, MODE_HEADER_OFF_Y } from '../../../utils/tabUtils'
+import {
+  MODE_BORDER_COL, MODE_BORDER_HOVER_COL, CHORD_R, CHORD_BORDER_WU, CHORD_PAD_H
+} from './sceneConstants'
 import { passWheel } from './passWheel'
 import type { DragModeZoneState } from '../../../types/drag'
-
-const MODE_BORDER_COL       = '#cc0000'
-const MODE_BORDER_HOVER_COL = '#ff4d4d'
-const CHORD_R               = 0.28
-const CHORD_BORDER_WU       = 0.10
-const MODE_HEADER_OFF       = stringY(N_STRINGS - 1) + POD_HEADER_OFF
-const CHORD_PAD_H           = 0.25
 
 interface ModePodsProps {
   hoveredModeZoneId: string | null
@@ -84,7 +80,7 @@ export function ModePods({ hoveredModeZoneId, setHoveredModeZoneId, drag, invStr
         const stickyRelX = stickyX - headerX
 
         return (
-          <group key={zone.id} position={[headerX, MODE_HEADER_OFF, 0.002]}>
+          <group key={zone.id} position={[headerX, MODE_HEADER_OFF_Y, 0.002]}>
             <mesh geometry={getHeaderGeo(headerW, HEADER_H)} renderOrder={5}>
               <meshBasicMaterial color={borderCol} />
             </mesh>

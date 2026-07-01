@@ -18,12 +18,9 @@ import { LegatoFretVisualizationService } from '../../services/LegatoFretVisuali
 import { RhythmModifierService } from '../../services/RhythmModifierService'
 import { PodModifierService } from '../../services/PodModifierService'
 import { ModeZoneService } from '../../services/ModeZoneService'
-import { PodModifierDisc, PodModifierPopover, RhythmModifierDisc, ChordPopoverButtons, ModePopoverButtons, InstrumentTrackDisc } from './PodModifierUI'
+import { PodModifierPopover, RhythmModifierDisc } from './PodModifierUI'
 import { playNote, playFullChord, stopAllSounds } from '../../hooks/useAudio'
 import { ColorService } from '../../services/ColorService'
-import { LegatoLine } from './scene/LegatoLine'
-import { NoteDisc } from './scene/NoteDisc'
-import { SubNoteBody } from './scene/SubNoteBody'
 import { passWheel } from './scene/passWheel'
 import { ModeZoneGradientMaterial } from './scene/ModeZoneGradientMaterial'
 import { useShallow } from 'zustand/react/shallow'
@@ -33,7 +30,12 @@ import { ModeZoneTint } from './scene/ModeZoneTint'
 import { PlaybackIndicator } from './scene/PlaybackIndicator'
 import { ModePods } from './scene/ModePods'
 import { RhythmModifierPods } from './scene/RhythmModifierPods'
+import { SceneBackground } from './scene/SceneBackground'
+import { NotePods } from './scene/NotePods'
+import { ChordPods } from './scene/ChordPods'
+import { ProgressionPods } from './scene/ProgressionPods'
 import { rhythmPatterns, type RhythmPatternDef } from '../../data/rhythmPatterns'
+import type { ClipData, ClipNote, ClipGroup } from '../../types'
 import './TablatureR3F.scss'
 
 const BEHAVIORS: Record<LegatoBehavior, { name: string, icon: string }> = {
@@ -76,9 +78,24 @@ const BEHAVIOR_KEYS = Object.keys(BEHAVIORS) as LegatoBehavior[]
 import {
   BEAT_W, SNAP, MIN_DUR, N_STRINGS, STRING_H, LANE_H, GAP_WU, BEATS_PER_MEAS, MEASURE_W,
   gridTop, gridBottom, LEFT_MARGIN_W, HEADER_H, POD_HEADER_OFF, BUBBLE_W,
-  NoteZone, noteZone, noteZoneCompact, zoneCursor, noteInRect,
-  stringY, siFromWorldY, snapBeat, constrainMove, constrainRight, constrainLeft, constrainChordGroupMove
+  stringY, siFromWorldY, snapBeat, constrainMove, constrainRight, constrainLeft, constrainChordGroupMove,
+  LARGE_W, infoLaneY, CAM_HALF_H_TOP, CAM_HALF_H_BOT, marginY, measLabelY, MODE_HEADER_OFF_Y,
+  noteZone, noteZoneCompact, zoneCursor, noteInRect
 } from '../../utils/tabUtils'
+import type { NoteZone } from '../../utils/tabUtils'
+import {
+  BG_COL, LANE_COL, MARGIN_COL, BEAT_LINE_COL, MEAS_LINE_COL, OFF_COL, SEL_COL, PEND_COL, LEGATO_COL, APPLE_GREEN,
+  CHORD_PAD_H, CHORD_PAD_V, CHORD_R, CHORD_BORDER_WU, CHORD_BORDER_COL, CHORD_BORDER_HOVER_COL,
+  PROG_BORDER_COL, PROG_BORDER_HOVER_COL, PROG_FILL_COL, PROG_FILL_HOV, PROG_PAD_H, PROG_PAD_V,
+  CHORD_DUR, MODE_BORDER_COL, MODE_BORDER_HOVER_COL, MODE_GRADIENT_RAMP, MODE_GRADIENT_OPACITY,
+  SCALE_COLORS, DISC_PALETTE
+} from './scene/sceneConstants'
+import type { 
+  AnyDragState, DragNoteState as DragNote, DragRectState as DragRect, 
+  DragChordGroupState as DragChordGroup, DragProgGroupState as DragProgGroup,
+  DragNewProgState as DragNewProg, DragPlaybackState as DragPlayback,
+  DragModeZoneState as DragModeZone, DragRhythmState as DragRhythm
+} from '../../types/drag'
 import { roundedRect, leftCircleRect, buildBeatGeo, buildMeasGeo } from '../../utils/tablatureGeometry'
 import { findFretForNote, findFretForPc, nextFretSamePc, getNoteName } from '../../utils/guitarUtils'
 
@@ -86,121 +103,7 @@ const INITIAL_MEASURES = 1000
 const TRIGGER_FRAC     = 0.85
 const EXTEND_FRAC      = 0.5
 const SCROLL_SPEED     = BEAT_W / 50
-const LARGE_W          = 4_000_000
 const RECT_DRAG_PX     = 5
-
-const SCALE_COLORS = ['#FFF9B1','#77DD77','#AEC6CF','#CDB4DB','#FFB3B3','#FFD1B3','#FFFFFF']
-
-function darkenHex(hex: string, pct: number): string {
-  const c = new THREE.Color(hex)
-  const hsl = { h: 0, s: 0, l: 0 }
-  c.getHSL(hsl)
-  c.setHSL(hsl.h, hsl.s, hsl.l * (1 - pct))
-  return '#' + c.getHexString()
-}
-function desaturateHex(hex: string, pct: number): string {
-  const c = new THREE.Color(hex)
-  const hsl = { h: 0, s: 0, l: 0 }
-  c.getHSL(hsl)
-  c.setHSL(hsl.h, hsl.s * (1 - pct), hsl.l)
-  return '#' + c.getHexString()
-}
-
-// Note disc palette — fill is 33% darker + 35% less saturated than the degree color, border
-// is a further 33% darker than the fill (saturation already reduced, so it carries over),
-// text uses ColorService's contrast function against the fill. Only 7 possible degree colors,
-// so this is precomputed once at module load instead of per-render.
-const DISC_PALETTE: Record<string, { fill: string; border: string; text: string }> = (() => {
-  const map: Record<string, { fill: string; border: string; text: string }> = {}
-  for (const deg of SCALE_COLORS) {
-    const fill = desaturateHex(darkenHex(deg, 0.33), 0.15)
-    map[deg] = { fill, border: darkenHex(fill, 0.33), text: ColorService.getContrastColor(fill) }
-  }
-  return map
-})()
-
-const BG_COL        = '#3a3a3a'
-const LANE_COL      = '#2e2e2e'
-const MARGIN_COL    = darkenHex(LANE_COL, 0.33)
-const BEAT_LINE_COL = '#111111'
-const MEAS_LINE_COL = '#505050'
-const OFF_COL       = '#606060'
-const SEL_COL       = '#FF9500'
-const PEND_COL      = '#3d8de0'
-const LEGATO_COL    = '#FFD700'   // gold for legato bubbles
-const APPLE_GREEN   = '#88FF00'
-
-// Info lane — chord labels
-const INFO_LANE_GAP = 0.20
-const INFO_LANE_H   = LANE_H
-const infoLaneY     = gridBottom - INFO_LANE_GAP - INFO_LANE_H / 2
-
-// Asymmetric frustum: bottom for info lane, top to show pods inside top gap
-const CAM_HALF_H_TOP = gridTop + 0.50
-const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + 0.30
-
-// Progression pod style
-const PROG_BORDER_COL      = '#5B8EE8'
-const PROG_BORDER_HOVER_COL = '#8fb3f0' // lighter shade of its own theme on hover — not the generic SEL_COL
-const PROG_FILL_COL   = BG_COL
-const PROG_FILL_HOV   = '#4a4a4a'
-const PROG_PAD_H      = 1.20   // extra padding beyond chord pod edges on each side
-const PROG_PAD_V      = 0.55
-
-const CHORD_DUR       = BEATS_PER_MEAS   // 4 beats per chord slot when dropping a progression
-const CHORD_PAD_H     = 0.25            // horizontal padding around chord pod (WU ≈ 5px)
-const CHORD_PAD_V     = 0.25            // vertical padding around chord pod (WU ≈ 5px)
-const CHORD_R         = 0.28            // chord pod corner radius (WU)
-const CHORD_BORDER_WU = 0.10            // ~2 px border at standard zoom
-const CHORD_BORDER_COL       = '#4caf50' // green border
-const CHORD_BORDER_HOVER_COL = '#7be08c' // lighter shade of its own theme on hover — not the generic SEL_COL
-
-// Mode pod style — not anchored to a specific string row (influences the whole grid), but its
-// header still sits in the inter-string gap above the topmost string ("e"), exactly like a
-// Chord/Progression pod whose bounds.siMax is that same topmost string — not above the measure
-// number labels, which stay further up still (gridTop+0.20).
-const MODE_BORDER_COL       = '#cc0000'
-const MODE_BORDER_HOVER_COL = '#ff4d4d'
-const MODE_HEADER_OFF       = stringY(N_STRINGS - 1) + POD_HEADER_OFF
-const MODE_GRADIENT_RAMP    = 0.2
-const MODE_GRADIENT_OPACITY = 0.35
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-type DragNote = { kind: 'note'; noteId: string; type: NoteZone; startX: number; origBeat: number; origDur: number; origSi: number; origFret: number }
-type DragRect = { kind: 'rect'; x0: number; y0: number; x1: number; y1: number }
-type DragChordGroup = {
-  kind: 'chord-group'
-  type: NoteZone
-  groupId: string
-  startX: number
-  origGroupStart: number
-  origGroupEnd: number
-  origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>
-  didMove: boolean
-}
-type ClipNote  = Pick<TablatureNote, 'string'|'fret'|'duration'> & { startBeat: number }
-type ClipGroup = { noteIndices: number[]; chordName: string }
-type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
-type DragProgGroup = {
-  kind: 'prog-group'
-  type: NoteZone
-  progId: string
-  startX: number
-  origProgStart: number
-  origProgEnd: number
-  origNotes: Array<{ id: string; startBeat: number; duration: number; string: number }>
-  didMove: boolean
-}
-type DragNewProg = {
-  kind: 'new-prog'
-  startBeat: number
-  endBeat: number
-  fromGroupId?: string
-  ctrlKey?: boolean
-}
-type DragPlayback = { kind: 'playback-beat' }
-type DragRhythm = { kind: 'rhythm'; pattern: RhythmPatternDef }
-type DragModeZone = { kind: 'mode-zone'; type: 'move' | 'resize-right'; zoneId: string; startX: number; origStartBeat: number; origLength: number }
 
 interface SceneProps { onStringYPcts: (pcts: number[]) => void }
 
@@ -774,7 +677,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     editingProgName, setEditingProgName,
   } = useEditorSelection()
 
-  const drag = useRef<DragNote | DragRect | DragChordGroup | DragProgGroup | DragNewProg | DragPlayback | DragModeZone | null>(null)
+  const drag = useRef<AnyDragState>(null)
   const [newProgDrag, setNewProgDrag] = useState<{ startBeat: number; endBeat: number } | null>(null)
 
   // ── Hover state (P2-2: extracted to useEditorHover) ─────────────────────────
@@ -1306,54 +1209,21 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     gl.domElement.style.cursor = tp === 'move' ? 'grabbing' : zoneCursor(tp)
   }
 
-  // ── Visible measure range ─────────────────────────────────────────────────────
-  const halfW     = halfWRef.current
-  const leftMeas  = Math.max(0, Math.floor((scrollX - LEFT_MARGIN_W - halfW) / MEASURE_W) - 1)
-  const rightMeas = Math.min(totalMeasures - 1, Math.ceil((scrollX - LEFT_MARGIN_W + halfW) / MEASURE_W) + 1)
-  const measLabelY = gridTop + 0.20
+  const halfW = halfWRef.current
 
   return (
-    <group onPointerDown={() => { if (legatoSourceId) setLegatoSourceId(null) }}>
-      {/* Lane backgrounds + drag-hover highlight */}
-      {Array.from({ length: N_STRINGS }, (_, si) => (
-        <group key={si}>
-          <mesh position={[0, stringY(si), -0.04]} geometry={laneBgGeo} material={laneBgMat}
-            onPointerDown={e => onLanePointerDown(e, si)}
-            onDoubleClick={e => onLaneDblClick(e, si)} />
-          {dragHoverSi === si && (
-            <mesh position={[scrollX, stringY(si), -0.03]}>
-              <planeGeometry args={[LARGE_W, LANE_H]} />
-              <meshBasicMaterial color="#585858" transparent opacity={0.55} depthWrite={false} />
-            </mesh>
-          )}
-        </group>
-      ))}
-
-      {/* Left Margin */}
-      <mesh position={[-LEFT_MARGIN_W / 2, marginY, -0.038]} geometry={marginGeo} material={marginMat} />
-
-      {/* Mode Zone tint — extracted to ModeZoneTint (P2-1) */}
-      <ModeZoneTint />
-
-      {/* Grid lines */}
-      <lineSegments position={[0, 0, -0.035]} geometry={beatGeo} material={matBeat} frustumCulled={false} />
-      <lineSegments position={[0, 0, -0.035]} geometry={measGeo} material={matMeas} frustumCulled={false} />
-
-      {/* Measure labels */}
-      {Array.from({ length: rightMeas - leftMeas + 1 }, (_, i) => {
-        const m = leftMeas + i
-        if (m < 0 || m >= totalMeasures) return null
-        return (
-          <Html key={m} position={[m * MEASURE_W + 0.08, measLabelY, 0.1]}
-            style={{ pointerEvents: 'none' }} zIndexRange={[200, 200]}>
-            <span className="tab-r3f-meas-label">{m + 1}</span>
-          </Html>
-        )
-      })}
-
-      {/* Info lane — drag on empty space to draw a progression range */}
-      <mesh position={[0, infoLaneY, -0.04]} geometry={laneBgGeo} material={laneBgMat}
-        onPointerDown={e => {
+    <>
+      <SceneBackground
+        scrollX={scrollX}
+        halfW={halfW}
+        totalMeasures={totalMeasures}
+        dragHoverSi={dragHoverSi}
+        newProgDrag={newProgDrag}
+        beatGeo={beatGeo}
+        measGeo={measGeo}
+        onLanePointerDown={onLanePointerDown}
+        onLaneDblClick={onLaneDblClick}
+        onInfoLanePointerDown={e => {
           if (e.button !== 0) return
           e.stopPropagation()
           if (legatoSourceId) setLegatoSourceId(null)
@@ -1362,121 +1232,26 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           setNewProgDrag({ startBeat, endBeat: startBeat })
           gl.domElement.style.cursor = 'crosshair'
         }}
-        onPointerEnter={() => { if (!drag.current) gl.domElement.style.cursor = 'crosshair' }}
-        onPointerLeave={() => { if (!drag.current) gl.domElement.style.cursor = 'default' }}
+        onBackgroundPointerDown={() => { if (legatoSourceId) setLegatoSourceId(null) }}
       />
 
-      {/* Drag preview — blue band in info lane while drawing progression range */}
-      {newProgDrag && (() => {
-        const beatMin = Math.min(newProgDrag.startBeat, newProgDrag.endBeat)
-        const beatMax = Math.max(newProgDrag.startBeat, newProgDrag.endBeat)
-        const w  = (beatMax - beatMin) * BEAT_W
-        const cx = (beatMin + beatMax) / 2 * BEAT_W
-        return (
-          <mesh position={[cx, infoLaneY, -0.038]}>
-            <planeGeometry args={[Math.max(w, 0.01), INFO_LANE_H]} />
-            <meshBasicMaterial color={PROG_BORDER_COL} transparent opacity={0.3} depthWrite={false} />
-          </mesh>
-        )
-      })()}
-
-      {/* Progression pods — header bar above contained chord pods */}
-      {progressionGroups.map(prog => {
-        const b = getProgBounds(prog)
-        if (!b) return null
-        const headerW  = (b.beatMax - b.beatMin) * BEAT_W + CHORD_PAD_H * 2 + PROG_PAD_H * 2
-        const headerX  = (b.beatMin + b.beatMax) / 2 * BEAT_W
-        const headerCY = stringY(b.siMax) + POD_HEADER_OFF
-        const podLeft  = b.beatMin * BEAT_W - CHORD_PAD_H - PROG_PAD_H
-        const podRight = podLeft + headerW
-        const isHov   = hoveredProgId === prog.id
-        const bCol    = isHov ? PROG_BORDER_HOVER_COL : PROG_BORDER_COL
-        const fillCol = isHov ? PROG_FILL_HOV : '#252535'
-        // Sticky disc: clamp to camera left while pod is on screen
-        const progDiscWU = 26.4 / pxPerWUX  // 22px disc × 1.2
-        const stickyX   = Math.max(podLeft, Math.min(podRight - progDiscWU, camL + 0.06 * invStretchX))
-        const stickyRelX = stickyX - headerX
-        return (
-          <group key={prog.id} position={[headerX, headerCY, 0.003]}>
-            {/* Header fill — solid color, no outline */}
-            <mesh geometry={getChordPodGeo(headerW, HEADER_H)} renderOrder={3}>
-              <meshBasicMaterial color={bCol} />
-            </mesh>
-            {/* Hit area */}
-            <mesh position={[0, 0, 0.009]}
-              onPointerDown={e => onProgPodDown(e, prog, headerW)}
-              onPointerEnter={() => {
-                setHoveredProgId(prog.id)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'grab'
-                  const progNotes = prog.chordGroupIds.flatMap(cgId => {
-                    const cg = chordGroups.find(g => g.id === cgId)
-                    return cg ? notes.filter(n => cg.noteIds.includes(n.id)) : []
-                  })
-                  FretboardHighlightService.setHighlights(progNotes.map(n => ({ si: n.string, fret: n.fret })))
-                }
-              }}
-              onPointerLeave={() => {
-                setHoveredProgId(null)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'default'
-                  FretboardHighlightService.clearHighlights()
-                }
-              }}
-              onPointerMove={e => {
-                if (drag.current) return
-                const lx = e.point.x - podLeft
-                gl.domElement.style.cursor = zoneCursor(noteZone(lx, headerW, invStretchX))
-              }}
-              onContextMenu={e => { e.stopPropagation(); pushHistory(); removeProgressionGroup(prog.id) }}
-            >
-              <planeGeometry args={[headerW, HEADER_H]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
-            {/* Sticky disc (template nav popover) — name shown as a tooltip on hover, double-click to rename */}
-            <Html position={[stickyRelX, 0, 0.1]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[80, 80]} onWheel={passWheel}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }} onPointerDown={e => e.stopPropagation()} onWheel={passWheel}>
-                <PodModifierDisc
-                  emojiStr=":musical_score:"
-                  size={22}
-                  discBg="#1a1a2a"
-                  borderCol={PROG_BORDER_COL}
-                  title={prog.name}
-                  onDoubleClick={() => { setEditingId(prog.id); setEditingProgName(prog.name) }}
-                  popoverContent={close => (
-                    <PodModifierPopover
-                      nav={PodModifierService.getProgressionTemplateNav(prog)}
-                      emojiStr=":musical_score:"
-                      onClose={close}
-                      className="progression-popover"
-                    />
-                  )}
-                />
-                {editingProgId === prog.id && (
-                  <input
-                    className="tab-r3f-fret-input"
-                    style={{ width: '90px', color: PROG_BORDER_COL, borderColor: PROG_BORDER_COL, background: 'rgba(0,0,0,0.85)' }}
-                    value={editingProgName}
-                    autoFocus
-                    onChange={ev => setEditingProgName(ev.target.value)}
-                    onKeyDown={ev => {
-                      ev.stopPropagation()
-                      if (ev.key === 'Enter' || ev.key === 'Escape') {
-                        if (ev.key === 'Enter') updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
-                        setEditingProgId(null)
-                      }
-                    }}
-                    onBlur={() => {
-                      updateProgressionGroup(prog.id, { name: editingProgName.trim() || 'Progression' })
-                      setEditingProgId(null)
-                    }}
-                  />
-                )}
-              </div>
-            </Html>
-          </group>
-        )
-      })}
+      {/* Progression pods — extracted to ProgressionPods (P2-1) */}
+      <ProgressionPods
+        invStretchX={invStretchX}
+        pxPerWUX={pxPerWUX}
+        camL={camL}
+        hoveredProgId={hoveredProgId}
+        editingProgId={editingProgId}
+        editingProgName={editingProgName}
+        setHoveredProgId={setHoveredProgId}
+        setEditingId={setEditingId}
+        setEditingProgId={setEditingProgId}
+        setEditingProgName={setEditingProgName}
+        onProgPodDown={onProgPodDown}
+        getProgBounds={getProgBounds}
+        getChordPodGeo={getChordPodGeo}
+        pushHistory={pushHistory}
+      />
 
       {/* Mode pods — extracted to ModePods (P2-1) */}
       <ModePods
@@ -1496,509 +1271,64 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         getProgBounds={getProgBounds}
       />
 
-      {/* Chord pods — header bar above contained notes */}
-      {chordGroups.map(group => {
-        const b = getGroupBounds(group)
-        if (!b) return null
-        const headerW  = (b.beatMax - b.beatMin) * BEAT_W + CHORD_PAD_H * 2
-        const headerX  = (b.beatMin + b.beatMax) / 2 * BEAT_W
-        const headerCY = stringY(b.siMax) + POD_HEADER_OFF
-        const podLeft  = b.beatMin * BEAT_W - CHORD_PAD_H
-        const podRight = podLeft + headerW
-        const isLabelHover = labelHoveredGroupId === group.id
-        const isSelForProg = selectedChordGroupIds.has(group.id)
-        const borderCol    = isLabelHover ? CHORD_BORDER_HOVER_COL : isSelForProg ? '#7BA7E8' : CHORD_BORDER_COL
-        // A rhythm modifier may impose a rhythm on this chord — its disc renders right after
-        // the chord's own disc instead of as a separate floating pod (see RhythmModifierPod).
-        const chordRhythmMod = rhythmModifiers.find(m => m.targetType === 'chord' && m.targetId === group.id && m.kind !== 'arpeggio')
-        const arpeggioMod    = PodModifierService.getArpeggioForChord(group.id)
-        // Sticky disc: stays visible at left edge while pod is in camera view
-        const extraDiscWU = chordRhythmMod ? 26.4 / pxPerWUX : 0  // 22px disc × 1.2 + gap
-        const discWU     = 30 / pxPerWUX + extraDiscWU  // 25px disc × 1.2
-        const stickyX    = Math.max(podLeft, Math.min(podRight - discWU, camL + 0.06 * invStretchX))
-        const stickyRelX = stickyX - headerX
-        return (
-          <group key={group.id} position={[headerX, headerCY, 0.001]}>
-            {/* Header fill — solid color, no outline */}
-            <mesh geometry={getChordPodGeo(headerW, HEADER_H)} renderOrder={5}>
-              <meshBasicMaterial color={borderCol} />
-            </mesh>
-            {/* Hit area on header */}
-            <mesh position={[0, 0, 0.01]}
-              onPointerDown={e => onChordPodDown(e, group, podLeft, headerW)}
-              onPointerEnter={() => {
-                setHoveredGroupId(group.id)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'grab'
-                  const groupNotes = notes.filter(n => group.noteIds.includes(n.id))
-                  FretboardHighlightService.setHighlights(groupNotes.map(n => ({ si: n.string, fret: n.fret })))
-                }
-              }}
-              onPointerLeave={() => {
-                setHoveredGroupId(null)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'default'
-                  FretboardHighlightService.clearHighlights()
-                }
-              }}
-              onPointerMove={e => {
-                if (drag.current) return
-                const lx = e.point.x - podLeft
-                gl.domElement.style.cursor = zoneCursor(noteZone(lx, headerW, invStretchX))
-              }}
-              onContextMenu={e => {
-                e.stopPropagation()
-                pushHistory()
-                group.noteIds.forEach(id => deleteNote(id, tuningArr))
-              }}
-            >
-              <planeGeometry args={[headerW, HEADER_H]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
-            {/* Sticky emoji disc + chord name (+ rhythm disc when a rhythm modifier targets this chord) */}
-            <Html position={[stickyRelX, 0, 0.05]} style={{ pointerEvents: 'auto', transform: 'translateY(-50%)' }} zIndexRange={[70, 70]} onWheel={passWheel}>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
-                onMouseEnter={() => setLabelHoveredGroupId(group.id)}
-                onMouseLeave={() => setLabelHoveredGroupId(null)}
-                onPointerDown={e => e.stopPropagation()}
-                onWheel={passWheel}
-              >
-                <PodModifierDisc
-                  emojiStr={chordEmojiStr(group.chordName)}
-                  size={25}
-                  discBg="#1a1a1a"
-                  borderCol={arpeggioMod ? '#f5a623' : CHORD_BORDER_COL}
-                  glow={!!arpeggioMod}
-                  title={group.chordName}
-                  popoverContent={close => (
-                    <PodModifierPopover
-                      nav={PodModifierService.getChordTypeNav(group)}
-                      emojiStr={chordEmojiStr(group.chordName)}
-                      onClose={close}
-                      className="chord-popover"
-                    >
-                      <ChordPopoverButtons group={group} />
-                    </PodModifierPopover>
-                  )}
-                />
-                {chordRhythmMod && (
-                  <RhythmModifierDisc
-                    mod={chordRhythmMod}
-                    size={22}
-                    onUpdate={patch => {
-                      if (chordRhythmMod.legato) RhythmModifierService.rematerializeWithPatch(chordRhythmMod.id, patch)
-                      else { pushHistory(); updateRhythmModifier(chordRhythmMod.id, patch) }
-                    }}
-                    onRemove={() => RhythmModifierService.restoreToNormal(chordRhythmMod.id)}
-                  />
-                )}
-              </div>
-            </Html>
-            {/* Info lane hit area — drag-to-create-progression (no visual label) */}
-            <mesh
-              position={[0, infoLaneY - headerCY, 0.005]}
-              onPointerDown={e => {
-                if (e.button !== 0) return
-                e.stopPropagation()
-                const startBeat = e.point.x / BEAT_W
-                drag.current = { kind: 'new-prog', startBeat, endBeat: startBeat, fromGroupId: group.id, ctrlKey: e.ctrlKey || e.metaKey }
-                setNewProgDrag({ startBeat, endBeat: startBeat })
-              }}
-              onPointerEnter={() => {
-                setLabelHoveredGroupId(group.id)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'crosshair'
-                  const groupNotes = notes.filter(n => group.noteIds.includes(n.id))
-                  FretboardHighlightService.setHighlights(groupNotes.map(n => ({ si: n.string, fret: n.fret })))
-                }
-              }}
-              onPointerLeave={() => {
-                setLabelHoveredGroupId(null)
-                if (!drag.current) {
-                  gl.domElement.style.cursor = 'default'
-                  FretboardHighlightService.clearHighlights()
-                }
-              }}
-            >
-              <planeGeometry args={[headerW, INFO_LANE_H]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
-          </group>
-        )
-      })}
+      {/* Chord pods — extracted to ChordPods (P2-1) */}
+      <ChordPods
+        invStretchX={invStretchX}
+        pxPerWUX={pxPerWUX}
+        scrollX={scrollX}
+        halfW={halfW}
+        camL={camL}
+        tuningArr={tuningArr}
+        selectedChordGroupIds={selectedChordGroupIds}
+        labelHoveredGroupId={labelHoveredGroupId}
+        setHoveredGroupId={setHoveredGroupId}
+        setLabelHoveredGroupId={setLabelHoveredGroupId}
+        onChordPodDown={onChordPodDown}
+        onNewProgDown={(e, groupId) => {
+          if (e.button !== 0) return
+          e.stopPropagation()
+          const startBeat = e.point.x / BEAT_W
+          drag.current = { kind: 'new-prog', startBeat, endBeat: startBeat, fromGroupId: groupId, ctrlKey: e.ctrlKey || e.metaKey }
+          setNewProgDrag({ startBeat, endBeat: startBeat })
+          gl.domElement.style.cursor = 'crosshair'
+        }}
+        getGroupBounds={getGroupBounds}
+        getChordPodGeo={getChordPodGeo}
+        pushHistory={pushHistory}
+      />
 
-      {/* Notes */}
-      {notes.map(note => {
-        const subNotes = RhythmModifierService.getVirtualRhythm(note)
-        const items = subNotes || [{
-          startBeat: note.startBeat,
-          duration: note.duration,
-          id: note.id
-        }]
+      <NotePods
+        scrollX={scrollX}
+        halfW={halfW}
+        invStretchX={invStretchX}
+        pxPerWUX={pxPerWUX}
+        pxPerWUY={pxPerWUY}
+        totalMeasures={totalMeasures}
+        tuningArr={tuningArr}
+        scaleNotes={scaleNotes}
+        BEHAVIORS={BEHAVIORS}
+        BEHAVIOR_KEYS={BEHAVIOR_KEYS}
+        DISC_PALETTE={DISC_PALETTE}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
+        editingId={editingId}
+        setEditingId={setEditingId}
+        inputVal={inputVal}
+        setInputVal={setInputVal}
+        newNoteIds={newNoteIds}
+        legatoSourceId={legatoSourceId}
+        setLegatoSourceId={setLegatoSourceId}
+        getNoteColor={getNoteColor}
+        getNoteGeo={getNoteGeo}
+        getBorderGeo={getBorderGeo}
+        confirmEdit={confirmEdit}
+        onNoteDown={onNoteDown}
+        pushHistory={pushHistory}
+      />
 
-        const wOriginal = note.duration * BEAT_W
-        const y = stringY(note.string)
-        const isEditing = editingId === note.id
-        const isSelected = selectedIds.has(note.id)
-        const isLegatoSource = legatoSourceId === note.id
-        const isIntermediate = intermediateIds.has(note.id)
-        const sourceNote = isIntermediate ? notes.find(n => n.intermediateNoteIds?.includes(note.id)) : null
 
-        // Per-string instrument assignment disc — only for notes whose chord has an
-        // active rhythm modifier (not the locked-arpeggio kind, which has no instruments).
-        // Independent of the sub-note pods: sticky-clamped within the note's full span
-        // (not any single rhythm-step pod), so it never depends on a sub-pod being wide
-        // enough to show its own disc — it stays visible regardless of zoom/subdivision width.
-        //
-        // One bubble per STRING, not per materialized note: when the rhythm is legato-
-        // materialized (11.6.1/11.8.3), each string's chain produces many real notes (anchor +
-        // intermediates + destination), all belonging to the same chord group — without this
-        // guard every single one of them would render its own bubble. Only the chain's anchor
-        // (no legatoPrev, not an intermediate) represents "this string"'s instrument assignment.
-        const noteChordGroup = chordGroups.find(g => g.noteIds.includes(note.id))
-        const noteChordRhythmMod = (noteChordGroup && !isIntermediate && !note.legatoPrev)
-          ? rhythmModifiers.find(m => m.targetType === 'chord' && m.targetId === noteChordGroup.id && m.kind !== 'arpeggio')
-          : undefined
-        const instrBubblePx     = 22  // same size as the rhythm modifier disc embedded in the Chord pod
-        const instrBubbleRadius = (instrBubblePx * 1.2 / 2) / pxPerWUX
-        const instrGapWU = 5 / pxPerWUX  // 5px gap kept between the bubble and the note pod it follows
-        const instrPodL = note.startBeat * BEAT_W
-        const instrPodR = instrPodL + note.duration * BEAT_W
-        const instrCamL = scrollX - halfW
-        // The pod's own sticky-clamped left edge (same pattern as NoteDisc, over the full note
-        // span) — the bubble sits immediately to its left, with a constant 5px gap, so it always
-        // "follows" the pod regardless of zoom/scroll without ever overlapping it.
-        const podStickyLeftX = Math.max(instrPodL, Math.min(instrPodR, instrCamL + 0.05 * invStretchX))
-        const instrBubbleX = podStickyLeftX - instrGapWU - instrBubbleRadius
 
-        // Mode pod "force note" — non-destructive: never written to the note's own
-        // string/fret, just an effective fret used for display/color/playback while the
-        // note falls inside an active force-note Mode zone (same string, nearest fret
-        // matching the target scale degree's pitch class in the zone's mode). Reverts
-        // automatically the instant the zone is moved/deleted/toggled off — nothing to undo.
-        const effFret = ModeZoneService.getVirtualFret(note, totalMeasures) ?? note.fret
 
-        return (
-          <group key={note.id} renderOrder={8}>
-            {note.legatoNext && (
-              <LegatoLine sourceId={note.id} destId={note.legatoNext} noteColor={(n) => getNoteColor(n, true)} legatoSourceId={legatoSourceId} invStretchX={invStretchX} />
-            )}
-
-            {noteChordRhythmMod && (
-              <Html position={[instrBubbleX, y, 0.07]} center zIndexRange={[71, 71]} style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
-                <InstrumentTrackDisc mod={noteChordRhythmMod} noteId={note.id} size={instrBubblePx} />
-              </Html>
-            )}
-
-            {items.map((item, idx) => {
-              const w          = item.duration * BEAT_W
-              const cx         = item.startBeat * BEAT_W + w / 2
-              const color      = getNoteColor(note, false, effFret)
-              const noteLeftX  = item.startBeat * BEAT_W
-
-              const podWidthPx = w / (2 * halfW) * gl.domElement.clientWidth
-
-              // Disc: diameter capped at the string's lane height (PODH), 13% smaller for margin.
-              // Sized from pxPerWUY (not pxPerWUX): horizontal zoom only changes pxPerWUX, and
-              // the disc's diameter is rooted in the lane's vertical proportion, so deriving it
-              // from the X ratio would make it visibly grow/shrink while zooming horizontally.
-              // The px size is then converted back to X world-units only for positioning.
-              // Sticky: clamped to the visible camera region so it stays on screen as long as
-              // any part of the pod's body is in view (same pattern as the chord/modifier discs).
-              const discTargetPx = PODH * 0.87 * pxPerWUY
-              const discPx       = Math.min(discTargetPx, podWidthPx * 0.92)
-              const discRadius   = (discPx / 2) / pxPerWUX
-              const showDisc     = podWidthPx >= 16
-              const podL         = cx - w / 2
-              const podR         = cx + w / 2
-              const camL         = scrollX - LEFT_MARGIN_W - halfW
-              const discCenterWorldX = Math.max(podL + discRadius, Math.min(podR - discRadius, camL + discRadius + 0.05 * invStretchX))
-              const discX        = discCenterWorldX - cx
-
-              // Rhythm-legato materialized notes: horizontal move/resize locked, string change still allowed
-              const locked = RhythmModifierService.isLegatoLocked(note.id)
-
-              // Legato bubble (start a chain) — right edge only; hidden while picking a destination
-              // or on a rhythm-locked note (starting a new manual legato would corrupt the chain)
-              const showLegatoBubble  = idx === 0 && !isIntermediate && !subNotes && podWidthPx >= 35 && !legatoSourceId && !locked
-              const showLegatoActions = idx === 0 && !isIntermediate && !subNotes && podWidthPx >= 35 && !!note.legatoNext
-              const bubbleOff         = Math.min(w * 0.45, 0.3 * invStretchX)
-
-              const isFundamental = (() => {
-                const group = chordGroups.find(g => g.noteIds.includes(note.id))
-                if (!group) return false
-                const chord = Chord.get(group.chordName)
-                const rootPc = chord.root || chord.notes[0]
-                if (!rootPc) return false
-                const noteName = getNoteName(tuningArr[note.string], effFret)
-                return Note.pitchClass(noteName) === Note.pitchClass(rootPc)
-              })()
-
-              const labelColor = ColorService.getContrastColor(color)
-              const noteNamePc = Note.pitchClass(getNoteName(tuningArr[note.string], effFret))
-              const discColors = DISC_PALETTE[color] ?? (() => {
-                const fill = desaturateHex(darkenHex(color, 0.33), 0.35)
-                return { fill, border: darkenHex(fill, 0.33), text: ColorService.getContrastColor(fill) }
-              })()
-
-              // During playback, only the pod currently under the cursor stays colored —
-              // the rest fade to LANE_COL (eased over ~0.5s in PodGradientMaterial)
-              const isActive   = isPlaying && playbackBeat >= item.startBeat && playbackBeat < item.startBeat + item.duration
-              const grayTarget = isPlaying ? (isActive ? 0 : 1) : 0
-
-              return (
-                <group key={item.id} position={[cx, y, 0]}>
-                  {/* Selection Border - only if selected and it's the first segment or original note */}
-                  {isSelected && !isEditing && idx === 0 && (
-                    <mesh geometry={getBorderGeo(wOriginal)} position={[wOriginal/2 - w/2, 0, -0.005]}>
-                      <meshBasicMaterial color={SEL_COL} />
-                    </mesh>
-                  )}
-
-                  {/* SubNote body */}
-                  <SubNoteBody w={w} color={color} colorB={discColors.fill} isFundamental={isFundamental} getNoteGeo={getNoteGeo} grayTarget={grayTarget} />
-
-                  {/* Legato bubble — right edge only, starts a new legato chain */}
-                  {showLegatoBubble && (
-                    <mesh position={[w/2 - bubbleOff, 0, 0.01]} geometry={bubbleGeo} scale={[invStretchX, 1, 1]} renderOrder={9}>
-                      <meshBasicMaterial color={isLegatoSource ? SEL_COL : labelColor} transparent opacity={0.9} />
-                    </mesh>
-                  )}
-
-                  {/* Legato action buttons (merge / behavior) — manages an existing chain */}
-                  {/* Legato modifier disc — replaces the old two-button UX (P2 refactor).
-                      Orange PodModifierDisc that opens a PodModifierPopover with:
-                      behavior nav, count selector, merge button, auto/chain toggles. */}
-                  {showLegatoActions && (() => {
-                    const discWU    = 26 / pxPerWUX
-                    const gapWU     = 5 / pxPerWUX      // 5px gap between disc right edge and pod left edge
-                    const camL      = scrollX - LEFT_MARGIN_W - halfW
-                    const camR      = camL + 2 * halfW
-                    const podL      = note.startBeat * BEAT_W
-                    // Hide disc when source pod is entirely off-screen (no sticky when invisible)
-                    if (podL + w <= camL || podL >= camR) return null
-                    // Disc sits to the LEFT of the pod; sticky-clamp at camera left edge
-                    const targetX   = Math.max(camL + 0.06 * invStretchX, podL - discWU - gapWU)
-                    const relativeX = targetX - cx
-                    const behavior  = note.legatoBehavior || 'chromatique'
-                    const curIdx    = BEHAVIOR_KEYS.indexOf(behavior)
-                    const popLocked = RhythmModifierService.isLegatoLocked(note.id)
-                    const count     = note.legatoCount ?? (note.intermediateNoteIds?.length ?? 2)
-
-                    return (
-                      <group position={[relativeX, 0, 0.1]}>
-                        <Html
-                          position={[discWU / 2, 0, 0]}
-                          center
-                          style={{ pointerEvents: 'auto', transform: 'none' }}
-                          zIndexRange={[90, 90]}
-                          onWheel={passWheel}
-                        >
-                          <div onPointerDown={e => e.stopPropagation()} onWheel={passWheel}>
-                            <PodModifierDisc
-                              emojiStr=":link:"
-                              size={26}
-                              discBg="#1a0800"
-                              borderCol="#FF9500"
-                              glow={false}
-                              title={`Legato — ${BEHAVIORS[behavior].name}`}
-                              popoverContent={close => (
-                                <PodModifierPopover
-                                  nav={!popLocked ? {
-                                    label: BEHAVIORS[behavior].name,
-                                    prev: () => setLegatoBehavior(note.id, BEHAVIOR_KEYS[(curIdx - 1 + BEHAVIOR_KEYS.length) % BEHAVIOR_KEYS.length], tuningArr, scaleNotes),
-                                    next: () => setLegatoBehavior(note.id, BEHAVIOR_KEYS[(curIdx + 1) % BEHAVIOR_KEYS.length], tuningArr, scaleNotes),
-                                  } : undefined}
-                                  emojiStr=":link:"
-                                  onClose={close}
-                                  className="legato-popover"
-                                >
-                                  {/* Nombre de pods intermédiaires */}
-                                  {!popLocked && note.legatoNext && (
-                                    <div className="arpeggio-popover__count" style={{ marginBottom: 0 }}>
-                                      <button className="pop-nav"
-                                        onClick={() => {
-                                          const next = Math.max(1, count - 1)
-                                          pushHistory()
-                                          // setLegato recrée les notes intermédiaires avec le nouveau count
-                                          setLegato(note.id, note.legatoNext!, next, tuningArr)
-                                          syncLegato(note.id, tuningArr, scaleNotes)
-                                        }}
-                                      >
-                                        <span className="material-symbols-outlined">remove</span>
-                                      </button>
-                                      <span className="arpeggio-popover__count-value" title="Nombre de notes intermédiaires">{count}</span>
-                                      <button className="pop-nav"
-                                        onClick={() => {
-                                          const next = Math.min(32, count + 1)
-                                          pushHistory()
-                                          setLegato(note.id, note.legatoNext!, next, tuningArr)
-                                          syncLegato(note.id, tuningArr, scaleNotes)
-                                        }}
-                                      >
-                                        <span className="material-symbols-outlined">add</span>
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  <div className="pop-divider" />
-
-                                  {/* Figer le legato en notes indépendantes */}
-                                  {!locked && (
-                                    <button
-                                      className="pop-toggle"
-                                      onClick={() => { pushHistory(); renderLegato(note.id); close() }}
-                                      title="Figer — convertit le legato en notes indépendantes"
-                                    >
-                                      <span className="material-symbols-outlined">merge</span>
-                                    </button>
-                                  )}
-
-                                  {/* Sync Auto / Mode Chaîne / Dépassement */}
-                                  {!popLocked && (
-                                    <>
-                                      <button
-                                        className={`pop-toggle${note.legatoAuto !== false ? ' active' : ''}`}
-                                        onClick={() => setLegatoAuto(note.id, note.legatoAuto === false)}
-                                        title="Sync Auto — recalcule toute la chaîne quand source ou destination bougent"
-                                      >
-                                        <span className="material-symbols-outlined">sync</span>
-                                      </button>
-                                      <button
-                                        className={`pop-toggle${note.legatoChain ? ' active' : ''}`}
-                                        onClick={() => setLegatoChain(note.id, !note.legatoChain)}
-                                        title="Mode Chaîne — ne recalcule qu'à partir de la note déplacée"
-                                      >
-                                        <span className="material-symbols-outlined">mediation</span>
-                                      </button>
-                                      <button
-                                        className={`pop-toggle${note.legatoOvershoot ? ' active' : ''}`}
-                                        onClick={() => {
-                                          updateNote(note.id, { legatoOvershoot: !note.legatoOvershoot }, tuningArr, scaleNotes)
-                                          syncLegato(note.id, tuningArr, scaleNotes)
-                                        }}
-                                        title="Dépassement — les notes générées peuvent dépasser la hauteur de la source et de la destination (amplitude auto)"
-                                      >
-                                        <span className="material-symbols-outlined">expand</span>
-                                      </button>
-                                    </>
-                                  )}
-                                </PodModifierPopover>
-                              )}
-                            />
-                          </div>
-                        </Html>
-                      </group>
-                    )
-                  })()}
-
-                  {/* Note disc — fret (big) + note name (small, bottom-right), pinned to the pod's start */}
-                  {showDisc && !isEditing && (
-                    <NoteDisc
-                      discX={discX}
-                      discPx={discPx}
-                      fill={discColors.fill}
-                      border={discColors.border}
-                      text={discColors.text}
-                      fret={effFret}
-                      noteName={noteNamePc}
-                      locked={locked}
-                      onClick={e => {
-                        e.stopPropagation()
-                        if (legatoSourceId) {
-                          // Legato creation mode: clicking the disc resolves the chain (instead of editing)
-                          if (legatoSourceId !== note.id) addLegato(legatoSourceId, note.id)
-                          setLegatoSourceId(null)
-                          return
-                        }
-                        setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
-                      }}
-                      onMouseEnter={() => {
-                        FretboardHighlightService.setHighlights([{ si: note.string, fret: note.fret }])
-                        if (note.legatoNext || note.legatoPrev || note.legatoRatio)
-                          LegatoFretVisualizationService.show(note.id, notes)
-                      }}
-                      onMouseLeave={() => {
-                        FretboardHighlightService.clearHighlights()
-                        LegatoFretVisualizationService.clear()
-                      }}
-                    />
-                  )}
-
-                  {/* Interaction Overlay — everything outside the disc moves or resizes the pod */}
-                  <mesh position={[0, 0, 0.05]}
-                    onPointerDown={e => onNoteDown(e, note)}
-                    onPointerMove={e => {
-                      if (drag.current) return
-                      const lx = e.point.x - item.startBeat * BEAT_W
-                      gl.domElement.style.cursor = locked ? 'ns-resize' : zoneCursor(noteZoneCompact(lx, w, invStretchX, showLegatoBubble))
-                    }}
-                    onPointerEnter={e => {
-                      const lx = e.point.x - item.startBeat * BEAT_W
-                      gl.domElement.style.cursor = locked ? 'ns-resize' : zoneCursor(noteZoneCompact(lx, w, invStretchX, showLegatoBubble))
-                      FretboardHighlightService.setHighlights([{ si: note.string, fret: note.fret }])
-                      if (note.legatoNext || note.legatoPrev || note.legatoRatio)
-                        LegatoFretVisualizationService.show(note.id, notes)
-                    }}
-                    onPointerLeave={() => {
-                      if (!drag.current) gl.domElement.style.cursor = 'default'
-                      FretboardHighlightService.clearHighlights()
-                      LegatoFretVisualizationService.clear()
-                    }}
-                    onDoubleClick={e => {
-                      e.stopPropagation()
-                      if (isIntermediate && sourceNote && !locked) {
-                        pushHistory()
-                        addLegatoIntermediate(note.id, tuningArr, scaleNotes)
-                        return
-                      }
-                      const inGroup = chordGroups.some(g => g.noteIds.includes(note.id))
-                      if (inGroup) {
-                        const newFret = nextFretSamePc(tuningArr[note.string], note.fret)
-                        if (newFret !== note.fret) { pushHistory(); updateNote(note.id, { fret: newFret }, tuningArr, scaleNotes) }
-                      } else {
-                        setEditingId(note.id); setInputVal(String(note.fret)); setSelectedIds(new Set([note.id]))
-                      }
-                    }}
-                    onContextMenu={e => {
-                      e.stopPropagation()
-                      if (editingId === note.id) { setEditingId(null); setInputVal('') }
-                      pushHistory()
-                      deleteNote(note.id, tuningArr)
-                      setSelectedIds(prev => { const s = new Set(prev); s.delete(note.id); return s })
-                    }}
-                  >
-                    <planeGeometry args={[w, LANE_H]} />
-                    <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-                  </mesh>
-
-                  {isEditing && (
-                    <Html position={[discX, 0, 0]} center style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
-                      <input className="tab-r3f-fret-input" value={inputVal} autoFocus maxLength={3}
-                        onWheel={passWheel}
-                        onChange={ev => {
-                          const raw = ev.target.value
-                          if (/^[A-Ga-g]/.test(raw)) {
-                            setInputVal(raw.replace(/[^A-Ga-g#b0-9]/g, '').slice(0, 3))
-                          } else {
-                            setInputVal(raw.replace(/\D/g, '').slice(0, 2))
-                          }
-                        }}
-                        onKeyDown={ev => {
-                          ev.stopPropagation()
-                          if (ev.key === 'Enter')  confirmEdit(note.id, inputVal)
-                          if (ev.key === 'Escape') { setEditingId(null); setInputVal('') }
-                        }}
-                        onBlur={() => confirmEdit(note.id, inputVal)} />
-                    </Html>
-                  )}
-                </group>
-              )
-            })}
-          </group>
-        )
-      })}
 
       {/* Rectangle selection overlay */}
       {rectBox && (() => {
@@ -2051,7 +1381,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         <planeGeometry args={[1.5, CAM_HALF_H_TOP + CAM_HALF_H_BOT]} />
         <meshBasicMaterial color={APPLE_GREEN} transparent opacity={0.85} depthWrite={false} />
       </mesh>
-    </group>
+    </>
   )
 }
 

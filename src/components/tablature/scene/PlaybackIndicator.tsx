@@ -16,9 +16,8 @@
 import React from 'react'
 import * as THREE from 'three'
 import { BEAT_W, gridTop, gridBottom } from '../../../utils/tabUtils'
+import { APPLE_GREEN } from './sceneConstants'
 import type { ThreeEvent } from '@react-three/fiber'
-
-const APPLE_GREEN = '#88FF00'
 
 interface PlaybackIndicatorProps {
   playbackBeat: number

@@ -26,6 +26,7 @@ export const SNAP            = 0.25
 export const MIN_DUR         = 0.25
 export const BEATS_PER_MEAS  = 4
 export const MEASURE_W       = BEATS_PER_MEAS * BEAT_W
+export const LARGE_W         = 4_000_000
 
 // ── Derived scene geometry (shared by TablatureR3F and scene sub-components) ──
 export const LANE_H_HALF  = LANE_H / 2
@@ -35,6 +36,18 @@ export const LEFT_MARGIN_W = MEASURE_W / 8 * 0.7
 export const HEADER_H     = GAP_WU
 export const POD_HEADER_OFF = LANE_H / 2 + GAP_WU / 2
 export const BUBBLE_W     = 0.25
+
+// Info lane — chord labels
+export const INFO_LANE_GAP = 0.20
+export const INFO_LANE_H   = LANE_H
+export const infoLaneY     = gridBottom - INFO_LANE_GAP - INFO_LANE_H / 2
+
+// Asymmetric frustum: bottom for info lane, top to show pods inside top gap
+export const CAM_HALF_H_TOP = gridTop + 0.50
+export const CAM_HALF_H_BOT = gridTop + INFO_LANE_GAP + INFO_LANE_H + 0.30
+export const marginY        = (CAM_HALF_H_TOP - CAM_HALF_H_BOT) / 2
+export const measLabelY     = gridTop + 0.20
+export const MODE_HEADER_OFF_Y = stringY(N_STRINGS - 1) + POD_HEADER_OFF
 
 export function stringY(si: number) { return (si - (N_STRINGS - 1) / 2) * STRING_H }
 export function siFromWorldY(y: number) {

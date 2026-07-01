@@ -16,10 +16,7 @@ import { RhythmModifierService } from '../../../services/RhythmModifierService'
 import { RhythmModifierPod } from './RhythmModifierPod'
 import { roundedRect } from '../../../utils/tablatureGeometry'
 import { BEAT_W, HEADER_H } from '../../../utils/tabUtils'
-
-const CHORD_R    = 0.28
-const CHORD_PAD_H = 0.25
-const PROG_PAD_H  = 1.20
+import { CHORD_R, CHORD_PAD_H, PROG_PAD_H } from './sceneConstants'
 
 interface RhythmModifierPodsProps {
   hoveredModId: string | null

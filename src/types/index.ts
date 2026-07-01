@@ -16,3 +16,9 @@ export type {
   DragModeZoneState,
   AnyDragState,
 } from './drag'
+
+import type { TablatureNote } from '../stores/useTablatureR3FStore'
+
+export type ClipNote  = Pick<TablatureNote, 'string'|'fret'|'duration'> & { startBeat: number }
+export type ClipGroup = { noteIndices: number[]; chordName: string }
+export type ClipData  = { notes: ClipNote[]; groups: ClipGroup[] }
