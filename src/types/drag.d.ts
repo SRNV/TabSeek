@@ -1,6 +1,14 @@
 /**
- * Discriminated union types for the drag state in TablatureR3F.tsx.
- * Extracted here so TablatureMoveService can use proper types instead of `any`.
+ * @file drag.d.ts
+ * Discriminated union types for all drag operations in the tablature editor.
+ *
+ * Every interactive pointer gesture in TablatureR3F is tracked via one of these
+ * states stored in a `useRef<AnyDragState>`.  Using a discriminated union (not a
+ * boolean `isDragging` flag) lets each `onPointerMove` branch narrow to the exact
+ * state shape it needs without casting.
+ *
+ * `NoteZone` is also defined here because every drag operation begins with a
+ * hit-zone detection (`noteZone()` / `noteZoneCompact()` in tabUtils.ts).
  */
 
 export type NoteZone =

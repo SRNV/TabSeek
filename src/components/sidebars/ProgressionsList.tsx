@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react'
+﻿import React, { useState, useMemo } from 'react'
 import './ProgressionsList.scss'
-import { chordProgressions } from '../../composables/progressions'
+import { chordProgressions } from '../../data/progressions'
 import ProgressionItem from '../progression/ProgressionItem'
 import eventBus from '../../eventBus'
 

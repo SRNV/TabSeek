@@ -1,8 +1,17 @@
+﻿/**
+ * @file useMainStore.ts
+ * Zustand store for global app state: active scale/mode, chord root, selected rhythm,
+ * fretboard highlights, and legato visualization state.
+ *
+ * `fretboardHighlights` and `legatoFretHighlights` drive the WebGL fretboard (`Tab.tsx`).
+ * They are written by `FretboardHighlightService` and `LegatoFretVisualizationService`
+ * respectively — the store itself does no highlight computation.
+ */
 import { create } from 'zustand'
 import { Note } from 'tonal'
-import type { ModeGuitar } from '../types'
-import type { ChordsCompleteDef } from '../composables/chords'
-import type { RhythmPatternDef } from '../composables/rhythmPatterns'
+import type { ModeGuitar } from '../types/mode'
+import type { ChordsCompleteDef } from '../data/chords'
+import type { RhythmPatternDef } from '../data/rhythmPatterns'
 
 const defaultMode: ModeGuitar = {
   name: 'ionian',

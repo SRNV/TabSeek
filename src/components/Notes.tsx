@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import './Notes.scss'
 import { Interval, Note, Scale } from 'tonal'
-import { playChord, playFullChord } from '../composables/useAudio'
-import { getJoinedNotesColor } from '../composables/useNoteHelpers'
-import { getReadableChordName } from '../composables/tonalChordsMapping'
+import { playChord, playFullChord } from '../hooks/useAudio'
+import { getJoinedNotesColor } from '../hooks/useNoteHelpers'
+import { getReadableChordName } from '../data/tonalChordsMapping'
 import { useMainStore } from '../stores/useMainStore'
 
 interface NotesProps {

@@ -1,8 +1,8 @@
-import React from 'react'
+﻿import React from 'react'
 import './ProgressionDropZone.scss'
 import CompiledProgressionItem from './CompiledProgressionItem'
 import PlaybackControls from './PlaybackControls'
-import type { ChordProgression } from '../../composables/progressions'
+import type { ChordProgression } from '../../data/progressions'
 
 interface ProgressionDropZoneProps {
   compiledProgressions: ChordProgression[]

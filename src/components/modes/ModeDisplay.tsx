@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react'
+﻿import React, { useState, useEffect, useMemo } from 'react'
 import './ModeDisplay.scss'
 import { useMainStore } from '../../stores/useMainStore'
 import { Note } from 'tonal'
 import Tab from '../tab/Tab'
-import { EXTRA_MODES } from '../../composables/extraModes'
-import type { ModeGuitar } from '../../types'
-import { useMidiUtils } from '../../composables/useMidiUtils'
+import { EXTRA_MODES } from '../../data/extraModes'
+import type { ModeGuitar } from '../../types/mode'
+import { useMidiUtils } from '../../hooks/useMidiUtils'
 
 const MAIN_MODES: ModeGuitar[] = [
   {

@@ -22,7 +22,13 @@
       "Bash(grep -n \"function getNoteColor\\\\|playNote\\(\\\\|playFullChord\\(\\\\|noteNamePc\\\\s*=\\\\|fret={note.fret}\\\\|getNoteName\\(tuningArr\\\\[note.string\\\\], note.fret\\)\" src/components/tablature/TablatureR3F.tsx)",
       "Bash(xargs wc -l)",
       "Bash(awk '$1 > 500 {print}')",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" -Recurse -Include *.ts,*.tsx)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\" -Recurse -Include *.ts,*.tsx)",
+      "Bash(git mv *)",
+      "Bash(node -e \"require\\('zustand/react/shallow'\\)\")",
+      "Bash(grep -v \"//\\\\|Math\\\\.\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\rudy_\\.claude\\projects\\c--Users-rudy--Documents-TabSeek\\memory"
     ]
   }
 }

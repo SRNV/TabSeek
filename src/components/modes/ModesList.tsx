@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react'
+﻿import React, { useMemo, useState } from 'react'
 import '../chords/ChordsList.scss'
-import { EXTRA_MODES } from '../../composables/extraModes'
-import type { ModeGuitar } from '../../types'
+import { EXTRA_MODES } from '../../data/extraModes'
+import type { ModeGuitar } from '../../types/mode'
 
 // Draggable counterpart to ModesSideBar's click-to-select list — drag a mode onto the
 // tablature to drop a red Mode pod (TablatureR3F.tsx onDrop, payload.kind === 'mode').

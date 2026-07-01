@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import * as nodeEmoji from 'node-emoji'
 import './RhythmList.scss'
-import { rhythmPatterns, RhythmPatternDef } from '../../composables/rhythmPatterns'
+import { rhythmPatterns, RhythmPatternDef } from '../../data/rhythmPatterns'
 import { useMainStore } from '../../stores/useMainStore'
 
 function getPatternEmoji(pattern: RhythmPatternDef): string {

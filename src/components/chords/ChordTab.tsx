@@ -1,11 +1,11 @@
-import { useMemo, useCallback } from 'react'
+﻿import { useMemo, useCallback } from 'react'
 import './ChordTab.scss'
 import { Note } from 'tonal'
 import { useMainStore } from '../../stores/useMainStore'
-import { ALL_CHORDS, getReadableChordName } from '../../composables/tonalChordsMapping'
+import { ALL_CHORDS, getReadableChordName } from '../../data/tonalChordsMapping'
 import Tab from '../tab/Tab'
 import Notes from '../Notes'
-import { useMidiUtils } from '../../composables/useMidiUtils'
+import { useMidiUtils } from '../../hooks/useMidiUtils'
 
 interface ChordTabProps {
   chordType: string

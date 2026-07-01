@@ -1,3 +1,12 @@
+/**
+ * @file useTablatureStore.ts
+ * Zustand store for the non-R3F (legacy grid) tablature view and global tuning.
+ *
+ * Tuning convention (⚠️ dual-order — see MEMORY.md §6.2):
+ * - `tuning.split(',')` → index 0 = lowest string (E2) — used by TablatureR3F and all services.
+ * - `tuningArray().reverse()` → index 0 = highest string (e4) — used by Tab.tsx (legacy grid).
+ * Never mix the two without explicit conversion.
+ */
 import { create } from 'zustand'
 import { Note, Interval } from 'tonal'
 import { useMainStore } from './useMainStore'

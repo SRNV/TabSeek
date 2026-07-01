@@ -1,6 +1,6 @@
-// src/composables/extraModes.ts
+﻿// src/data/extraModes.ts
 // Définition de tous les modes additionnels au format tonal.js
-import type { ModeGuitar } from '../types';
+import type { ModeGuitar } from '../types/mode';
 
 export const EXTRA_MODES: ModeGuitar[] = [
   // MODES PRINCIPAUX

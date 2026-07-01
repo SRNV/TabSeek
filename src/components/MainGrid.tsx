@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import './MainGrid.scss'
 import SmartFretboard from './SmartFretboard'
 import TabGroup from './TabGroup'
@@ -11,7 +11,7 @@ import RhythmList from './sidebars/RhythmList'
 import ModesList from './modes/ModesList'
 import TablatureMain from './tablature/TablatureMain'
 import { useMainStore } from '../stores/useMainStore'
-import { CHORD_TYPES_BY_CATEGORY } from '../composables/tonalChordsMapping'
+import { CHORD_TYPES_BY_CATEGORY } from '../data/tonalChordsMapping'
 
 export default function MainGrid() {
   const chordRootObject   = useMainStore(s => s.chordRootObject)

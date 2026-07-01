@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react'
 import './ProgressionCompiler.scss'
 import { useMainStore } from '../../stores/useMainStore'
-import { playFullChord } from '../../composables/useAudio'
+import { playFullChord } from '../../hooks/useAudio'
 import { Chord, Note } from 'tonal'
 import { romanToDegree, getMajorScaleNotes } from '../../utils/chordUtils'
 import ProgressionsList from '../sidebars/ProgressionsList'
 import ProgressionDropZone from './ProgressionDropZone'
 import eventBus from '../../eventBus'
-import type { ChordProgression } from '../../composables/progressions'
+import type { ChordProgression } from '../../data/progressions'
 
 export default function ProgressionCompiler() {
   const userScaleRaw = useMainStore(s => s.userScale)

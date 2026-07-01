@@ -1,4 +1,4 @@
-// src/composables/useMidiUtils.ts
+﻿// src/hooks/useMidiUtils.ts
 import { Note } from 'tonal';
 
 export function useMidiUtils() {

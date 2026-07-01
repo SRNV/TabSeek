@@ -1,8 +1,21 @@
+﻿/**
+ * @file PodModifierService.ts
+ * Business logic for the three interactive pod modifier types: Chord, Progression, and Arpeggio.
+ *
+ * Provides navigation (prev/next chord type, voicing cycle, octave transpose), chord-group
+ * mutations (replace voicing, replace progression content), and arpeggio materialisation/
+ * dematerialisation (reuses the legato-locking mechanism from RhythmModifierService).
+ *
+ * All functions that write to the store call `pushHistory()` first so every action is undoable.
+ * Functions that only compute or navigate do NOT push history (navigation-priority-over-lock
+ * pattern: dematerialize first, navigate, then the caller decides whether to rematerialize).
+ */
 import { Note, Chord } from 'tonal'
 import { useTablatureR3FStore, ChordGroup, ProgressionGroup, TablatureNote, ArpeggioDirection, RhythmModifier } from '../stores/useTablatureR3FStore'
 import { useTablatureStore } from '../stores/useTablatureStore'
-import { TONAL_CHORD_TYPES, formatChordName } from '../composables/tonalChordsMapping'
-import { chordProgressions, ChordProgression } from '../composables/progressions'
+import { useMainStore } from '../stores/useMainStore'
+import { TONAL_CHORD_TYPES, formatChordName } from '../data/tonalChordsMapping'
+import { chordProgressions, ChordProgression } from '../data/progressions'
 import { numeralToChordName } from '../utils/chordUtils'
 import { findBestChordFrets, findRankedChordVoicings, findNearestFretForMidi } from '../utils/guitarUtils'
 import { RhythmModifierService } from './RhythmModifierService'
@@ -138,6 +151,112 @@ function freshGroupAfterUnlock(groupId: string): ChordGroup | undefined {
   return useTablatureR3FStore.getState().chordGroups.find(g => g.id === groupId)
 }
 
+// ── Legato-preserving voicing replacement ────────────────────────────────────
+//
+// When a chord's voicing changes (type, fingering, octave), any legato chains
+// anchored on group notes would be orphaned — the old note IDs are deleted and
+// replaced by new ones that have no legato state. This wrapper:
+//   1. Snapshots legato source/destination info on the group's current notes.
+//   2. Calls replaceChordGroupVoicing to swap in the new notes.
+//   3. For each saved legato link, finds the "closest" new note by:
+//        - Priority 1: same string as the old note
+//        - Priority 2: closest MIDI pitch
+//   4. Transfers all legato fields and calls syncLegato.
+
+function getScaleNotes(): string[] {
+  const { userScale, modeObject } = useMainStore.getState()
+  return (modeObject.intervals as string[]).map((iv: string) => Note.transpose(userScale, iv))
+}
+
+function findClosestNote(
+  candidates: TablatureNote[],
+  tuning: string[],
+  preferredString: number,
+  preferredMidi: number
+): TablatureNote | null {
+  if (candidates.length === 0) return null
+  const sameString = candidates.find(n => n.string === preferredString)
+  if (sameString) return sameString
+  return candidates.reduce((best, n) =>
+    Math.abs(midiOf(tuning, n) - preferredMidi) < Math.abs(midiOf(tuning, best) - preferredMidi) ? n : best
+  )
+}
+
+function replaceVoicingPreservingLegato(
+  groupId: string,
+  newNotes: Omit<TablatureNote, 'id'>[],
+  chordName: string
+) {
+  const state  = useTablatureR3FStore.getState()
+  const group  = state.chordGroups.find(g => g.id === groupId)
+  if (!group) return
+
+  const tuning   = getTuning()
+  const oldNotes = state.notes.filter(n => group.noteIds.includes(n.id))
+
+  // Snapshot legato sources (old notes that START a chain)
+  const sources = oldNotes
+    .filter(n => n.legatoNext)
+    .map(n => ({
+      oldString:          n.string,
+      oldMidi:            midiOf(tuning, n),
+      legatoNext:         n.legatoNext!,
+      legatoCount:        n.legatoCount,
+      legatoBehavior:     n.legatoBehavior,
+      legatoOvershoot:    n.legatoOvershoot,
+      intermediateNoteIds: n.intermediateNoteIds ?? [],
+    }))
+
+  // Snapshot destinations whose SOURCE is outside the group
+  const dests = oldNotes
+    .filter(n => n.legatoPrev && !group.noteIds.includes(n.legatoPrev))
+    .map(n => ({
+      oldString:  n.string,
+      oldMidi:    midiOf(tuning, n),
+      legatoPrev: n.legatoPrev!,
+    }))
+
+  // Replace voicing — old notes deleted, new IDs generated
+  const newIds = state.replaceChordGroupVoicing(groupId, newNotes, chordName)
+  if (!sources.length && !dests.length) return  // nothing to reconnect
+
+  const newState  = useTablatureR3FStore.getState()
+  const newGroup  = newState.notes.filter(n => newIds.includes(n.id))
+  const scaleNotes = getScaleNotes()
+
+  // Reconnect legato sources → their chains survive the voicing change
+  for (const src of sources) {
+    const match = findClosestNote(newGroup, tuning, src.oldString, src.oldMidi)
+    if (!match) continue
+
+    newState.updateNote(match.id, {
+      legatoNext:          src.legatoNext,
+      legatoCount:         src.legatoCount,
+      legatoBehavior:      src.legatoBehavior,
+      legatoOvershoot:     src.legatoOvershoot,
+      intermediateNoteIds: src.intermediateNoteIds,
+    }, tuning, scaleNotes)
+
+    // Update the destination's back-pointer to the new source note
+    const dest = newState.notes.find(n => n.id === src.legatoNext)
+    if (dest) newState.updateNote(dest.id, { legatoPrev: match.id }, tuning, scaleNotes)
+
+    // Recompute intermediate positions for the new source/string layout
+    newState.syncLegato(match.id, tuning, scaleNotes)
+  }
+
+  // Reconnect destinations (where the source is an external note)
+  for (const dst of dests) {
+    const match  = findClosestNote(newGroup, tuning, dst.oldString, dst.oldMidi)
+    const srcNote = newState.notes.find(n => n.id === dst.legatoPrev)
+    if (!match || !srcNote) continue
+
+    newState.updateNote(srcNote.id, { legatoNext: match.id }, tuning, scaleNotes)
+    newState.updateNote(match.id, { legatoPrev: srcNote.id }, tuning, scaleNotes)
+    newState.syncLegato(srcNote.id, tuning, scaleNotes)
+  }
+}
+
 function applyChordType(group: ChordGroup, typeId: string) {
   useTablatureR3FStore.getState().pushHistory()
   // Navigation always takes priority over the arpeggio lock: dematerialize first if needed.
@@ -148,7 +267,7 @@ function applyChordType(group: ChordGroup, typeId: string) {
   const built = buildVoicingFor(fresh, newName)
   if (!built) return
 
-  useTablatureR3FStore.getState().replaceChordGroupVoicing(fresh.id, built.notes, newName)
+  replaceVoicingPreservingLegato(fresh.id, built.notes, newName)
 }
 
 /**
@@ -180,7 +299,7 @@ function cycleVoicing(group: ChordGroup, direction: 1 | -1 = 1) {
   const nextIdx = ((currentIdx === -1 ? 0 : currentIdx) + direction + alternates.length) % alternates.length
   const next = alternates[nextIdx]
 
-  state.replaceChordGroupVoicing(fresh.id, next.map(v => ({ string: v.si, fret: v.fret, startBeat, duration })), fresh.chordName)
+  replaceVoicingPreservingLegato(fresh.id, next.map(v => ({ string: v.si, fret: v.fret, startBeat, duration })), fresh.chordName)
 }
 
 /** Transposes every note of the chord one octave up/down, keeping the same playable range (0-24 frets). */
@@ -203,7 +322,7 @@ function transposeOctave(group: ChordGroup, direction: 1 | -1) {
   const allMoved = moved.every((m, i) => midiOf(tuning, m) === midiOf(tuning, existing[i]) + direction * 12)
   if (!allMoved) return
 
-  state.replaceChordGroupVoicing(fresh.id, moved, fresh.chordName)
+  replaceVoicingPreservingLegato(fresh.id, moved, fresh.chordName)
 }
 
 function applyProgressionTemplate(prog: ProgressionGroup, template: ChordProgression) {

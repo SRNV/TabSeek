@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react'
+﻿import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { EmojiBox, resolveEmojiStr } from '../../services/ChordEmojiService'
 import { PodModifierService } from '../../services/PodModifierService'
+import { ModeZoneService } from '../../services/ModeZoneService'
 import { RhythmModifierService } from '../../services/RhythmModifierService'
-import { rhythmPatterns, type RhythmPatternDef } from '../../composables/rhythmPatterns'
-import type { ArpeggioDirection, ChordGroup, RhythmModifier } from '../../stores/useTablatureR3FStore'
+import { useTablatureR3FStore } from '../../stores/useTablatureR3FStore'
+import { rhythmPatterns, type RhythmPatternDef } from '../../data/rhythmPatterns'
+import type { ArpeggioDirection, ChordGroup, RhythmModifier, ModeZone } from '../../stores/useTablatureR3FStore'
 
 // ── Floating overlay root — a single DOM node appended to <body>, outside the
 // R3F Html stacking entirely. Popovers portal into it so they (a) can never be
@@ -67,10 +69,13 @@ function FloatingPodPopover({ anchorRef, children }: {
         const aboveTop = r.top - popH - gap
         const placement: 'above' | 'below' = aboveTop >= 8 ? 'above' : 'below'
         const top = placement === 'above' ? aboveTop : r.bottom + gap
-        const anchorCx = r.left + r.width / 2
-        const maxLeft = window.innerWidth - popW - 8
-        const left = Math.max(8, Math.min(maxLeft, anchorCx - popW / 2))
-        const arrowLeft = Math.max(10, Math.min(popW - 10, anchorCx - left))
+        const anchorCx   = r.left + r.width / 2
+        const anchorLeft = r.left
+        const maxLeft    = window.innerWidth - popW - 8
+        // Left-align popover with the disc's left edge, clamped to viewport bounds
+        const left       = Math.max(8, Math.min(maxLeft, anchorLeft))
+        // Arrow still points to the center of the disc
+        const arrowLeft  = Math.max(10, Math.min(popW - 10, anchorCx - left))
         setPos({ left, top, placement, arrowLeft })
       }
       raf = requestAnimationFrame(update)
@@ -323,6 +328,76 @@ function RhythmPopoverBody({ mod, pattern, onUpdate }: {
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+// ── Chord pod popover content: voicing cycle + octave transpose + arpeggio ───
+export function ChordPopoverButtons({ group }: { group: ChordGroup }) {
+  const [arpVisible, setArpVisible] = useState(false)
+  const arpActive = !!PodModifierService.getArpeggioForChord(group.id)
+  return (
+    <>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.cycleVoicing(group, 1) }}
+        title="Chercher une autre façon de jouer cet accord"
+      >
+        <span className="material-symbols-outlined">search</span>
+      </button>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.transposeOctave(group, -1) }}
+        title="Octave en dessous"
+      >
+        <span className="material-symbols-outlined">keyboard_double_arrow_down</span>
+      </button>
+      <button
+        className="pop-toggle"
+        onClick={e => { e.stopPropagation(); PodModifierService.transposeOctave(group, 1) }}
+        title="Octave au-dessus"
+      >
+        <span className="material-symbols-outlined">keyboard_double_arrow_up</span>
+      </button>
+      <div style={{ position: 'relative' }}>
+        <button
+          className={`pop-toggle${arpVisible || arpActive ? ' active' : ''}`}
+          onClick={e => { e.stopPropagation(); setArpVisible(v => !v) }}
+          title="Arpège verrouillé"
+        >
+          <span className="material-symbols-outlined">linear_scale</span>
+        </button>
+        {arpVisible && <ArpeggioPanel group={group} />}
+      </div>
+    </>
+  )
+}
+
+// ── Mode pod popover content: force-note toggle + color picker ───────────────
+export function ModePopoverButtons({ zone }: { zone: ModeZone }) {
+  return (
+    <>
+      <button
+        className={`pop-toggle${zone.forceNote ? ' active' : ''}`}
+        onClick={e => {
+          e.stopPropagation()
+          useTablatureR3FStore.getState().pushHistory()
+          useTablatureR3FStore.getState().updateModeZone(zone.id, { forceNote: !zone.forceNote })
+        }}
+        title="Forcer les notes de la zone vers la gamme du mode — non-destructif"
+      >
+        <span className="material-symbols-outlined">sync_alt</span>
+      </button>
+      <label className="pop-toggle" style={{ position: 'relative', cursor: 'pointer' }} title="Couleur de la zone">
+        <span className="material-symbols-outlined" style={{ color: zone.color }}>palette</span>
+        <input
+          type="color"
+          value={zone.color}
+          onChange={e => useTablatureR3FStore.getState().updateModeZone(zone.id, { color: e.target.value })}
+          onClick={e => e.stopPropagation()}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+        />
+      </label>
     </>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import './App.scss'
 import MainGrid from './components/MainGrid'
 import NavSidebar from './components/NavSidebar'
@@ -6,7 +6,7 @@ import NotesSideBar from './components/sidebars/NotesSideBar'
 import ModesSideBar from './components/sidebars/ModesSideBar'
 import ChordsDetailsSideBar from './components/sidebars/ChordsDetailsSideBar'
 import GuitarSoundSideBar from './components/sidebars/GuitarSoundSideBar'
-import { useUIStore } from './composables/useUIState'
+import { useUIStore } from './hooks/useUIState'
 
 export default function App() {
   const [navExpanded, setNavExpanded] = useState(false)

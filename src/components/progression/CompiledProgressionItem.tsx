@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import './CompiledProgressionItem.scss'
-import type { ChordProgression } from '../../composables/progressions'
+import type { ChordProgression } from '../../data/progressions'
 import { numeralToChordName } from '../../utils/chordUtils'
 
 interface CompiledProgressionItemProps {

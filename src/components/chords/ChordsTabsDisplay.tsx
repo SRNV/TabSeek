@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react'
+﻿import React, { useEffect } from 'react'
 import './ChordsTabsDisplay.scss'
 import { useMainStore } from '../../stores/useMainStore'
 import ChordTab from './ChordTab'
-import { CHORD_TYPES_BY_CATEGORY } from '../../composables/tonalChordsMapping'
+import { CHORD_TYPES_BY_CATEGORY } from '../../data/tonalChordsMapping'
 
 export default function ChordsTabsDisplay() {
   const chordRootObject = useMainStore(s => s.chordRootObject)

@@ -1,4 +1,4 @@
-// src/composables/rhythmPatterns.ts
+﻿// src/data/rhythmPatterns.ts
 //
 // Patterns rythmiques définis via l'API Tonal.js :
 //   RhythmPattern.euclid(n, k)  → rythme euclidien : n steps, k onsets

@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import { Note, Chord } from 'tonal'
 import { useMainStore } from '../stores/useMainStore'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
-import { useMidiUtils } from '../composables/useMidiUtils'
-import { EXTRA_MODES } from '../composables/extraModes'
+import { useMidiUtils } from '../hooks/useMidiUtils'
+import { EXTRA_MODES } from '../data/extraModes'
 import { ModeZoneService } from '../services/ModeZoneService'
-import type { ModeGuitar } from '../types'
+import type { ModeGuitar } from '../types/mode'
 import Tab from './tab/Tab'
 
 // Maps TabContent mode keys ('major','minor',...) to EXTRA_MODES entries
@@ -50,17 +50,21 @@ export default function SmartFretboard() {
 
   const midiList = useMemo(() => {
     if (tabHoveredChordName) {
-      const pcs = Chord.get(tabHoveredChordName).notes   // pitch classes e.g. ["C","E","G","B"]
-      return notesToMidi(pcs.map(pc => `${pc}4`))         // octave 4 → pitch-class match in Tab
+      const pcs = Chord.get(tabHoveredChordName).notes
+      return notesToMidi(pcs.map(pc => `${pc}4`))
     }
     const eff = contextModeObject ?? modeObject
-    
-    // Ensure userScale has an octave for midi matching
     const scaleWithOctave = Note.get(userScale).oct !== null ? userScale : `${userScale}4`
-    
     const modeNotes = eff.intervals.map((iv: string) => Note.transpose(scaleWithOctave, iv))
     return notesToMidi(modeNotes)
-  }, [tabHoveredChordName, userScale, modeObject, contextModeObject, notesToMidi])
+  // Stable string keys for mode/chord (P5-3: avoids recompute when same mode stays active).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tabHoveredChordName,
+    userScale,
+    modeObject.name + modeObject.intervals.join(','),
+    contextModeObject ? contextModeObject.name + contextModeObject.intervals.join(',') : '',
+  ])
 
   return (
     <Tab

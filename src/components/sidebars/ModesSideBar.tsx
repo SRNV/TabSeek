@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import './ModesSideBar.scss'
 import { useMainStore } from '../../stores/useMainStore'
-import { EXTRA_MODES } from '../../composables/extraModes'
-import type { ModeGuitar } from '../../types'
+import { EXTRA_MODES } from '../../data/extraModes'
+import type { ModeGuitar } from '../../types/mode'
 
 const categoryDescriptions: Record<string, string> = {
   "Modes Principaux": "Les sept modes de la gamme majeure, chacun avec sa propre couleur sonore.",

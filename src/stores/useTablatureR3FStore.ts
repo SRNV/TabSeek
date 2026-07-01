@@ -1,15 +1,59 @@
+﻿/**
+ * @file useTablatureR3FStore.ts
+ * Zustand store for the R3F piano-roll tablature editor.
+ *
+ * Owns: notes, chord groups, progression groups, rhythm modifiers, mode zones,
+ * legato state, playback state, and undo/redo history.
+ *
+ * Architectural constraints (see MEMORY.md §6.3 and §16.4):
+ * - The store contains ONLY state management (set/get). All algorithmic logic lives
+ *   in `src/utils/` or `src/services/`.
+ * - `playbackBeat` is written by `setPlaybackBeat` but primarily tracked via a
+ *   `useRef` in TablatureScene (`playbackBeatRef`) to avoid 60 FPS re-renders.
+ * - `legatoUtils.ts` is the single source of truth for `syncLegatoHelper`,
+ *   `detectChordName`, and `isRhythmLegatoLocked` — not duplicated here.
+ */
 import { create } from 'zustand'
 import { Note } from 'tonal'
 import {
-  getNoteNameFromFret,
   detectChordName,
   isRhythmLegatoLocked,
   syncLegatoHelper,
 } from '../utils/legatoUtils'
 
-export type LegatoBehavior = 
-  'chromatique' | 'secondes' | 'tierces' | 'quartes' | 'quintes' | 'sixtes' | 'septiemes' | 'octaves' | 
-  'gamme' | 'pentatonique' | 'triade' | 'arp7' | 'blues' | 'free' | 'whole-tone' | 'diminished'
+export type LegatoBehavior =
+  // ── Chromatique ─────────────────────────────────────────────────────────────
+  | 'chromatique'       // tous les demi-tons
+  // ── Diatoniques ─────────────────────────────────────────────────────────────
+  | 'gamme'             // tous les degrés de la gamme (diatonique par secondes)
+  | 'tierces'           // sauts de tierce depuis la position source dans la gamme
+  | 'quartes'           // sauts de quarte diatonique
+  | 'quintes'           // sauts de quinte diatonique
+  | 'sixtes'            // sauts de sixte diatonique
+  | 'septiemes'         // sauts de septième diatonique
+  | 'octaves'           // uniquement la classe de hauteur source (octaves pures)
+  // ── Approches (jazz/blues) ───────────────────────────────────────────────────
+  | 'approche'          // gamme + ½ ton chromatique DU DESSOUS pour chaque degré
+  | 'approche_dessus'   // gamme + ½ ton chromatique DU DESSUS pour chaque degré
+  | 'encerclement'      // gamme + ½ ton dessus ET dessous → encircling bebop
+  | 'double_chroma'     // gamme + deux demi-tons DU DESSOUS (Parker double chromatic)
+  // ── Arpèges ──────────────────────────────────────────────────────────────────
+  | 'triade'            // accord de trois sons diatonique (I,III,V)
+  | 'arp7'              // arpège de septième diatonique (I,III,V,VII)
+  // ── Pentatoniques ────────────────────────────────────────────────────────────
+  | 'pentatonique'      // pentatonique MAJEURE degrés I,II,III,V,VI
+  | 'penta_min'         // pentatonique MINEURE degrés I,b3,IV,V,b7 — rock/blues
+  // ── Gammes spéciales ─────────────────────────────────────────────────────────
+  | 'blues'             // gamme blues mineure (I,b3,IV,b5,V,b7)
+  | 'bebop'             // gamme majeure bébop (+ b6 passing tone entre V et VI)
+  | 'bebop_dominant'    // gamme bébop dominante (majeure + b7 passing tone)
+  | 'harmonique'        // gamme mineure harmonique (mineure naturelle + VII maj)
+  | 'melodique'         // gamme mineure mélodique jazz (1,2,b3,4,5,6,7)
+  | 'altere'            // gamme altérée / super-locrienne — sur V7alt (1,b9,#9,3,b5,b13,b7)
+  | 'whole-tone'        // gamme par tons entiers
+  | 'diminished'        // gamme octatonique (demi-ton/ton)
+  // ── Libre ────────────────────────────────────────────────────────────────────
+  | 'free'              // interpolation linéaire libre
 
 export interface TablatureNote {
   id: string
@@ -23,8 +67,9 @@ export interface TablatureNote {
   legatoBehavior?: LegatoBehavior
   intermediateNoteIds?: string[] // IDs of generated notes
   legatoRatio?: { t: number; stringT: number } // Position relative to source/dest
-  legatoAuto?: boolean  // If true, moving source/dest moves intermediate notes (default true)
-  legatoChain?: boolean // If true, moving an intermediate note syncs the following ones (default false)
+  legatoAuto?: boolean     // If true, moving source/dest moves intermediate notes (default true)
+  legatoChain?: boolean    // If true, moving an intermediate note syncs the following ones (default false)
+  legatoOvershoot?: boolean // When true, candidates extend beyond [src, dest] — amplitude is auto-computed
 }
 
 export interface ChordGroup {
@@ -76,7 +121,7 @@ export interface ModeZone {
   id: string
   startBeat: number
   length: number      // in measures (1 = one measure); >= MODE_ZONE_MIN_LENGTH
-  modeName: string   // references EXTRA_MODES (composables/extraModes.ts) by .name
+  modeName: string   // references EXTRA_MODES (data/extraModes.ts) by .name
   forceNote: boolean
   color: string       // hex chosen by the user, drives the measure-tint gradient
 }
@@ -84,11 +129,12 @@ export interface ModeZone {
 const MAX_HISTORY = 60
 
 type HistoryEntry = {
-  notes:        TablatureNote[]
-  groups:       ChordGroup[]
-  progressions: ProgressionGroup[]
+  notes:           TablatureNote[]
+  groups:          ChordGroup[]
+  progressions:    ProgressionGroup[]
   rhythmModifiers: RhythmModifier[]
-  modeZones:    ModeZone[]
+  modeZones:       ModeZone[]
+  legatoSourceId:  string | null  // restore UI state: prevents stale legato cursor after undo
 }
 
 interface State {
@@ -204,14 +250,17 @@ export const useTablatureR3FStore = create<State>((set) => ({
       let finalGroups = s.chordGroups
 
       if (tuning && note) {
-        // Update chord labels for groups containing this note
-        finalGroups = s.chordGroups.map(g => {
-          if (g.noteIds.includes(id)) {
-            const newName = detectChordName(g.noteIds, finalNotes, tuning)
-            return { ...g, chordName: newName || g.chordName }
-          }
-          return g
-        })
+        // Re-detect chord name ONLY when pitch actually changed (fret or string).
+        // detectChordName calls Tonal.js Chord.detect — skip it for duration/beat changes (Eva).
+        if (patch.fret !== undefined || patch.string !== undefined) {
+          finalGroups = s.chordGroups.map(g => {
+            if (g.noteIds.includes(id)) {
+              const newName = detectChordName(g.noteIds, finalNotes, tuning)
+              return { ...g, chordName: newName || g.chordName }
+            }
+            return g
+          })
+        }
 
         // 1. If note is a source/destination and Auto is on
         const source = note.legatoNext ? note : newNotes.find(n => n.id === note.legatoPrev)
@@ -589,7 +638,9 @@ export const useTablatureR3FStore = create<State>((set) => ({
   pushHistory: () =>
     set(s => ({
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        legatoSourceId: s.legatoSourceId,
       }],
       future: [],
     })),
@@ -598,14 +649,17 @@ export const useTablatureR3FStore = create<State>((set) => ({
     if (s.past.length === 0) return s
     const prev = s.past[s.past.length - 1]
     return {
-      notes:            prev.notes,
-      chordGroups:      prev.groups,
+      notes:             prev.notes,
+      chordGroups:       prev.groups,
       progressionGroups: prev.progressions ?? [],
-      rhythmModifiers:  prev.rhythmModifiers ?? [],
-      modeZones:        prev.modeZones ?? [],
-      past:             s.past.slice(0, -1),
+      rhythmModifiers:   prev.rhythmModifiers ?? [],
+      modeZones:         prev.modeZones ?? [],
+      legatoSourceId:    prev.legatoSourceId ?? null,
+      past:              s.past.slice(0, -1),
       future: [{
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        legatoSourceId: s.legatoSourceId,
       }, ...s.future.slice(0, MAX_HISTORY - 1)],
     }
   }),
@@ -614,13 +668,16 @@ export const useTablatureR3FStore = create<State>((set) => ({
     if (s.future.length === 0) return s
     const next = s.future[0]
     return {
-      notes:            next.notes,
-      chordGroups:      next.groups,
+      notes:             next.notes,
+      chordGroups:       next.groups,
       progressionGroups: next.progressions ?? [],
-      rhythmModifiers:  next.rhythmModifiers ?? [],
-      modeZones:        next.modeZones ?? [],
+      rhythmModifiers:   next.rhythmModifiers ?? [],
+      modeZones:         next.modeZones ?? [],
+      legatoSourceId:    next.legatoSourceId ?? null,
       past: [...s.past.slice(-(MAX_HISTORY - 1)), {
-        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups, rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        notes: s.notes, groups: s.chordGroups, progressions: s.progressionGroups,
+        rhythmModifiers: s.rhythmModifiers, modeZones: s.modeZones,
+        legatoSourceId: s.legatoSourceId,
       }],
       future: s.future.slice(1),
     }

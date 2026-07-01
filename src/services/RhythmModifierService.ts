@@ -1,5 +1,22 @@
+﻿/**
+ * @file RhythmModifierService.ts
+ * Business logic for rhythm modifiers — non-destructive rhythmic subdivision of notes,
+ * chord groups, and progression groups.
+ *
+ * Key concepts:
+ * - `getVirtualRhythm` computes the display-time sub-notes without touching the store.
+ * - `materializeLegatoRhythm` converts virtual sub-notes into real legato chains, one
+ *   per note of a chord (multi-chain architecture).
+ * - `dematerializeLegatoRhythm` reverses the above, restoring each base note to its
+ *   original beat range.
+ * - Per-chord string instrument assignment (`stringTrackOverrides`) is managed by
+ *   `getAssignedTrack` / `cycleStringTrack`.
+ *
+ * Pre-flight check (P4-3): notes already in a legato chain (`legatoNext` present)
+ * are skipped during materialisation to avoid silently overwriting existing chains.
+ */
 import { useTablatureR3FStore, TablatureNote, RhythmModifier } from '../stores/useTablatureR3FStore'
-import { rhythmPatterns, RhythmPatternDef } from '../composables/rhythmPatterns'
+import { rhythmPatterns, RhythmPatternDef } from '../data/rhythmPatterns'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
 
 export interface VirtualNote {
@@ -262,13 +279,21 @@ export const RhythmModifierService = {
       const chordNotes = state.notes.filter(n => chord.noteIds.includes(n.id))
       if (chordNotes.length === 0) return
 
+      // P4-3: pre-flight — skip notes that are already in a legato chain from a different
+      // modifier (legatoNext present means the note is a chain source or an intermediate).
+      // Overwriting legatoNext would silently corrupt the existing chain.
+      const availableNotes = chordNotes.filter(n => !n.legatoNext && !n.legatoPrev)
+      if (availableNotes.length === 0) return
+
       state.pushHistory()
       // Notes whose pattern has fewer than 2 onsets can't form a chain (materializeChainForNote
       // returns null without touching them) — they stay in the group untouched, alongside the
       // notes that did materialize.
-      const unchangedIds: string[] = []
+      const unchangedIds: string[] = chordNotes
+        .filter(n => n.legatoNext || n.legatoPrev)  // already-chained notes stay untouched
+        .map(n => n.id)
       const chains: { baseNoteId: string; extras: string[]; origRange: { startBeat: number; duration: number } }[] = []
-      chordNotes.forEach(n => {
+      availableNotes.forEach(n => {
         const chain = RhythmModifierService.materializeChainForNote(mod, n)
         if (chain) chains.push(chain)
         else unchangedIds.push(n.id)
@@ -284,6 +309,9 @@ export const RhythmModifierService = {
 
     const baseNote = state.notes.find(n => n.id === mod.targetId)
     if (!baseNote) return
+
+    // P4-3: pre-flight for single-note target
+    if (baseNote.legatoNext || baseNote.legatoPrev) return
 
     state.pushHistory()
     const chain = RhythmModifierService.materializeChainForNote(mod, baseNote)

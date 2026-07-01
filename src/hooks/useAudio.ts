@@ -1,3 +1,16 @@
+/**
+ * @file useAudio.ts
+ * Unified audio facade: delegates to `SoundFontService` (SF2 Web Audio) when the
+ * soundfont is loaded, falls back to a simple Web Audio oscillator otherwise.
+ *
+ * Public API (stable regardless of audio backend):
+ * - `playNote(midi, duration?)` — plays a single MIDI pitch.
+ * - `playFullChord(midis, durations?)` — plays multiple pitches simultaneously.
+ * - `stopAllSounds()` — stops all active audio nodes immediately.
+ *
+ * `SoundFontService.preload()` is triggered at module import so SF2 loading begins
+ * as early as possible (before the user interacts).
+ */
 import { Note } from 'tonal';
 import eventBus from '../eventBus';
 import { SoundFontService, getSharedAudioCtx, resumeSharedAudioCtx } from '../services/SoundFontService';

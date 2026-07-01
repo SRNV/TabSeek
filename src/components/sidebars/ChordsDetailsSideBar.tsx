@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import './ChordsDetailsSideBar.scss'
 import { useMainStore } from '../../stores/useMainStore'
-import { CHORD_TYPES_BY_CATEGORY } from '../../composables/tonalChordsMapping'
+import { CHORD_TYPES_BY_CATEGORY } from '../../data/tonalChordsMapping'
 
 export default function ChordsDetailsSideBar() {
   const chordRootNoteType = useMainStore(s => s.chordRootNoteType)

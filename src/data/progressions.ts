@@ -1,4 +1,4 @@
-// src/composables/progressions.ts
+﻿// src/data/progressions.ts
 
 // Définition du type pour une progression d'accords
 export type ChordProgression = {

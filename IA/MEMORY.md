@@ -4,44 +4,11 @@
 
 ---
 
-# Roles — Comité de Pilotage & Équipe Technique
+# Roles & Brainstorming
 
-Avant chaque tâche complexe (ticket), une phase de brainstorming structurée est obligatoire pour garantir la robustesse, l'ergonomie et la maintenabilité du produit.
-
-### Composition de l'Équipe
-
-- **Stephen (Engineering Manager - 15 ans d'exp.)** : Chef d'orchestre. Il priorise les tâches, évalue la vélocité et s'assure que le périmètre (scope) du ticket est réaliste par rapport aux délais.
-- **James Edison (Software Architect - 16 ans d'exp. en Robotique & Systèmes critiques)** : Gardien de l'architecture. Spécialiste Clean Code, SOLID et patterns R3F. Il identifie les dettes techniques et définit la structure globale.
-- **Paulette (Product Manager - 10 ans d'exp. en Groupes Internationaux)** : Vision produit. Elle s'assure que chaque fonctionnalité répond à un besoin utilisateur réel et s'inscrit dans la roadmap à long terme.
-- **Jean (Product Owner / Expert Métier - Doctorant en Musique)** : Le référent "musique". Musicien multi-instrumentiste, il valide la pertinence théorique musicale et l'ergonomie pour les compositeurs.
-- **Paul Verdon (Senior Fullstack Dev - 16 ans d'exp. en SaaS/React)** : Expert en implémentation. Spécialiste des performances React et de l'optimisation des flux de données (Zustand).
-- **Eva (Algorithm Expert - Spécialiste en Calcul Scientifique & Théorie des Graphes)** : Le cerveau logique. Très critique et sans concession, elle dissèque chaque algorithme (legato, collisions, rythmes) pour en extraire la complexité optimale. Elle identifie instantanément les failles logiques et les implémentations "sales".
-- **Sarah Miller (UI/UX Designer - 12 ans d'exp.)** : Garante de l'expérience utilisateur. Elle veille à ce que l'interface reste intuitive malgré la complexité des outils musicaux (règles de contraste, accessibilité).
-- **Bryan O'Conor (Senior QA Engineer - 20 ans d'exp. chez Google)** : Chasseur de bugs. Il définit les scénarios de tests, anticipe les cas aux limites (edge cases) et assure la non-régression.
-- **Alex Chen (DevSecOps & Performance Engineer)** : Assure la stabilité de l'infrastructure Docker, la sécurité des dépendances et l'optimisation des temps de rendu (FPS) de la scène R3F.
-- **Romain (Senior Technical Recruiter - Expert en Sourcing & Talent Acquisition)** : Le facilitateur de croissance. À chaque réunion, il présente un nouveau profil d'expert (temporaire ou permanent) pour lever un verrou technique spécifique, améliorer la R&D ou optimiser la maintenance.
-
-### Groupe d'Utilisateurs (Panel Bêta-testeurs)
-
-- **Lucas (Guitariste Débutant)** : Représente les néophytes. Il a besoin d'une interface ultra-intuitive, d'aides visuelles claires et d'un feedback immédiat pour apprendre ses premiers accords.
-- **Chloé (Compositrice Jazz & Fusion)** : Utilisatrice experte. Elle pousse l'application dans ses retranchements théoriques (accords complexes, substitutions, modulations modales).
-- **Marcus (Producteur de Metal & Musique Moderne)** : Focus sur l'efficacité et la puissance. Il attend des rythmes percutants, une gestion parfaite des accordages bas et une fluidité de workflow maximale.
-- **Elena (Professeure de Musique)** : Vision pédagogique. Elle utilise TabSeek comme support de cours et veille à la clarté de la notation et à la facilité de partage des exercices.
-- **Tom (Bassiste de Session)** : L'œil du métronome. Il se concentre sur la cohérence entre la section rythmique et la tablature, assurant que le groove reste la priorité.
-
-### Processus de Brainstorming (Ticket Review)
-
-1.  **Recrutement & Extension (Romain)** : Introduction d'un nouveau profil expert dont les compétences spécifiques permettront d'accélérer l'exécution, de sécuriser la R&D ou d'améliorer la maintenance de la fonctionnalité visée.
-2.  **Brainstorming** : Chaque membre apporte son expertise sur le ticket. La discussion est concise, factuelle et orientée solution.
-3.  **Architecture (James)** : Analyse de l'existant. Si le code actuel est instable ou mal structuré, il dresse une **TODO list de refactorisation** préalable.
-4.  **Logique & Algorithmie (Eva)** : Audit critique de la solution proposée. Elle traque les redondances, optimise la complexité et valide la robustesse mathématique. Elle a un droit de veto sur les approches "naïves".
-5.  **Spécifications (Paulette/Jean)** : Validation fonctionnelle et musicale.
-6.  **Implémentation (Paul/James)** : Définition de la stratégie technique.
-7.  **Validation & QA (Bryan/Sarah)** : Identification des risques UX et techniques. Bryan liste les **points de vigilance (edge cases)** à tester.
-8.  **Synthèse** : Mise à jour immédiate du fichier `.\TODO_LIST.md` avec les étapes validées par le comité.
-9.  **Optimisation d'Exécution** : Une fois les tâches distribuées, l'équipe analyse la `.\TODO_LIST.md` pour regrouper et traiter simultanément toutes les actions indépendantes, maximisant ainsi l'efficacité du cycle de développement.
-
-*Le jeu de rôle est maintenu tout au long du cycle de développement pour assurer une cohérence maximale.*
+> **IMPORTANT** : Pour comprendre le contexte de l'équipe, les personnages (Comité de Pilotage, Équipe Technique, Experts, Utilisateurs) et le processus de développement (Ticket Review), **consultez impérativement le fichier `.\IA\ROLES.md`, !!TOUT DOIT Y ETRE RESPECTE !!**. 
+>
+> Ce fichier définit l'identité de chaque membre et les règles strictes de brainstorming à suivre avant toute implémentation. L'IA doit lire `.\IA\ROLES.md` en complément de `.\IA\MEMORY.md` pour maintenir la cohérence du projet.
 ---
 
 ## 1. Identité du projet
@@ -209,21 +176,77 @@ Fonctions pures extraites du store pour séparation store/logique :
 - `isRhythmLegatoLocked` — vérification lock chaîne legato-rythme (source unique — plus de copie locale)
 - `getNoteNameFromFret` — nom complet (ex: `E3`) depuis corde ouverte + frette
 
-### 6.5 Types — `src/types/tablatureDrag.ts` *(Juillet 2026)*
-Union discriminée de tous les états de drag de TablatureR3F :
-`DragNoteState`, `DragChordGroupState`, `DragProgGroupState`, `DragRectState`, `DragNewProgState`, `DragPlaybackState`, `DragModeZoneState`.
-Import dans `TablatureMoveService.ts` — plus de `d: any`.
+### 6.5 Types — `src/types/` *(Juillet 2026, restructuré session 8)*
+
+Tous les types purs (sans implémentation) résident dans des fichiers **`.d.ts`** sous `src/types/`.
+
+| Fichier | Contenu |
+|---|---|
+| `src/types/drag.d.ts` | `NoteZone`, union discriminée `AnyDragState` = `DragNoteState` \| `DragChordGroupState` \| `DragProgGroupState` \| `DragRectState` \| `DragNewProgState` \| `DragPlaybackState` \| `DragModeZoneState` |
+| `src/types/index.ts` | Barrel re-exportant `ModeGuitar` (depuis `src/types.ts`), `ChordProgression`, `RhythmPatternDef`, tous les types de `drag.d.ts` |
+
+> **Règle** : tout type pur (interface, union, alias) qui n'a pas de couplage à une implémentation doit vivre dans `src/types/*.d.ts`. Les types couplés à leur implémentation (ex: état Zustand dans les stores) restent dans leur fichier d'origine.
+
+`NoteZone` est la source canonique dans `drag.d.ts` ; `tabUtils.ts` le re-exporte pour compat import unique.
 
 ---
 
-## 7. Composables & Services
+## 7. Hooks, Données & Services
+
+### 7.0 Organisation des dossiers *(restructuré session 8)*
+
+```
+src/
+  data/          ← fichiers de données pures (pas de hooks, pas d'effets)
+    rhythmPatterns.ts
+    extraModes.ts
+    progressions.ts
+    chords.ts
+    chord-charts.ts
+    tonalChordsMapping.ts
+  hooks/         ← hooks React (useXxx) et fonctions utilitaires de composables
+    useAudio.ts
+    useGuitarChords.ts
+    useGuitarNotes.ts
+    useMidiUtils.ts
+    useNoteHelpers.ts
+    useUIState.ts
+  types/         ← types purs uniquement (.d.ts)
+    drag.d.ts
+    index.ts     ← barrel
+  utils/         ← fonctions pures (pas de hooks, pas de store)
+    tabUtils.ts
+    guitarUtils.ts
+    legatoUtils.ts
+    tuningUtils.ts
+    tablatureGeometry.ts (à créer — P2 non terminé)
+  services/      ← services métier (accèdent au store via getState())
+  stores/        ← stores Zustand
+  components/
+    tablature/
+      scene/     ← composants Three.js/R3F atomiques (1 fichier = 1 composant)
+        LegatoLine.tsx
+        LegatoActionBtn.tsx
+        NoteDisc.tsx
+        SubNoteBody.tsx
+        PodGradientMaterial.tsx
+        ModeZoneGradientMaterial.tsx
+        passWheel.ts
+        sceneConstants.ts
+        NoteComponents.tsx   ← barrel re-export (compat)
+        PodMaterials.tsx     ← barrel re-export (compat)
+```
+
+> **⚠️ JAMAIS de fichiers de données dans `src/composables/`** — ce dossier est vide depuis la session 8. Tout import qui pointait vers `composables/X` a été migré vers `data/X` ou `hooks/X`.
+
+### 7.1 Hooks & Données
 
 | Fichier | Rôle |
 |---|---|
-| `useAudio.ts` | Façade audio — délègue à `SoundFontService` si prêt, oscillateur sinon. Même API : `playNote`, `playFullChord`, `stopAllSounds`. Lance `SoundFontService.preload()` à l'import. |
-| `useGuitarNotes.ts` | Calculs de notes sur le manche |
-| `useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
-| `rhythmPatterns.ts` | Définition des patterns rythmiques (kick, snare, hi-hat) par feel. |
+| `hooks/useAudio.ts` | Façade audio — délègue à `SoundFontService` si prêt, oscillateur sinon. Même API : `playNote`, `playFullChord`, `stopAllSounds`. Lance `SoundFontService.preload()` à l'import. |
+| `hooks/useGuitarNotes.ts` | Calculs de notes sur le manche |
+| `hooks/useNoteHelpers.ts` | `getNoteColor()`, `getNoteDegreeLabel()` |
+| `data/rhythmPatterns.ts` | Définition des patterns rythmiques (kick, snare, hi-hat) par feel. |
 | `TablatureDropService.ts` | Logique métier pour le Drag & Drop d'accords/progressions/rythmes. Division proportionnelle des notes lors du drop de rythme. |
 | `TablatureMoveService.ts` | Logique métier pour le déplacement/redimensionnement (collisions incluses) |
 | `FretboardHighlightService.ts` | Highlights sur le manche (hover/play). **Correction Juin 2026** : Respecte strictement les positions (corde/frette) du store pour ne pas highlighter toutes les notes d'une même hauteur (pitch class). |
@@ -633,3 +656,313 @@ Deux services distincts selon le type de note :
 | Html Overlays (R3F) | 10–100 | `Html` `zIndexRange` |
 | Popover config | 500 | `fixed` |
 | Backdrop popover | 499 | `fixed` |
+
+---
+
+## 15. Référentiel de Tests QA — Bryan O'Conor & Dr. Amara Ndiaye
+
+> Mis en place après les régressions de session 7. À exécuter manuellement avant tout merge. **Processus** : T-NOTE + T-CHORD + T-PLAY + T-AUDIO minimum avant chaque PR ; suite complète avant chaque release.
+
+### T-NOTE — Pods de Notes (20 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| N-01 | Cliquer dans une lane vide | Note créée, durée = 1 beat |
+| N-02 | Drag horizontal note | startBeat mis à jour, snappé 1/4 beat |
+| N-03 | Drag bord droit note | duration augmente, bord gauche fixe |
+| N-04 | Drag bord gauche note | startBeat recule, durée ajustée |
+| N-05 | Drag note vers autre corde (isolée) | string change, fret identique |
+| N-06 | Drag note vers autre corde (accord) | fret recalculé pour conserver la hauteur |
+| N-07 | Cliquer le disque d'une note | Input frette s'ouvre |
+| N-08 | Saisir frette 0–24 puis Entrée | fret mis à jour |
+| N-09 | Saisir frette > 24 | Valeur clampée à 24 |
+| N-10 | Clic droit sur note | Note supprimée |
+| N-11 | Supprimer source legato | Note + intermédiaires + destination supprimés |
+| N-12 | Hover note | Manche : cellule (corde, frette) orange |
+| N-13 | Hover note legato | Toute la chaîne s'allume sur le manche |
+| N-14 | Note sans zone Mode | Couleur degré via mode global sidebar |
+| N-15 | Note dans zone Mode active | Couleur selon gamme du pod Mode |
+| N-16 | Note hors gamme | Gris neutre (OFF_COL) |
+| N-17 | Disque note locked (arpège/rythme) | Icône cadenas visible |
+| N-18 | Resize-right note locked | Aucun changement |
+| N-19 | Drag vertical note locked | Seulement la corde change |
+| N-20 | Ctrl+A puis Suppr | Toutes les notes supprimées |
+
+### T-CHORD — Pods d'Accord (18 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| C-01 | Drop accord depuis panneau | Accord créé sur bonnes cordes |
+| C-02 | Hover header accord | Manche : toutes notes de l'accord en orange |
+| C-03 | Hover zone info-lane accord | Même highlight manche que C-02 |
+| C-04 | Quitter hover accord | Manche revient à état normal |
+| C-05 | Cliquer disque accord | Popover flottante s'ouvre |
+| C-06 | Chevron gauche popover | Type change, fondamentale conservée |
+| C-07 | Bouton recherche (loupe) | Voicing alternatif (mêmes notes, autres frettes) |
+| C-08 | Bouton octave ↑ | Toutes notes +12 demi-tons |
+| C-09 | Bouton octave ↓ | Toutes notes -12 demi-tons |
+| C-10 | Arpège UP 4 notes actif | 4 notes legato verrouillées, ascendant MIDI |
+| C-11 | Arpège DOWN actif | Descendant |
+| C-12 | Arpège UPDOWN | Aller-retour sans répéter extrémités |
+| C-13 | Désactiver arpège | Accord retourne à notes simultanées originales |
+| C-14 | Déplacer accord horizontalement | startBeat toutes notes mis à jour |
+| C-15 | Clic droit header accord | Accord + toutes notes supprimés |
+| C-16 | Drop accord sur note existante | Note existante = ancre fondamentale |
+| C-17 | Undo arpège | Notes simultanées restaurées exactement |
+| C-18 | Disque accord : tooltip hover | Tooltip affiche le nom de l'accord |
+
+### T-PROG — Pods de Progression (10 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| P-01 | Drop progression depuis panneau | Séquence d'accords créée |
+| P-02 | Hover header progression | Toutes notes de tous les accords s'allument |
+| P-03 | Quitter hover progression | Manche normal |
+| P-04 | Cliquer disque progression | Popover (nav chevrons templates) |
+| P-05 | Chevron template | Séquence remplacée, fondamentale conservée |
+| P-06 | Double-clic disque progression | Input renommage s'ouvre |
+| P-07 | Renommer puis Entrée | Nom mis à jour (visible tooltip) |
+| P-08 | Déplacer progression | Tous accords + notes déplacés proportionnellement |
+| P-09 | Resize-right progression | Durée de tous les accords ajustée |
+| P-10 | Clic droit header progression | Progression + accords + notes supprimés |
+
+### T-LEGATO — Moteur Legato (13 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| L-01 | Drag bulle droite vers autre note | Chaîne legato créée, ruban orange |
+| L-02 | Legato chromatique G3→C4 | 5 demi-tons (quarte juste) entre les deux |
+| L-03 | Legato comportement "gamme" | Notes intermédiaires = degrés de la gamme active |
+| L-04 | Bouton merge | Intermédiaires figés en notes réelles |
+| L-05 | Déplacer source, Auto=ON | Intermédiaires repositionnés automatiquement |
+| L-06 | Déplacer destination, Auto=ON | Idem |
+| L-07 | Changer comportement | Intermédiaires recalculés |
+| L-08 | Mode Chain : déplacer intermédiaire | Seulement les suivants re-syndés |
+| L-09 | Double-clic sur intermédiaire | Divisé en deux |
+| L-10 | Supprimer dernier intermédiaire | Lien cassé, source et dest libres |
+| L-11 | Supprimer destination | Source libérée, intermédiaires supprimés |
+| L-12 | Undo après création legato | Chaîne entièrement supprimée |
+| L-13 | Drop rythme sur note legato intermédiaire | REFUSÉ (restriction 12.2) |
+
+### T-RHYTHM — Rhythm Modifiers (13 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| R-01 | Drop rythme sur note | Virtual sub-notes affichées, note non modifiée |
+| R-02 | Drop rythme sur note d'accord | Modifier cible le ChordGroup entier |
+| R-03 | Chevrons pattern | Sub-notes recalculées |
+| R-04 | Mode Étendu actif | Pattern sur durée réelle (mesures) |
+| R-05 | Combler les silences actif | Sub-notes s'étendent jusqu'à onset suivant |
+| R-06 | Legato sur rythme (note) | Chaîne legato matérialisée, cadenas visible |
+| R-07 | Legato sur rythme (accord) | Chaque corde reçoit sa propre chaîne |
+| R-08 | Désactiver legato rythme | Notes originales restaurées |
+| R-09 | Changer pattern pendant legato actif | Re-matérialisation automatique |
+| R-10 | Clic bulle 🎶 instrument par corde | Cycle entre pistes du pattern |
+| R-11 | Clic droit pod rythme | Modifier supprimé, note restaurée |
+| R-12 | Undo matérialisation legato rythme | Notes intermédiaires disparaissent |
+| R-13 | Drop rythme sur note de legato intermédiaire | REFUSÉ |
+
+### T-MODE — Pods Mode Zone (14 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| M-01 | Drop mode depuis onglet Modes | Pod rouge, 1 mesure, couleur aléatoire |
+| M-02 | Notes dans zone → couleurs | Colorées selon gamme du pod Mode |
+| M-03 | Notes hors zone → couleurs | Couleur degré via mode global |
+| M-04 | Resize-right pod Mode → min 1/8 mesure | Pas en dessous du minimum |
+| M-05 | Déplacer pod Mode | Notes recolorées selon nouvelle position |
+| M-06 | Activer Force Note | Notes remappées vers même degré dans nouvelle gamme |
+| M-07 | Désactiver Force Note | Notes reviennent (non-destructif) |
+| M-08 | Note déjà in-scale + Force Note | Aucun changement de frette |
+| M-09 | Note avec frette résultante > 24 | Ignorée (fret hors-bornes) |
+| M-10 | Changer couleur via color picker | Dégradé de fond mis à jour |
+| M-11 | Navigation modes chevrons | Gamme change, notes recolorées |
+| M-12 | Clic droit pod Mode | Supprimé, notes recolorées mode global |
+| M-13 | Deux pods Mode contigus | Zones sans chevauchement |
+| M-14 | Tooltip disque pod Mode | Affiche le nom du mode |
+
+### T-PLAY — Playback (15 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| PL-01 | Clic Play | Lecture démarre, curseur se déplace |
+| PL-02 | Vérifier vitesse 120 BPM | 1 mesure = exactement 2 secondes |
+| PL-03 | Clic Stop | Arrêt, curseur à 0 |
+| PL-04 | Follow mode actif | Scroll suit le curseur |
+| PL-05 | Drag curseur vert | Position de lecture déplacée |
+| PL-06 | Clic minimap | Curseur repositionné |
+| PL-07 | Double-clic minimap | Curseur de lecture positionné immédiatement |
+| PL-08 | Loop ON : fin morceau | Reprend depuis le début |
+| PL-09 | Loop OFF : fin morceau | S'arrête en fin |
+| PL-10 | Undo pendant lecture | Lecture continue, état mis à jour |
+| PL-11 | Changer tempo pendant lecture | Vitesse change immédiatement |
+| PL-12 | 50+ notes : playback sans décrochage | FPS stable |
+| PL-13 | Playback 5 min continu | Pas de memory leak, position correcte |
+| PL-14 | Seek vers beat déjà joué | Sons ne se répètent pas |
+| PL-15 | Lecture sans notes | Curseur avance normalement jusqu'à la fin |
+
+### T-AUDIO — Audio SoundFont (12 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| A-01 | Corde E2, frette 0 | Son E2 (MIDI 40) |
+| A-02 | Corde A2, frette 0 | Son A2 (MIDI 45) |
+| A-03 | Corde D3, frette 0 | Son D3 (MIDI 50) |
+| A-04 | Corde G3, frette 0 | Son G3 (MIDI 55) |
+| A-05 | Corde C4, frette 0 | Son C4 (MIDI 60) — NOT C3 |
+| A-06 | Corde e4, frette 0 | Son E4 (MIDI 64) |
+| A-07 | Corde C4 frette 4 vs D3 frette 2 | Sons DIFFÉRENTS (E4≠E3) |
+| A-08 | Accord Cmaj | 3 sons distincts simultanés |
+| A-09 | Changer preset guitare | Son change à la prochaine note |
+| A-10 | Zone Mode Force Note active | Note joue la hauteur effective (nouvelle frette) |
+| A-11 | Rhythm modifier proportionnel | Sons aux beats corrects |
+| A-12 | Hover note pendant lecture | Son joué si lecture active |
+
+### T-SMART — SmartFretboard (8 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| S-01 | Aucun survol | Gamme du mode global affichée |
+| S-02 | Hover note | Cellule (corde, frette) orange |
+| S-03 | Hover accord header | Toutes cellules de l'accord oranges |
+| S-04 | Hover progression header | Toutes cellules de tous les accords |
+| S-05 | Hover note legato | Toute la chaîne sur le manche |
+| S-06 | Quitter hover | Manche revient à la gamme |
+| S-07 | Lecture note active | Cellule s'allume pendant la note |
+| S-08 | Zone Mode active pendant lecture | Gamme du manche = gamme de la zone |
+
+### T-UX — UX & Clavier (20 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| UX-01 | Ctrl+Z | Dernière action annulée |
+| UX-02 | Ctrl+Z × 3 consécutifs | 3 états restaurés dans l'ordre |
+| UX-03 | Ctrl+Shift+Z (Redo) | Action re-appliquée |
+| UX-04 | Ctrl+A | Toutes notes sélectionnées |
+| UX-05 | Suppr avec sélection | Notes sélectionnées supprimées |
+| UX-06 | Ctrl+C puis Ctrl+V | Notes copiées et collées décalées |
+| UX-07 | Ctrl+G sur sélection notes | ChordGroup créé |
+| UX-08 | Ctrl+Molette | Zoom horizontal |
+| UX-09 | Molette sur popover ouverte | Canvas zoome (passWheel) |
+| UX-10 | Tooltip disque accord | Nom de l'accord visible au survol maintenu |
+| UX-11 | Tooltip disque progression | Nom de la progression |
+| UX-12 | Tooltip disque rythme | Nom du pattern |
+| UX-13 | Tooltip disque pod Mode | Nom du mode |
+| UX-14 | Labels cordes sidebar | E2, A2, D3, G3, C4, e4 affichés |
+| UX-15 | Popover ouverte | Ne bloque pas l'interligne du dessous |
+| UX-16 | Popover : flèche connecteur | Pointe vers le disque d'ancrage |
+| UX-17 | Disque sticky scroll | Reste visible au bord gauche si note hors-écran |
+| UX-18 | Undo après legato en création | legatoSourceId réinitialisé |
+| UX-19 | Pod Mode drag horizontal | Zone de couleur suit |
+| UX-20 | Resize pod Mode bord droit | Curseur e-resize au survol du bord |
+
+### T-PERF & PWA (8 tests)
+
+| ID | Action | Résultat attendu |
+|---|---|---|
+| PF-01 | 50+ notes simultanées | FPS > 30, interface réactive |
+| PF-02 | 10 zones Mode actives | Pas de freeze |
+| PF-03 | Undo 60 fois consécutives | Pas de crash, état cohérent |
+| PF-04 | `npx tsc -b` | 0 erreur TypeScript |
+| PF-05 | `npm run build` | Build sans erreur |
+| PF-06 | Rechargement page | State réinitialisé |
+| PF-07 | `public/icon-192.png` | Fichier présent et valide (PNG 192×192) |
+| PF-08 | `public/icon-512.png` | Fichier présent et valide (PNG 512×512) |
+
+---
+
+## 16. Règles de Codage — James Edison (Juillet 2026)
+
+> Ces règles sont **contraignantes**. Tout code soumis en revue qui les enfreint est refusé.
+
+### 16.1 Principe de Responsabilité Unique (SRP — Single Responsibility Principle)
+
+> **Un composant → une responsabilité → une seule raison de changer → un fichier.**
+
+Un composant React (ou un hook, ou un service) ne doit avoir qu'**une seule raison de changer**. Si un fichier doit être modifié à cause de deux décisions indépendantes (ex: le style du disque ET la logique de drag), c'est un signal d'alarme : il faut séparer.
+
+**Applications concrètes :**
+
+| ❌ Interdit | ✅ Requis |
+|---|---|
+| `NoteComponents.tsx` contenant `NoteDisc` + `SubNoteBody` + `passWheel` | `NoteDisc.tsx`, `SubNoteBody.tsx`, `passWheel.ts` séparés |
+| `PodMaterials.tsx` contenant `PodGradientMaterial` + `ModeZoneGradientMaterial` | `PodGradientMaterial.tsx`, `ModeZoneGradientMaterial.tsx` séparés |
+| `LegatoLine.tsx` contenant `LegatoLine` + `LegatoActionBtn` | `LegatoLine.tsx` + `LegatoActionBtn.tsx` séparés |
+| Un service qui accède au DOM **et** au store **et** calcule des pitch | Séparation : DOM dans composant, store dans service, pitch dans utils |
+
+**Règle de nommage** : le nom du fichier = le nom du composant exporté principal. Si le nom ne correspond pas, c'est que le fichier en fait trop.
+
+### 16.2 Types dans `.d.ts`
+
+> **Tout type pur (interface, union, alias de type) qui n'est pas couplé à une implémentation doit vivre dans `src/types/*.d.ts`.**
+
+- Un fichier `.d.ts` ne contient que des `type`, `interface`, `enum const` — pas de `function`, pas de `const` valeur.
+- Les types couplés à leur module (ex: l'état d'un store Zustand) restent dans leur fichier d'origine — les extraire créerait une dépendance circulaire ou obligerait à dupliquer des informations.
+- **`src/types/index.ts`** est le barrel public — c'est là qu'on importe les types dans les composants.
+
+### 16.3 TSDoc sur chaque fichier et chaque export public
+
+> **Tout fichier `src/` doit avoir un bloc `@file` en début de fichier. Toute fonction/composant/classe exporté(e) doit avoir un TSDoc.**
+
+Format du bloc `@file` :
+```ts
+/**
+ * @file nomFichier.ts
+ * Une phrase décrivant la responsabilité unique de ce fichier.
+ *
+ * Détails supplémentaires si nécessaire (contraintes, invariants, pourquoi
+ * une approche particulière a été choisie, liens vers d'autres fichiers).
+ */
+```
+
+Format TSDoc pour une fonction :
+```ts
+/**
+ * Description en une phrase (verbe à l'impératif).
+ *
+ * @param tuning  Tableau de notes ouvertes, index 0 = corde grave.
+ * @param targetMidi  MIDI de la note cible (0–127).
+ * @param siRange  [min, max] — restreint la recherche à cet intervalle de cordes.
+ * @returns  `{ si, fret }` — position la plus proche du `refFret` sur les cordes autorisées.
+ */
+```
+
+Pas de TSDoc pour les fonctions internes non-exportées de moins de 5 lignes (évidente par le code).
+
+### 16.4 Règles d'Architecture Existantes (rappel)
+
+> Ces règles complètent le SRP — elles étaient dans `TODO_LIST.md` et sont désormais ici, source unique.
+
+1. **Aucune logique algorithmique dans les stores** → `src/utils/` ou `src/services/`
+2. **Les services ne font pas de `getState()` direct** → idéalement recevoir le state en paramètre (P4-1, en attente)
+3. **Aucun fichier de données dans `src/composables/`** → `src/data/` (migré session 8, composables/ vide)
+4. **Les composants R3F ne lisent pas le store entier** → sélecteurs ciblés + `useShallow` sur les propriétés directes
+5. **`playbackBeat` = ref impérative, jamais Zustand** (Eva, veto permanent — P1-1)
+6. **Tout nouveau pod partage `<PodModifierDisc>` + `<PodModifierPopover>`** → pas de copier-coller chord/progression
+7. **Tuning lu via `getTuning()` uniquement** (`src/utils/tuningUtils.ts`)
+8. **`HistoryEntry` doit capturer tout état UI impacté par undo**
+
+### 16.5 Piège Zustand — `useShallow` et tableaux dérivés
+
+> **`useShallow` ne fonctionne PAS avec des tableaux dérivés (`filter`, `map`) dans le sélecteur.**
+
+`Array.prototype.filter()` crée toujours un nouveau tableau. `useShallow` compare les propriétés de l'objet retourné avec `Object.is`. `Object.is([], [])` → `false`, même si le contenu est identique. Résultat : le composant entre dans une boucle de re-render infinie.
+
+**Règle** : n'utiliser `useShallow` que pour sélectionner des **propriétés directes** du store (jamais des valeurs dérivées).
+
+```ts
+// ✅ OK — propriétés directes, références stables
+useTablatureR3FStore(useShallow(s => ({ notes: s.notes, chordGroups: s.chordGroups })))
+
+// ❌ INTERDIT — filter() crée un nouveau tableau à chaque appel
+useTablatureR3FStore(useShallow(s => ({
+  source: s.notes.find(n => n.id === sourceId),       // OK (undefined ou ref stable)
+  intermediates: s.notes.filter(n => ids.includes(n.id)) // ❌ nouveau tableau chaque fois
+})))
+
+// ✅ Alternative correcte pour les données dérivées
+const notes = useTablatureR3FStore(s => s.notes)     // ref stable si pas de mutation
+const source = notes.find(n => n.id === sourceId)    // dérivé localement
+```
+
+Ce piège a causé le bug de `LegatoLine` en session 8 lors de la tentative de fix P4-4.

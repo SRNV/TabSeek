@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
+﻿import React, { useState, useEffect, useRef } from 'react'
 import './TabPlayback.scss'
 import { useTablatureStore } from '../../stores/useTablatureStore'
-import { playNote } from '../../composables/useAudio'
+import { playNote } from '../../hooks/useAudio'
 import { Note, Interval } from 'tonal'
 
 export default function TabPlayback() {

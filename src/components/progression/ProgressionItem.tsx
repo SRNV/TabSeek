@@ -1,6 +1,6 @@
-import React from 'react'
+﻿import React from 'react'
 import './ProgressionItem.scss'
-import type { ChordProgression } from '../../composables/progressions'
+import type { ChordProgression } from '../../data/progressions'
 
 interface ProgressionItemProps {
   progression: ChordProgression

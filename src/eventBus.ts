@@ -1,5 +1,5 @@
-import mitt from 'mitt'
-import type { ChordProgression } from './composables/progressions'
+﻿import mitt from 'mitt'
+import type { ChordProgression } from './data/progressions'
 
 type Events = {
   noteSelected: number

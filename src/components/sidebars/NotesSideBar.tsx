@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import './NotesSideBar.scss'
 import GuitarNote from '../tab/GuitarNote'
 import { useMainStore } from '../../stores/useMainStore'
 import { Scale } from 'tonal'
-import { getNoteColor, getNoteDegreeLabel } from '../../composables/useNoteHelpers'
+import { getNoteColor, getNoteDegreeLabel } from '../../hooks/useNoteHelpers'
 
 const NOTES = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4']
 

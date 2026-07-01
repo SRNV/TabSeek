@@ -1,6 +1,6 @@
-// useGuitarNotes.ts
+﻿// useGuitarNotes.ts
 import { Note, Key, Scale, Interval, Mode, ChordType, ScaleType } from 'tonal';
-import type { ModeGuitar } from '../types';
+import type { ModeGuitar } from '../types/mode';
 
 export function useGuitarNotes() {
   class GuitarNote {

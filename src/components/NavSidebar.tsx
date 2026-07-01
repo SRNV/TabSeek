@@ -1,5 +1,5 @@
-import './NavSidebar.scss'
-import { useUIStore } from '../composables/useUIState'
+﻿import './NavSidebar.scss'
+import { useUIStore } from '../hooks/useUIState'
 
 interface NavSidebarProps {
   expanded: boolean

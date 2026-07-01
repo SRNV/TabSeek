@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { Note, Scale } from 'tonal'
 import './GuitarNote.scss'
 import eventBus from '../../eventBus'
-import { playNote } from '../../composables/useAudio'
-import { getNoteColor } from '../../composables/useNoteHelpers'
+import { playNote } from '../../hooks/useAudio'
+import { getNoteColor } from '../../hooks/useNoteHelpers'
 import { useMainStore } from '../../stores/useMainStore'
 
 interface GuitarNoteProps {

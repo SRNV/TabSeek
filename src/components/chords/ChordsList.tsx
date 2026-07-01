@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import './ChordsList.scss'
-import { CHORD_TYPES_BY_CATEGORY } from '../../composables/tonalChordsMapping'
+import { CHORD_TYPES_BY_CATEGORY } from '../../data/tonalChordsMapping'
 import { useMainStore } from '../../stores/useMainStore'
 import { ChordEmojiBox } from '../../services/ChordEmojiService'
 

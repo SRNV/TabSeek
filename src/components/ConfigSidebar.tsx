@@ -1,6 +1,6 @@
 ﻿import React from 'react'
 import './ConfigSidebar.scss'
-import { useUIStore } from '../composables/useUIState'
+import { useUIStore } from '../hooks/useUIState'
 
 export default function ConfigSidebar() {
   const activePanel = useUIStore(s => s.activePanel)

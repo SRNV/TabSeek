@@ -1,4 +1,11 @@
-// useNoteHelpers.ts mis à jour
+/**
+ * @file useNoteHelpers.ts
+ * Pitch and scale utility functions shared across tablature rendering, the
+ * fretboard component, and modal services.
+ *
+ * `getNoteName` / `getNoteDegree` / `getNoteColor` are the three most-called
+ * functions in the app — keep them pure and allocation-free.
+ */
 import { Note, Interval } from 'tonal';
 import { useGuitarNotes } from './useGuitarNotes';
 

@@ -1,7 +1,7 @@
 // src/composables/guitar-chords.ts
 import { Note, Interval, ChordType, type NoteLiteral } from 'tonal';
-import { TONAL_CHORD_TYPES, CHORD_NAME_MAPPINGS, getTonalChordName } from './tonalChordsMapping';
-import { CHORDS } from './chords';
+import { TONAL_CHORD_TYPES, CHORD_NAME_MAPPINGS, getTonalChordName } from '../data/tonalChordsMapping';
+import { CHORDS } from '../data/chords';
 
 // Default reference tuning used for chord chart lookups (CHORDS data).
 // Note: runtime tuning comes from useTablatureStore — this constant is only for static chord data.
