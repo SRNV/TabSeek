@@ -1,0 +1,108 @@
+// ── Conteneur principal ──────────────────────────────────────────────────────
+.notif-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  pointer-events: none; // le conteneur ne bloque pas les clics
+}
+
+// ── Item ─────────────────────────────────────────────────────────────────────
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 7px;
+  border-left: 3px solid transparent;
+  background: #1c1c1c;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  pointer-events: auto;
+  overflow: hidden;
+
+  animation: notif-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  &.notif-leaving {
+    animation: notif-exit 0.28s ease forwards;
+  }
+
+  &.notif-success { border-color: #22c55e; .notif-icon { color: #22c55e; } }
+  &.notif-error   { border-color: #ef4444; .notif-icon { color: #ef4444; } }
+  &.notif-warning { border-color: #f59e0b; .notif-icon { color: #f59e0b; } }
+}
+
+// ── Icône ────────────────────────────────────────────────────────────────────
+.notif-icon {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  margin-top: 1px;
+  font-family: monospace;
+}
+
+// ── Message ──────────────────────────────────────────────────────────────────
+.notif-message {
+  flex: 1;
+  font-size: 12.5px;
+  color: #d4d4d4;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+// ── Bouton fermer ────────────────────────────────────────────────────────────
+.notif-close {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  margin-top: 0px;
+  transition: color 0.15s;
+
+  &:hover { color: #999; }
+}
+
+// ── Animations ───────────────────────────────────────────────────────────────
+@keyframes notif-enter {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.97);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    max-height: 120px;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+}
+
+@keyframes notif-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 120px;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(30px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+}

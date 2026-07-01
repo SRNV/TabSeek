@@ -98,7 +98,12 @@ function scoreVoicing(
   else if (span > 4) penalty += (span - 4) * 500
 
   const openStringBonus = (voicing.length - nonZero.length) * 15
-  const positionPenalty = fMax / 5
+  // Quadratic growth: fMax=1→1.5, fMax=8→96, fMax=13→253.
+  // Ensures that a barre at fret 13 with span=0 (score advantage from rootPosBonus=200)
+  // cannot beat an ergonomic low-position voicing when there is no prevVoicing context.
+  // Voice-leading (×20 per semitone) can still override this penalty when the previous
+  // chord was already at a high position — the hand stays in place rather than jumping back.
+  const positionPenalty = fMax * fMax * 1.5
 
   // Penalise having the same pitch-class in two different octaves (muddy harmony)
   const chromaCounts = new Map<number, number>()

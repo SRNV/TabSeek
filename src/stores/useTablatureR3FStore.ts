@@ -139,7 +139,7 @@ function randomHexColor(): string {
 export const useTablatureR3FStore = create<State>((set) => ({
   notes: [], chordGroups: [], progressionGroups: [], rhythmModifiers: [], modeZones: [], past: [], future: [],
   legatoSourceId: null,
-  projectName: 'Nouveau projet',
+  projectName: 'Sans Titre',
   isProjectDirty: false,
   isPlaying: false,
   playbackBeat: 0,

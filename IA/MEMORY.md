@@ -986,3 +986,43 @@ const { a, b } = useStore(useShallow(s => ({ a: s.a, b: s.b })))
 const a = useStore(s => s.a)
 const b = useStore(s => s.b)
 ```
+
+---
+
+## 17. Règles de Format des Données — `src/data/`
+
+> Ces règles documentent les contrats de format implicites dans les fichiers de données. Violer ces contrats casse l'app silencieusement.
+
+### 17.1 `progressions.ts` — Format du champ `numerals`
+
+> **⚠️ CRITIQUE : le champ `numerals` doit utiliser `-` comme séparateur entre les degrés d'accord. Jamais `|`.**
+
+Le champ `numerals` d'une `ChordProgression` est une string du type :
+```
+"i-bVII-bVI-V"
+"I-IV-V-I"
+"i-iv-i-V-i-bVI-bIII-V"
+```
+
+L'application parse ce champ avec `split('-')` dans **5 endroits** :
+- `CompiledProgressionItem.tsx:30`
+- `ProgressionCompiler.tsx:94`
+- `PodModifierService.ts:356`
+- `TablatureDropService.ts:82/122/127`
+- `ProgressionsList.tsx:27`
+
+Contrairement à `chord-charts.ts` (qui utilise ` | ` comme séparateur de mesure dans `majorKey`/`minorKey`), **`progressions.ts` n'a pas de séparateur de mesure** — la progression est une séquence plate de degrés séparés par `-`.
+
+**Historique** : en session 13, une tentative de standardiser vers `|` (Q-1) a provoqué une régression dans toutes les vues utilisant les progressions. 153 entrées ont été corrigées en retour via script Node.js. Q-1 est définitivement annulé.
+
+### 17.2 `chord-charts.ts` — Format des champs `majorKey` / `minorKey`
+
+Les champs `majorKey` et `minorKey` des `ChordChart` utilisent ` | ` (espace-barre-espace) comme séparateur de mesure :
+```
+"Cmaj7 | Am7 | Dm7 | G7"
+```
+Ce format **n'est pas** parsé par `split('-')` — il est affiché directement ou parsé différemment.
+
+### 17.3 `extraModes.ts` — Disclaimer 12-TET
+
+Toutes les entrées dont l'origine culturelle implique des micro-intervalles (maqams, ragas, gammes japonaises/chinoises, byzantine) doivent avoir un disclaimer 12-TET en fin de champ `description`. Voir le script `add_12tet.js` (scratchpad session 13) pour la liste exhaustive des 20 entrées concernées et les textes standardisés par famille culturelle.

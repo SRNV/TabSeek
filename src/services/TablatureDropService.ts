@@ -18,12 +18,62 @@ import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { getNoteName } from '../hooks/useNoteHelpers'
 import { findBestChordFrets } from '../utils/guitarUtils'
+import { NotificationService } from './NotificationService'
 import type { Voicing, ChordProgression, RhythmPatternDef } from '../types'
 import { RhythmModifierService } from './RhythmModifierService'
 
 const CHORD_DUR = 4 // Default duration for each chord in a progression
 
+/** Shape returned by computeDropPreview */
+export interface PreviewNote {
+  si: number
+  fret: number
+  startBeat: number
+  duration: number
+  chordName: string
+}
+
 export const TablatureDropService = {
+  /**
+   * Pure function — no store writes.
+   * Computes the notes that would be created if `prog` were dropped at (`si`, `beat`).
+   * Used to render ghost pods during dragover (F6).
+   */
+  computeDropPreview(
+    prog: ChordProgression,
+    si: number,
+    beat: number,
+    tuning: string[],
+    scalePc: string
+  ): PreviewNote[] {
+    const dur = CHORD_DUR
+    const chordEntries: Array<{ chordName: string; startBeat: number }> = prog._chordType
+      ? [{ chordName: scalePc + prog._chordType, startBeat: beat }]
+      : prog.numerals.split('-').map((numeral, ci) => ({
+          chordName: numeralToChordName(numeral, scalePc),
+          startBeat: beat + ci * dur,
+        }))
+
+    const result: PreviewNote[] = []
+    let prevVoicing: Voicing[] | undefined = undefined
+
+    for (const { chordName, startBeat } of chordEntries) {
+      const data = Chord.get(chordName)
+      if (data.empty || data.notes.length === 0) continue
+      const rawVoicing = findBestChordFrets(tuning, data.notes, si, undefined, prevVoicing)
+      const seenSi = new Set<number>()
+      const voicing = rawVoicing.filter(v => {
+        if (seenSi.has(v.si)) return false
+        seenSi.add(v.si); return true
+      })
+      prevVoicing = voicing
+      for (const v of voicing) {
+        result.push({ si: v.si, fret: v.fret, startBeat, duration: dur, chordName })
+      }
+    }
+    return result
+  },
+
   handleRhythmDrop: (rhythm: RhythmPatternDef, targetId: string, trackIndex?: number) => {
     RhythmModifierService.applyRhythmToTarget(rhythm, targetId, trackIndex)
   },
@@ -60,7 +110,12 @@ export const TablatureDropService = {
       // group is created with the legato note as anchor and the legato chain is preserved.
       const isLegatoIntermediate = state.notes.some(n => n.intermediateNoteIds?.includes(dropOnNote.id))
 
-      if (isChordPod || isLegatoIntermediate) {
+      if (isLegatoIntermediate) {
+        NotificationService.error('Refusé — note intermédiaire de legato (visez la source ou la destination)')
+        return
+      }
+      if (isChordPod) {
+        NotificationService.error('Refusé — impossible de déposer sur une note appartenant à un accord')
         return
       }
     }
@@ -180,6 +235,14 @@ export const TablatureDropService = {
 
     if (addedGroupIds.length > 0 && !prog._chordType) {
       addProg(addedGroupIds, prog.name || 'Progression')
+    }
+
+    if (addedGroupIds.length > 0) {
+      if (!prog._chordType && numChords > 1) {
+        NotificationService.success(`Progression « ${prog.name || 'Progression'} » ajoutée — ${numChords} accords`)
+      } else {
+        NotificationService.success(`Accord « ${chordEntries[0]?.chordName || prog.name} » créé`)
+      }
     }
   }
 }

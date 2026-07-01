@@ -16,7 +16,10 @@ import { Html } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
+import { useTablatureStore } from '../../../stores/useTablatureStore'
+import { useMainStore } from '../../../stores/useMainStore'
 import { ModeZoneService } from '../../../services/ModeZoneService'
+import { FretboardHighlightService } from '../../../services/FretboardHighlightService'
 import { PodModifierDisc, PodModifierPopover, ModePopoverButtons } from '../PodModifierUI'
 import { roundedRect } from '../../../utils/tablatureGeometry'
 import { BEAT_W, HEADER_H, POD_HEADER_OFF, N_STRINGS, stringY, LEFT_MARGIN_W, MODE_HEADER_OFF_Y } from '../../../utils/tabUtils'
@@ -104,10 +107,16 @@ export function ModePods({ hoveredModeZoneId, setHoveredModeZoneId, drag, invStr
               onPointerEnter={() => {
                 setHoveredModeZoneId(zone.id)
                 if (!drag.current) gl.domElement.style.cursor = 'grab'
+                const tuning = useTablatureStore.getState().tuning.split(',')
+                const userScale = useMainStore.getState().userScale
+                FretboardHighlightService.setHighlights(
+                  ModeZoneService.getScaleHighlights(zone, tuning, userScale)
+                )
               }}
               onPointerLeave={() => {
                 setHoveredModeZoneId(null)
                 if (!drag.current) gl.domElement.style.cursor = 'default'
+                FretboardHighlightService.clearHighlights()
               }}
               onPointerMove={(e: ThreeEvent<PointerEvent>) => {
                 if (drag.current) return

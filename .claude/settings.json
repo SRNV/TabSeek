@@ -32,7 +32,16 @@
       "Bash(git -C \"c:/Users/rudy_/Documents/TabSeek\" diff --stat HEAD)",
       "WebSearch",
       "Bash(python3 -c ' *)",
-      "Bash(node \"C:/Users/rudy_/AppData/Local/Temp/claude/c--Users-rudy--Documents-TabSeek/9fe4979b-2f06-474b-bb95-281230d2a1de/scratchpad/fix_chords.js\")"
+      "Bash(node \"C:/Users/rudy_/AppData/Local/Temp/claude/c--Users-rudy--Documents-TabSeek/9fe4979b-2f06-474b-bb95-281230d2a1de/scratchpad/fix_chords.js\")",
+      "Bash(grep -r \"\\\\$\\\\|--\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\\\\components\\\\ConfigSidebar.scss\" \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\\\\src\\\\components\\\\MainGrid.scss\")",
+      "PowerShell(cd \"c:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"GuitarSoundSideBar|useTablatureFileDrop|Minimap.test\" } | Select-Object -First 30)",
+      "PowerShell(cd \"C:\\\\Users\\\\rudy_\\\\Documents\\\\TabSeek\"; \\(Get-Content \"node_modules/three/package.json\" | ConvertFrom-Json\\).version; \\(Get-Content \"node_modules/@react-three/fiber/package.json\" | ConvertFrom-Json\\).version)",
+      "Bash(agent-browser navigate *)",
+      "Bash(agent-browser dblclick *)",
+      "Bash(agent-browser press *)",
+      "Bash(agent-browser type *)",
+      "Bash(agent-browser mouse *)",
+      "Bash(git stash *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rudy_\\.claude\\projects\\c--Users-rudy--Documents-TabSeek\\memory"

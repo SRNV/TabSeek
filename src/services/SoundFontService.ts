@@ -227,6 +227,31 @@ export async function resumeSharedAudioCtx(): Promise<void> {
   if (ctx?.state === 'suspended') await ctx.resume();
 }
 
+// ── Master gain node (volume control) ────────────────────────────────────────
+
+let _masterGainNode: GainNode | null = null;
+let _masterVol = 1;
+
+export function getMasterGainNode(): GainNode | null {
+  const ctx = getSharedAudioCtx();
+  if (!ctx) return null;
+  if (!_masterGainNode) {
+    _masterGainNode = ctx.createGain();
+    _masterGainNode.gain.value = _masterVol;
+    _masterGainNode.connect(ctx.destination);
+  }
+  return _masterGainNode;
+}
+
+export function setMasterGainValue(v: number): void {
+  _masterVol = Math.max(0, Math.min(1, v));
+  if (_masterGainNode) _masterGainNode.gain.value = _masterVol;
+}
+
+export function getMasterGainValue(): number {
+  return _masterVol;
+}
+
 // ── SoundFont Service ─────────────────────────────────────────────────────────
 
 interface SampleData {
@@ -417,7 +442,7 @@ class SoundFontServiceClass {
 
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(gainVal, ctx.currentTime);
-    gain.connect(ctx.destination);
+    gain.connect(getMasterGainNode() ?? ctx.destination);
 
     const src = ctx.createBufferSource();
     src.buffer = buffer;

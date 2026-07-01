@@ -13,7 +13,7 @@
  */
 import { Note } from 'tonal';
 import eventBus from '../eventBus';
-import { SoundFontService, getSharedAudioCtx, resumeSharedAudioCtx } from '../services/SoundFontService';
+import { SoundFontService, getSharedAudioCtx, resumeSharedAudioCtx, getMasterGainNode, setMasterGainValue, getMasterGainValue } from '../services/SoundFontService';
 
 // Kick off SF2 loading immediately
 SoundFontService.preload();
@@ -37,7 +37,7 @@ function playOscillator(note: string, duration: number): void {
 
   const gain = ctx.createGain();
   gain.gain.value = 0.3;
-  gain.connect(ctx.destination);
+  gain.connect(getMasterGainNode() ?? ctx.destination);
   activeGainNodes.push(gain);
 
   const osc = ctx.createOscillator();
@@ -66,6 +66,9 @@ export function stopAllSounds() {
   });
   activeGainNodes = [];
 }
+
+export function setMasterVolume(v: number): void { setMasterGainValue(v); }
+export function getMasterVolume(): number { return getMasterGainValue(); }
 
 export async function playNote(
   note: string,
@@ -128,7 +131,7 @@ export async function playFullChord(
   noteObjects.forEach((obj) => {
     const gain = ctx.createGain();
     gain.gain.value = gVal;
-    gain.connect(ctx.destination);
+    gain.connect(getMasterGainNode() ?? ctx.destination);
     activeGainNodes.push(gain);
 
     gain.gain.setValueAtTime(gVal, ctx.currentTime);

@@ -10,6 +10,7 @@
 import { create } from 'zustand'
 import { Note } from 'tonal'
 import type { ModeGuitar, RhythmPatternDef, ChordsCompleteDef } from '../types'
+import type { PreviewNote } from '../services/TablatureDropService'
 
 const defaultMode: ModeGuitar = {
   name: 'ionian',
@@ -36,6 +37,8 @@ interface MainState {
   selectedRhythm: RhythmPatternDef | null
   fretboardHighlights: Array<{ si: number; fret: number; color?: string }>
   legatoFretHighlights: Array<{ si: number; fret: number }>
+  previewNotes: PreviewNote[] | null
+  setPreviewNotes: (notes: PreviewNote[] | null) => void
   setUserScale: (scale: string) => void
   setSelectedMidi: (midi: number | null) => void
   clearSelectedMidi: () => void
@@ -67,6 +70,7 @@ export const useMainStore = create<MainState>((set, get) => ({
   selectedRhythm: null,
   fretboardHighlights: [],
   legatoFretHighlights: [],
+  previewNotes: null,
 
   getModeNotes: () => {
     const { userScale, modeObject } = get()
@@ -100,4 +104,5 @@ export const useMainStore = create<MainState>((set, get) => ({
   setSelectedRhythm: (rhythm) => set({ selectedRhythm: rhythm }),
   setFretboardHighlights: (highlights) => set({ fretboardHighlights: highlights }),
   setLegatoFretHighlights: (highlights) => set({ legatoFretHighlights: highlights }),
+  setPreviewNotes: (notes) => set({ previewNotes: notes }),
 }))

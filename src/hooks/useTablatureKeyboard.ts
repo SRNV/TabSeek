@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Note } from 'tonal'
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import type { ClipNote, ClipGroup, TablatureNote } from '../types'
 
@@ -94,15 +95,30 @@ export const useTablatureKeyboard = ({
         setSelectedIds(new Set(newIds))
       }
 
-      // ↑/↓ : move selected notes one string up/down (no modifier)
+      // ↑/↓ : move selected notes one string up/down, preserving MIDI pitch.
+      // For each note, the fret on the target string is recomputed so the note
+      // sounds identical. The move is silently blocked for the entire selection
+      // if any note hits a string bound (0/maxSi) or if its pitch cannot be
+      // reached on the target string (fret outside 0-24).
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !ctrl && !e.shiftKey && ids.size > 0) {
         e.preventDefault()
         const delta = e.key === 'ArrowUp' ? 1 : -1
         const sel = state.notes.filter(n => ids.has(n.id))
         if (sel.length === 0) return
-        if (!sel.every(n => n.string + delta >= 0 && n.string + delta <= 5)) return
+        const maxSi = tuningArr.length - 1
+        const updates: { id: string; newSi: number; newFret: number }[] = []
+        for (const n of sel) {
+          const newSi = n.string + delta
+          if (newSi < 0 || newSi > maxSi) return
+          const currentMidi = (Note.midi(tuningArr[n.string] ?? 'E2') ?? 0) + n.fret
+          const newFret = currentMidi - (Note.midi(tuningArr[newSi] ?? 'E2') ?? 0)
+          if (newFret < 0 || newFret > 24) return
+          updates.push({ id: n.id, newSi, newFret })
+        }
         pushHistory()
-        for (const n of sel) updateNote(n.id, { string: n.string + delta }, tuningArr, scaleNotes)
+        for (const { id, newSi, newFret } of updates) {
+          updateNote(id, { string: newSi, fret: newFret }, tuningArr, scaleNotes)
+        }
         return
       }
 

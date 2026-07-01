@@ -1,30 +1,27 @@
-import React, { useMemo, useRef, useEffect } from 'react'
+import React, { useMemo, useCallback } from 'react'
 import * as THREE from 'three'
-import { useThree, useFrame } from '@react-three/fiber'
+import { useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
-import { Note, Chord } from 'tonal'
+import { Note } from 'tonal'
 import { useTablatureR3FStore } from '../../../stores/useTablatureR3FStore'
 import type { TablatureNote, LegatoBehavior } from '../../../types'
-import { 
-  BEAT_W, N_STRINGS, LANE_H, NOTE_H as PODH,
-  stringY, zoneCursor, noteZoneCompact, POD_HEADER_OFF
-} from '../../../utils/tabUtils'
 import {
-  SEL_COL, PEND_COL, LEGATO_COL
-} from './sceneConstants'
-import { findFretForNote, findFretForPc, nextFretSamePc, getNoteName } from '../../../utils/guitarUtils'
+  BEAT_W, NOTE_H as PODH,
+  stringY, noteZoneCompact, zoneCursor
+} from '../../../utils/tabUtils'
+import { SEL_COL } from './sceneConstants'
+import { getNoteName } from '../../../utils/guitarUtils'
 import { RhythmModifierService } from '../../../services/RhythmModifierService'
 import { ModeZoneService } from '../../../services/ModeZoneService'
-import { PodModifierService } from '../../../services/PodModifierService'
 import { FretboardHighlightService } from '../../../services/FretboardHighlightService'
 import { LegatoFretVisualizationService } from '../../../services/LegatoFretVisualizationService'
-import { ColorService } from '../../../services/ColorService'
 import { LegatoLine } from './LegatoLine'
 import { NoteDisc } from './NoteDisc'
-import { SubNoteBody } from './SubNoteBody'
+import { NotePodsInstanced } from './NotePodsInstanced'
 import { PodModifierDisc, PodModifierPopover, InstrumentTrackDisc } from '../PodModifierUI'
 import { passWheel } from './passWheel'
+import { useFrustumFilter } from '../../../hooks/useFrustumFilter'
 import { useShallow } from 'zustand/react/shallow'
 
 interface NotePodsProps {
@@ -39,8 +36,7 @@ interface NotePodsProps {
   BEHAVIORS: Record<LegatoBehavior, { name: string, icon: string }>
   BEHAVIOR_KEYS: LegatoBehavior[]
   DISC_PALETTE: Record<string, { fill: string; border: string; text: string }>
-  
-  // Selection/Hover state from hooks
+
   selectedIds: Set<string>
   setSelectedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void
   editingId: string | null
@@ -48,57 +44,39 @@ interface NotePodsProps {
   inputVal: string
   setInputVal: (val: string) => void
   newNoteIds: React.MutableRefObject<Set<string>>
-  
+
   legatoSourceId: string | null
   setLegatoSourceId: (id: string | null) => void
 
-  // Helpers/Handlers
   getNoteColor: (note: TablatureNote, skipDarken?: boolean, fretOverride?: number) => string
-  getNoteGeo: (w: number) => THREE.ShapeGeometry
-  getBorderGeo: (w: number) => THREE.ShapeGeometry
   confirmEdit: (id: string, val: string) => void
   onNoteDown: (e: ThreeEvent<PointerEvent>, note: TablatureNote) => void
   pushHistory: () => void
 }
 
-/**
- * NotePods Component
- * Renders individual notes on the tablature:
- * - Legato lines
- * - Instrument track bubbles
- * - Note bodies (with rhythm materialization)
- * - Note discs (fret and name)
- * - Interaction overlays
- * - Inline fret editor
- */
 export const NotePods: React.FC<NotePodsProps> = ({
   scrollX, halfW, invStretchX, pxPerWUX, pxPerWUY, totalMeasures, tuningArr, scaleNotes,
   BEHAVIORS, BEHAVIOR_KEYS, DISC_PALETTE,
   selectedIds, setSelectedIds, editingId, setEditingId, inputVal, setInputVal, newNoteIds,
   legatoSourceId, setLegatoSourceId,
-  getNoteColor, getNoteGeo, getBorderGeo, confirmEdit, onNoteDown, pushHistory
+  getNoteColor, confirmEdit, onNoteDown, pushHistory
 }) => {
   const { gl } = useThree()
-  const { 
+  const {
     notes, chordGroups, rhythmModifiers,
-    updateNote, deleteNote, setLegato, addLegatoIntermediate, syncLegato,
+    updateNote, setLegato, syncLegato,
     setLegatoBehavior, setLegatoAuto, setLegatoChain, renderLegato,
-    playbackBeat, isPlaying
   } = useTablatureR3FStore(useShallow(s => ({
     notes: s.notes,
     chordGroups: s.chordGroups,
     rhythmModifiers: s.rhythmModifiers,
     updateNote: s.updateNote,
-    deleteNote: s.deleteNote,
     setLegato: s.setLegato,
-    addLegatoIntermediate: s.addLegatoIntermediate,
     syncLegato: s.syncLegato,
     setLegatoBehavior: s.setLegatoBehavior,
     setLegatoAuto: s.setLegatoAuto,
     setLegatoChain: s.setLegatoChain,
     renderLegato: s.renderLegato,
-    playbackBeat: s.playbackBeat,
-    isPlaying: s.isPlaying
   })))
 
   const intermediateIds = useMemo(() => {
@@ -112,11 +90,60 @@ export const NotePods: React.FC<NotePodsProps> = ({
   }, [notes])
 
   const bubbleGeo = useMemo(() => new THREE.CircleGeometry(0.12, 16), [])
+  const isPodVisible = useFrustumFilter(scrollX, halfW)
+  const LEFT_MARGIN_W = 0.85
 
-  const LEFT_MARGIN_W = 0.85 // Local constant for offset matching TablatureR3F
+  const handlePodPointerDown = useCallback((e: ThreeEvent<PointerEvent>, note: TablatureNote) => {
+    if (editingId && editingId !== note.id) confirmEdit(editingId, inputVal)
+    const wPod  = note.duration * BEAT_W
+    const lxPod = e.point.x - note.startBeat * BEAT_W
+    const hasV  = !!RhythmModifierService.getVirtualRhythm(note)
+    const showB = !hasV && !intermediateIds.has(note.id) && !note.legatoPrev && (wPod * pxPerWUX) >= 35
+    const tp    = RhythmModifierService.isLegatoLocked(note.id) ? 'move' : noteZoneCompact(lxPod, wPod, invStretchX, showB)
+
+    if (legatoSourceId) {
+      if (legatoSourceId !== note.id) setLegato(legatoSourceId, note.id)
+      setLegatoSourceId(null)
+      return
+    }
+    if (tp === 'bubble-next') { setLegatoSourceId(note.id); return }
+
+    pushHistory()
+    setSelectedIds(new Set([note.id]))
+    onNoteDown(e, note)
+  }, [editingId, confirmEdit, inputVal, intermediateIds, pxPerWUX, invStretchX,
+      legatoSourceId, setLegato, setLegatoSourceId, pushHistory, setSelectedIds, onNoteDown])
+
+  const handlePodPointerMove = useCallback((e: ThreeEvent<PointerEvent>, note: TablatureNote) => {
+    const wPod  = note.duration * BEAT_W
+    const lxPod = e.point.x - note.startBeat * BEAT_W
+    const hasV  = !!RhythmModifierService.getVirtualRhythm(note)
+    const showB = !hasV && !intermediateIds.has(note.id) && !note.legatoPrev && (wPod * pxPerWUX) >= 35
+    const tp    = RhythmModifierService.isLegatoLocked(note.id) ? 'move' : noteZoneCompact(lxPod, wPod, invStretchX, showB)
+    gl.domElement.style.cursor = tp === 'move' ? 'grab' : zoneCursor(tp)
+  }, [intermediateIds, pxPerWUX, invStretchX, gl])
+
+  const handlePodPointerLeave = useCallback(() => {
+    gl.domElement.style.cursor = 'default'
+  }, [gl])
 
   return (
     <group>
+      {/* Phase B — InstancedMesh bodies (replaces SubNoteBody, selection border, hitbox) */}
+      <NotePodsInstanced
+        notes={notes}
+        chordGroups={chordGroups}
+        selectedIds={selectedIds}
+        invStretchX={invStretchX}
+        totalMeasures={totalMeasures}
+        tuningArr={tuningArr}
+        DISC_PALETTE={DISC_PALETTE}
+        getNoteColor={getNoteColor}
+        onPointerDown={handlePodPointerDown}
+        onPointerMove={handlePodPointerMove}
+        onPointerLeave={handlePodPointerLeave}
+      />
+
       {notes.map(note => {
         const subNotes = RhythmModifierService.getVirtualRhythm(note)
         const items = subNotes || [{
@@ -125,28 +152,29 @@ export const NotePods: React.FC<NotePodsProps> = ({
           id: note.id
         }]
 
-        const isSelected     = selectedIds.has(note.id)
         const isEditing      = editingId === note.id
         const isLegatoSource = legatoSourceId === note.id
         const isIntermediate = intermediateIds.has(note.id)
         const y              = stringY(note.string)
-        const wOriginal      = note.duration * BEAT_W
 
         const noteChordGroup = chordGroups.find(g => g.noteIds.includes(note.id))
         const noteChordRhythmMod = (noteChordGroup && !isIntermediate && !note.legatoPrev)
           ? rhythmModifiers.find(m => m.targetType === 'chord' && m.targetId === noteChordGroup.id && m.kind !== 'arpeggio')
           : undefined
-        
-        const instrBubblePx     = 22
-        const instrBubbleRadius = (instrBubblePx * 1.2 / 2) / pxPerWUX
-        const instrGapWU        = 5 / pxPerWUX
-        const instrPodL         = note.startBeat * BEAT_W
-        const instrPodR         = instrPodL + note.duration * BEAT_W
-        const instrCamL         = scrollX - halfW
-        const podStickyLeftX    = Math.max(instrPodL, Math.min(instrPodR, instrCamL + 0.05 * invStretchX))
-        const instrBubbleX      = podStickyLeftX - instrGapWU - instrBubbleRadius
+
+        const instrBubblePx = Math.min(22, PODH * pxPerWUY * 0.82)
+        const instrBubbleWR = (instrBubblePx / 2) / pxPerWUX
+        const instrPodL     = note.startBeat * BEAT_W
+        const instrPodR     = instrPodL + note.duration * BEAT_W
+        const instrCamL     = scrollX - halfW - LEFT_MARGIN_W
+        const instrBubbleX  = Math.max(
+          instrPodL + instrBubbleWR + 2 / pxPerWUX,
+          Math.min(instrPodR - instrBubbleWR - 2 / pxPerWUX,
+                   instrCamL + instrBubbleWR + 4 / pxPerWUX)
+        )
 
         const effFret = ModeZoneService.getVirtualFret(note, totalMeasures) ?? note.fret
+        const noteVisible = isPodVisible(note.startBeat, note.duration)
 
         return (
           <group key={note.id} renderOrder={8}>
@@ -154,8 +182,8 @@ export const NotePods: React.FC<NotePodsProps> = ({
               <LegatoLine sourceId={note.id} destId={note.legatoNext} noteColor={(n) => getNoteColor(n, true)} legatoSourceId={legatoSourceId} invStretchX={invStretchX} />
             )}
 
-            {noteChordRhythmMod && (
-              <Html position={[instrBubbleX, y, 0.07]} center zIndexRange={[71, 71]} style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
+            {noteChordRhythmMod && noteVisible && (
+              <Html position={[instrBubbleX, y, 0.07]} center zIndexRange={[71, 71]} style={{ pointerEvents: 'none' }} onWheel={passWheel}>
                 <InstrumentTrackDisc mod={noteChordRhythmMod} noteId={note.id} size={instrBubblePx} />
               </Html>
             )}
@@ -176,45 +204,23 @@ export const NotePods: React.FC<NotePodsProps> = ({
               const discCenterWorldX = Math.max(podL + discRadius, Math.min(podR - discRadius, camL + discRadius + 0.05 * invStretchX))
               const discX        = discCenterWorldX - cx
 
-              const locked = RhythmModifierService.isLegatoLocked(note.id)
-              const showLegatoBubble  = idx === 0 && !isIntermediate && !subNotes && podWidthPx >= 35 && !legatoSourceId && !locked
+              const locked            = RhythmModifierService.isLegatoLocked(note.id)
+              const showLegatoBubble  = idx === 0 && !isIntermediate && !subNotes && !note.legatoPrev && podWidthPx >= 35 && !legatoSourceId && !locked
               const showLegatoActions = idx === 0 && !isIntermediate && !subNotes && podWidthPx >= 35 && !!note.legatoNext
               const bubbleOff         = Math.min(w * 0.45, 0.3 * invStretchX)
 
-              const isFundamental = (() => {
-                const group = chordGroups.find(g => g.noteIds.includes(note.id))
-                if (!group) return false
-                const chord = Chord.get(group.chordName)
-                const rootPc = chord.root || chord.notes[0]
-                if (!rootPc) return false
-                const noteName = getNoteName(tuningArr[note.string], effFret)
-                return Note.pitchClass(noteName) === Note.pitchClass(rootPc)
-              })()
-
-              const labelColor = ColorService.getContrastColor(color)
               const noteNamePc = Note.pitchClass(getNoteName(tuningArr[note.string], effFret))
               const discColors = DISC_PALETTE[color] || { fill: '#333', border: '#000', text: '#fff' }
 
-              const isActive   = isPlaying && playbackBeat >= item.startBeat && playbackBeat < item.startBeat + item.duration
-              const grayTarget = isPlaying ? (isActive ? 0 : 1) : 0
-
               return (
                 <group key={item.id} position={[cx, y, 0]}>
-                  {isSelected && !isEditing && idx === 0 && (
-                    <mesh geometry={getBorderGeo(wOriginal)} position={[wOriginal/2 - w/2, 0, -0.005]}>
-                      <meshBasicMaterial color={SEL_COL} />
-                    </mesh>
-                  )}
-
-                  <SubNoteBody w={w} color={color} colorB={discColors.fill} isFundamental={isFundamental} getNoteGeo={getNoteGeo} grayTarget={grayTarget} />
-
                   {showLegatoBubble && (
                     <mesh position={[w/2 - bubbleOff, 0, 0.01]} geometry={bubbleGeo} scale={[invStretchX, 1, 1]} renderOrder={9}>
-                      <meshBasicMaterial color={isLegatoSource ? SEL_COL : labelColor} transparent opacity={0.9} />
+                      <meshBasicMaterial color={isLegatoSource ? SEL_COL : discColors.text} transparent opacity={0.9} />
                     </mesh>
                   )}
 
-                  {showLegatoActions && (() => {
+                  {showLegatoActions && noteVisible && (() => {
                     const discWU    = 26 / pxPerWUX
                     const gapWU     = 5 / pxPerWUX
                     const camL      = scrollX - LEFT_MARGIN_W - halfW
@@ -279,6 +285,7 @@ export const NotePods: React.FC<NotePodsProps> = ({
                   {showDisc && !isEditing && (
                     <NoteDisc
                       discX={discX} discPx={discPx} fill={discColors.fill} border={discColors.border} text={discColors.text} fret={effFret} noteName={noteNamePc} locked={locked}
+                      visible={noteVisible}
                       onClick={e => {
                         e.stopPropagation()
                         if (legatoSourceId) {
@@ -295,38 +302,6 @@ export const NotePods: React.FC<NotePodsProps> = ({
                       onMouseLeave={() => { FretboardHighlightService.clearHighlights(); LegatoFretVisualizationService.clear() }}
                     />
                   )}
-
-                  <mesh position={[0, 0, 0.05]}
-                    onPointerDown={e => {
-                      if (e.button !== 0) return
-                      e.stopPropagation()
-                      if (editingId && editingId !== note.id) confirmEdit(editingId, inputVal)
-                      const wPod  = note.duration * BEAT_W
-                      const lxPod = e.point.x - note.startBeat * BEAT_W
-                      const hasV = !!RhythmModifierService.getVirtualRhythm(note)
-                      const showB = !hasV && !intermediateIds.has(note.id) && (wPod * pxPerWUX) >= 35
-                      const tp = RhythmModifierService.isLegatoLocked(note.id) ? 'move' : noteZoneCompact(lxPod, wPod, invStretchX, showB)
-                      
-                      if (legatoSourceId) {
-                        if (legatoSourceId !== note.id) setLegato(legatoSourceId, note.id)
-                        setLegatoSourceId(null)
-                        return
-                      }
-                      if (tp === 'bubble-next') { setLegatoSourceId(note.id); return }
-
-                      pushHistory()
-                      setSelectedIds(new Set([note.id]))
-                      // Note: drag.current management remains in TablatureScene for now as it coordinates multiple pod types
-                      // But the event info is passed via props or a shared ref if needed.
-                      onNoteDown(e, note)
-                    }}
-                    onPointerMove={e => {
-                      // Cursor handling
-                    }}
-                  >
-                    <planeGeometry args={[w, LANE_H]} />
-                    <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-                  </mesh>
 
                   {isEditing && (
                     <Html position={[discX, 0, 0]} center style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
@@ -354,6 +329,3 @@ export const NotePods: React.FC<NotePodsProps> = ({
     </group>
   )
 }
-
-// Temporary placeholder for onNoteDown if not passed as prop
-const onNoteDown = () => {}

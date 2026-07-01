@@ -20,7 +20,6 @@ import { ModeZoneService } from '../../services/ModeZoneService'
 import { NoteColorService } from '../../services/NoteColorService'
 import { NoteEditService } from '../../services/NoteEditService'
 import { PodModifierPopover, RhythmModifierDisc } from './PodModifierUI'
-import { playNote, playFullChord, stopAllSounds } from '../../hooks/useAudio'
 import { ColorService } from '../../services/ColorService'
 import { passWheel } from './scene/passWheel'
 import { ModeZoneGradientMaterial } from './scene/ModeZoneGradientMaterial'
@@ -32,9 +31,6 @@ import { useTablatureDragHandler } from '../../hooks/useTablatureDragHandler'
 import { useTablatureKeyboard } from '../../hooks/useTablatureKeyboard'
 import { useTablatureCamera } from '../../hooks/useTablatureCamera'
 import { useTablatureFileDrop } from '../../hooks/useTablatureFileDrop'
-import { useProjectAutoSave } from '../../hooks/useProjectAutoSave'
-import { ProjectSerializerService } from '../../services/ProjectSerializerService'
-import { TablaturePDFService } from '../../services/TablaturePDFService'
 import { BEHAVIORS, BEHAVIOR_KEYS } from '../../data/legatoBehaviors'
 import { ModeZoneTint } from './scene/ModeZoneTint'
 import { PlaybackIndicator } from './scene/PlaybackIndicator'
@@ -43,6 +39,7 @@ import { RhythmModifierPods } from './scene/RhythmModifierPods'
 import { SceneBackground } from './scene/SceneBackground'
 import { NotePods } from './scene/NotePods'
 import { ChordPods } from './scene/ChordPods'
+import { GhostNotePods } from './scene/GhostNotePods'
 import { ProgressionPods } from './scene/ProgressionPods'
 import { Minimap } from './scene/Minimap'
 import { rhythmPatterns } from '../../data/rhythmPatterns'
@@ -54,7 +51,7 @@ import type {
 import './TablatureR3F.scss'
 
 import {
-  BEAT_W, SNAP, MIN_DUR, N_STRINGS, STRING_H, LANE_H, GAP_WU, BEATS_PER_MEAS, MEASURE_W,
+  BEAT_W, SNAP, MIN_DUR, N_STRINGS, STRING_H, LANE_H, GAP_WU, MEASURE_W,
   gridTop, gridBottom, LEFT_MARGIN_W, HEADER_H, POD_HEADER_OFF, BUBBLE_W,
   stringY, siFromWorldY, snapBeat, constrainMove, constrainRight, constrainLeft, constrainChordGroupMove,
   LARGE_W, infoLaneY, CAM_HALF_H_TOP, CAM_HALF_H_BOT, marginY, measLabelY, MODE_HEADER_OFF_Y,
@@ -74,7 +71,7 @@ import type {
   DragNewProgState as DragNewProg, DragPlaybackState as DragPlayback,
   DragModeZoneState as DragModeZone, DragRhythmState as DragRhythm
 } from '../../types/drag'
-import { roundedRect, leftCircleRect, buildBeatGeo, buildMeasGeo } from '../../utils/tablatureGeometry'
+import { roundedRect, buildBeatGeo, buildMeasGeo } from '../../utils/tablatureGeometry'
 import { nextFretSamePc, getNoteName } from '../../utils/guitarUtils'
 
 const RECT_DRAG_PX     = 5
@@ -301,59 +298,13 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     })
   }, [legatoSourceId, editingId, tuningArr, intermediateIds, totalMeasures, scaleNotes])
 
-  // ── Geometry caches ───────────────────────────────────────────────────────────
-  // Pod anatomy: the note disc's diameter is capped at the string's lane height (never
-  // overflows into a neighboring string), and the body rectangle height matches it 1:1.
-  const PODH        = LANE_H                  // disc diameter (world units)
-  const PODBODY_H   = PODH                    // note body rectangle height = disc diameter
-  const NOTE_R_MAX  = PODBODY_H * 0.35        // max corner radius (capped by half-width below)
-  const SEL_PAD     = 0.10                    // selection border thickness in world units
-  const geoCache    = useRef(new Map<string, THREE.ShapeGeometry>())
-  const borderCache = useRef(new Map<string, THREE.ShapeGeometry>())
-
-  const invXKey = invStretchX.toFixed(2)
-  useEffect(() => {
-    geoCache.current.forEach(g => g.dispose()); geoCache.current.clear()
-    borderCache.current.forEach(g => g.dispose()); borderCache.current.clear()
-    chordPodCache.current.forEach(g => g.dispose()); chordPodCache.current.clear()
-  }, [invXKey])
-
-  useEffect(() => () => {
-    geoCache.current.forEach(g => g.dispose())
-    borderCache.current.forEach(g => g.dispose())
-  }, [])
-
-  // r = min(half-width, NOTE_R_MAX) → same visual ratio on all note widths
-  function noteR(w: number) { return Math.min(w / 2, NOTE_R_MAX) }
-
-  function getNoteGeo(w: number) {
-    const key = `${w.toFixed(2)}`
-    let g = geoCache.current.get(key)
-    if (!g) {
-      const ry = noteR(w)
-      const rx = Math.min(w / 2, ry * invStretchX)
-      g = new THREE.ShapeGeometry(leftCircleRect(w, PODBODY_H, rx, ry, invStretchX), 4)
-      geoCache.current.set(key, g)
-    }
-    return g
-  }
-  function getBorderGeo(w: number) {
-    const key = `${w.toFixed(2)}`
-    let g = borderCache.current.get(key)
-    if (!g) {
-      const bw = w + SEL_PAD * 2
-      const bh = PODBODY_H + SEL_PAD * 2
-      const ry = Math.min(bh / 2, NOTE_R_MAX + SEL_PAD)
-      const rx = Math.min(bw / 2, ry * invStretchX)
-      g = new THREE.ShapeGeometry(leftCircleRect(bw, bh, rx, ry, invStretchX), 4)
-      borderCache.current.set(key, g)
-    }
-    return g
-  }
-
   // ── Chord pod geometry cache ──────────────────────────────────────────────────
   const chordPodCache = useRef(new Map<string, THREE.ShapeGeometry>())
   const bubbleGeo     = useMemo(() => new THREE.CircleGeometry(0.12, 16), [])
+  const invXKey = invStretchX.toFixed(2)
+  useEffect(() => {
+    chordPodCache.current.forEach(g => g.dispose()); chordPodCache.current.clear()
+  }, [invXKey])
   useEffect(() => () => { chordPodCache.current.forEach(g => g.dispose()) }, [])
   function getChordPodGeo(w: number, h: number, border = false) {
     const key = `${border?'b':'f'}_${w.toFixed(2)}_${h.toFixed(2)}`
@@ -521,7 +472,7 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
     const lx = e.point.x - note.startBeat * BEAT_W
     // Fret/name now live in the disc overlay (DOM, not raycast) — only resize/move/bubble zones remain
     const hasVirtual = !!RhythmModifierService.getVirtualRhythm(note)
-    const showBubble = !hasVirtual && !intermediateIds.has(note.id) && (w * pxPerWUX) >= 35
+    const showBubble = !hasVirtual && !intermediateIds.has(note.id) && !note.legatoPrev && (w * pxPerWUX) >= 35
     // Rhythm-legato locked notes can only change string — always treat as 'move', no resize
     const tp = RhythmModifierService.isLegatoLocked(note.id) ? 'move' : noteZoneCompact(lx, w, invStretchX, showBubble)
 
@@ -655,8 +606,6 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
         legatoSourceId={legatoSourceId}
         setLegatoSourceId={setLegatoSourceId}
         getNoteColor={getNoteColor}
-        getNoteGeo={getNoteGeo}
-        getBorderGeo={getBorderGeo}
         confirmEdit={confirmEdit}
         onNoteDown={onNoteDown}
         pushHistory={pushHistory}
@@ -685,6 +634,9 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
           </group>
         )
       })()}
+
+      {/* F6 — Ghost pods preview during drag-over */}
+      <GhostNotePods />
 
       {/* Playback Indicator — extracted to PlaybackIndicator (P2-1) */}
       <PlaybackIndicator
@@ -727,81 +679,6 @@ export default function TablatureR3F() {
   const tuning    = useTablatureStore(s => s.tuning)
   const tuningArr = useMemo(() => tuning.split(','), [tuning])
 
-  const {
-    notes,
-    isPlaying, playbackBeat, togglePlayback, setPlaybackBeat, tempo, setTempo,
-    isLooping, setLooping, isFollowing, setFollowing,
-    projectName, isProjectDirty, importProject, setProjectName,
-  } = useTablatureR3FStore()
-
-  const [renamingProject, setRenamingProject] = useState(false)
-  const [nameInput, setNameInput] = useState(projectName)
-  const nameInputRef = useRef<HTMLInputElement>(null)
-
-  function commitRename() {
-    const trimmed = nameInput.trim()
-    if (trimmed) setProjectName(trimmed)
-    else setNameInput(projectName)
-    setRenamingProject(false)
-  }
-
-  useProjectAutoSave()
-
-  // Sync document title with project name and dirty state
-  useEffect(() => {
-    document.title = `${isProjectDirty ? '● ' : ''}${projectName} — TabSeek`
-  }, [projectName, isProjectDirty])
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  function handleSave() {
-    const r3f    = useTablatureR3FStore.getState()
-    const data   = ProjectSerializerService.serialize(
-      {
-        notes:             r3f.notes,
-        chordGroups:       r3f.chordGroups,
-        progressionGroups: r3f.progressionGroups,
-        rhythmModifiers:   r3f.rhythmModifiers,
-        modeZones:         r3f.modeZones,
-        tempo:             r3f.tempo,
-        projectName:       r3f.projectName,
-      },
-      tuning
-    )
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `${r3f.projectName.replace(/[^a-z0-9_\-]/gi, '_')}.tabseek`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  function handleFileLoad(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const result = ProjectSerializerService.deserialize(ev.target?.result as string)
-      if (result.ok) {
-        importProject(result.data)
-        if (result.data.settings.tuning) {
-          useTablatureStore.setState({ tuning: result.data.settings.tuning })
-        }
-      } else {
-        alert(`Impossible d'ouvrir le projet :\n${result.error}`)
-      }
-    }
-    reader.readAsText(file)
-    // Reset input so the same file can be re-opened
-    e.target.value = ''
-  }
-
-  const rawMaxBeat = notes.length > 0 
-    ? Math.max(...notes.map(n => n.startBeat + n.duration)) 
-    : 0
-  const maxBeat = Math.ceil(rawMaxBeat / BEATS_PER_MEAS) * BEATS_PER_MEAS
-
   return (
     <div className="tab-r3f-main-container">
       <div className="tab-r3f-top-content">
@@ -817,115 +694,6 @@ export default function TablatureR3F() {
           <Canvas orthographic camera={{ zoom: 1, position: [0, 0, 10] }} gl={{ antialias: true }}>
             <TablatureScene onStringYPcts={setStringYPcts} />
           </Canvas>
-        </div>
-      </div>
-
-      {/* Playback Controls Footer */}
-      <div className="tab-playback-footer">
-        <div className="playback-btns">
-          <button className="ctrl-btn play-btn" onClick={() => {
-            if (isPlaying) {
-              stopAllSounds()
-            } else {
-              // If we are at the end, restart from 0
-              if (playbackBeat >= maxBeat - 0.01) {
-                setPlaybackBeat(0)
-              }
-            }
-            togglePlayback()
-          }}>
-            <span className="material-symbols-outlined">{isPlaying ? 'pause' : 'play_arrow'}</span>
-          </button>
-          <button className="ctrl-btn stop-btn" onClick={() => {
-            if (isPlaying) togglePlayback()
-            stopAllSounds()
-            setPlaybackBeat(0)
-          }}>
-            <span className="material-symbols-outlined">stop</span>
-          </button>
-          <button 
-            className={`ctrl-btn loop-btn${isLooping ? ' active' : ''}`} 
-            onClick={() => setLooping(!isLooping)}
-            title="Loop"
-          >
-            <span className="material-symbols-outlined">repeat</span>
-          </button>
-          <button 
-            className={`ctrl-btn follow-btn${isFollowing ? ' active' : ''}`} 
-            onClick={() => setFollowing(!isFollowing)}
-            title="Follow Playback"
-          >
-            <span className="material-symbols-outlined">keyboard_double_arrow_right</span>
-          </button>
-        </div>
-
-        <div className="tempo-section">
-          <input
-            type="number"
-            className="tempo-input"
-            value={tempo}
-            onChange={e => setTempo(Math.max(1, parseInt(e.target.value) || 1))}
-          />
-          <span className="bpm-label">BPM</span>
-        </div>
-
-        <div className="project-toolbar">
-          {renamingProject ? (
-            <input
-              ref={nameInputRef}
-              className="project-name-input"
-              value={nameInput}
-              autoFocus
-              onChange={e => setNameInput(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); commitRename() }
-                if (e.key === 'Escape') { setNameInput(projectName); setRenamingProject(false) }
-              }}
-            />
-          ) : (
-            <span
-              className={`project-name${isProjectDirty ? ' dirty' : ''}`}
-              title="Double-cliquer pour renommer"
-              onDoubleClick={() => { setNameInput(projectName); setRenamingProject(true) }}
-            >
-              {isProjectDirty ? `● ${projectName}` : projectName}
-            </span>
-          )}
-          <button className="ctrl-btn" onClick={handleSave} title="Sauvegarder le projet (.tabseek)">
-            <span className="material-symbols-outlined">save</span>
-          </button>
-          <button className="ctrl-btn" onClick={() => fileInputRef.current?.click()} title="Ouvrir un projet">
-            <span className="material-symbols-outlined">folder_open</span>
-          </button>
-          <button
-            className="ctrl-btn"
-            title="Exporter en PDF"
-            onClick={() => {
-              const r3f  = useTablatureR3FStore.getState()
-              TablaturePDFService.generatePDF({
-                version:          1,
-                name:             r3f.projectName,
-                createdAt:        new Date().toISOString(),
-                updatedAt:        new Date().toISOString(),
-                settings:         { tuning, tempo: r3f.tempo },
-                notes:            r3f.notes,
-                chordGroups:      r3f.chordGroups,
-                progressionGroups: r3f.progressionGroups,
-                rhythmModifiers:  r3f.rhythmModifiers,
-                modeZones:        r3f.modeZones,
-              })
-            }}
-          >
-            <span className="material-symbols-outlined">picture_as_pdf</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".tabseek,.json"
-            style={{ display: 'none' }}
-            onChange={handleFileLoad}
-          />
         </div>
       </div>
     </div>

@@ -6,6 +6,9 @@ import NotesSideBar from './components/sidebars/NotesSideBar'
 import ModesSideBar from './components/sidebars/ModesSideBar'
 import ChordsDetailsSideBar from './components/sidebars/ChordsDetailsSideBar'
 import GuitarSoundSideBar from './components/sidebars/GuitarSoundSideBar'
+import NotificationStack from './components/NotificationStack'
+import ProjectHeader from './components/ProjectHeader'
+import PlaybackFooter from './components/PlaybackFooter'
 import { useUIStore } from './hooks/useUIState'
 
 export default function App() {
@@ -30,7 +33,11 @@ export default function App() {
           <NavSidebar expanded={navExpanded} onExpandedChange={setNavExpanded} />
         </div>
         <div className="main">
-          <MainGrid />
+          <ProjectHeader />
+          <div className="main-content">
+            <MainGrid />
+          </div>
+          <PlaybackFooter />
         </div>
       </div>
 
@@ -46,6 +53,8 @@ export default function App() {
           {activePanel === 'guitar' && <GuitarSoundSideBar />}
         </div>
       )}
+
+      <NotificationStack />
     </>
   )
 }

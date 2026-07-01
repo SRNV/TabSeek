@@ -3,6 +3,7 @@ import './ChordsList.scss'
 import { CHORD_TYPES_BY_CATEGORY } from '../../data/tonalChordsMapping'
 import { useMainStore } from '../../stores/useMainStore'
 import { ChordEmojiBox } from '../../services/ChordEmojiService'
+import eventBus from '../../eventBus'
 
 export default function ChordsList() {
   const chordRootObject      = useMainStore(s => s.chordRootObject)
@@ -34,6 +35,7 @@ export default function ChordsList() {
     }
     e.dataTransfer.setData('application/json', JSON.stringify(payload))
     e.dataTransfer.effectAllowed = 'copy'
+    eventBus.emit('chordDragStart', payload)
   }
 
   return (

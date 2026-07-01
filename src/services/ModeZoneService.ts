@@ -15,13 +15,14 @@
  */
 import { Note } from 'tonal'
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
-import type { ModeZone, TablatureNote } from '../types'
+import type { ModeZone, TablatureNote, FretHighlight } from '../types'
 import { useTablatureStore } from '../stores/useTablatureStore'
 import { useMainStore } from '../stores/useMainStore'
 import { EXTRA_MODES } from '../data/extraModes'
 import { getNoteName } from '../hooks/useNoteHelpers'
 import { findAllFretsForPc } from '../utils/guitarUtils'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
+import { DEGREE_COLORS } from '../utils/musicColors'
 
 export const ModeZoneService = {
   /** Nav chevrons cycling through EXTRA_MODES (62 modes, flat list) — same pattern as
@@ -127,5 +128,31 @@ export const ModeZoneService = {
     }
 
     return bestFret
+  },
+
+  /**
+   * Returns FretHighlight entries for every fret position of every scale degree
+   * of the given zone's mode, colored by degree (DEGREE_COLORS[0] = tonic, …).
+   * Used by ModePods to highlight the fretboard on hover without touching note state.
+   *
+   * @param zone    - the Mode zone (provides modeName)
+   * @param tuning  - string array of open-string note names (e.g. ['E2','A2',...])
+   * @param userScale - tonic note name (e.g. 'C4') — root of the transposition
+   */
+  getScaleHighlights(zone: ModeZone, tuning: string[], userScale: string): FretHighlight[] {
+    const zoneMode = EXTRA_MODES.find(m => m.name === zone.modeName)
+    if (!zoneMode) return []
+    const highlights: FretHighlight[] = []
+    for (let deg = 0; deg < zoneMode.intervals.length; deg++) {
+      const noteInScale = Note.transpose(userScale, zoneMode.intervals[deg])
+      const pc = Note.pitchClass(noteInScale)
+      const color = DEGREE_COLORS[deg]
+      for (let si = 0; si < tuning.length; si++) {
+        for (const fret of findAllFretsForPc(tuning[si] ?? 'E2', pc)) {
+          highlights.push({ si, fret, color })
+        }
+      }
+    }
+    return highlights
   },
 }

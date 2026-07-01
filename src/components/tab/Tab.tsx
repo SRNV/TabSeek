@@ -14,6 +14,7 @@ import { ALL_CHORDS, CHORD_ICONS, getReadableChordName } from '../../data/tonalC
 import './Tab.scss'
 import { createRibbonMaterial, createRibbonGeometry, fillRibbonGeoLinear } from '../../services/RibbonLineService'
 import { ColorService } from '../../services/ColorService'
+import { DEGREE_COLORS } from '../../utils/musicColors'
 
 // ── Layout constants ───────────────────────────────────────────────────────────
 
@@ -24,15 +25,6 @@ const PLANE_H = 1.0
 const N_STRINGS = 6
 const MAX_INS = N_STRINGS * 32
 
-const DEGREE_COLORS = [
-  '#FFF9B1', // 1 tonic – yellow
-  '#77DD77', // 2 – green
-  '#AEC6CF', // 3 – steel blue
-  '#CDB4DB', // 4 – lavender
-  '#FFB3B3', // 5 – pink
-  '#FFD1B3', // 6 – peach
-  '#FFFFFF', // 7 – white
-] as const
 
 const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
 

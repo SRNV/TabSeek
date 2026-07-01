@@ -15,6 +15,211 @@
     overflow: hidden;
     min-width: 0;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    .main-content {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
+}
+
+// ── Bouton ctrl (partagé barres projet + lecture) ────────────────────────
+.ctrl-btn {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #eee;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  .material-symbols-outlined { font-size: 1.4rem; }
+
+  &:hover {
+    background: #333;
+    border-color: #555;
+    color: #fff;
+  }
+}
+
+// ── Barre projet (haut) ───────────────────────────────────────────────────
+.tab-project-header {
+  height: 40px;
+  background: #8175fc;
+  border-bottom: 1px solid #6b5ee0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  z-index: 100;
+
+  // Boutons ctrl adaptés au fond violet
+  .ctrl-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.28);
+      border-color: rgba(255, 255, 255, 0.5);
+      color: #fff;
+    }
+  }
+
+  .project-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+
+    .project-name {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: rgba(255, 255, 255, 0.82);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: default;
+      user-select: none;
+
+      &.dirty { color: #ffe082; }
+    }
+
+    .project-name-input {
+      margin-left: auto;
+      font-size: 0.78rem;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 3px;
+      color: #fff;
+      padding: 0 5px;
+      height: 24px;
+      width: 140px;
+      outline: none;
+      font-family: inherit;
+
+      &::placeholder { color: rgba(255, 255, 255, 0.5); }
+    }
+  }
+}
+
+// ── Barre lecture (bas) ───────────────────────────────────────────────────
+.tab-playback-footer {
+  height: 48px;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  z-index: 100;
+  flex-shrink: 0;
+
+  .ctrl-btn {
+    &.play-btn  { color: #88ff00; }
+    &.stop-btn  { color: #ff4d4d; }
+    &.loop-btn {
+      font-size: 0.95rem;
+      &.active { color: #88ff00; background: #333; border-color: #88ff00; }
+    }
+    &.follow-btn {
+      &.active { color: #3d8de0; background: #333; border-color: #3d8de0; }
+    }
+  }
+
+  .playback-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .tempo-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #999;
+    font-size: 0.85rem;
+    font-weight: 500;
+
+    .tempo-input {
+      background: #000;
+      border: 1px solid #333;
+      border-radius: 3px;
+      color: #88ff00;
+      width: 50px;
+      height: 24px;
+      text-align: center;
+      font-family: monospace;
+      font-weight: 700;
+      outline: none;
+
+      &::-webkit-inner-spin-button { display: none; }
+    }
+
+    .bpm-label {
+      font-size: 0.75rem;
+      opacity: 0.6;
+    }
+  }
+}
+
+// ── Contrôle volume (barre lecture) ─────────────────────────────────────────
+.volume-ctrl {
+  position: relative;
+
+  &:hover .volume-slider-popup {
+    display: flex;
+  }
+
+  .volume-slider-popup {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e1e1e;
+    border: 1px solid #383838;
+    border-radius: 8px;
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+
+    // Pont invisible qui comble le gap entre le popup et le bouton
+    &::before {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      right: 0;
+      height: 8px;
+    }
+
+    .vol-pct {
+      font-size: 0.7rem;
+      color: #888;
+      font-family: monospace;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    input[type='range'] {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      width: 6px;
+      height: 80px;
+      cursor: pointer;
+      accent-color: #88ff00;
+    }
   }
 }
 

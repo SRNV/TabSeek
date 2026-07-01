@@ -12,7 +12,7 @@ import { passWheel } from './passWheel'
  * When `locked` (rhythm-legato materialized note), a padlock icon is shown
  * — the note can still change string manually but horizontal move/resize are blocked.
  */
-export function NoteDisc({ discX, discPx, fill, border, text, fret, noteName, locked, onClick, onMouseEnter, onMouseLeave }: {
+export function NoteDisc({ discX, discPx, fill, border, text, fret, noteName, locked, visible = true, onClick, onMouseEnter, onMouseLeave }: {
   discX: number
   discPx: number
   fill: string
@@ -21,13 +21,14 @@ export function NoteDisc({ discX, discPx, fill, border, text, fret, noteName, lo
   fret: number
   noteName: string
   locked: boolean
+  visible?: boolean
   onClick: (e: React.MouseEvent) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
 }) {
   return (
     <Html position={[discX, 0, 0.06]} center zIndexRange={[70, 70]} style={{ pointerEvents: 'auto' }} onWheel={passWheel}>
-      <div
+      <div style={{ display: visible ? undefined : 'none' }}><div
         onPointerDown={e => e.stopPropagation()}
         onWheel={passWheel}
         onClick={onClick}
@@ -55,7 +56,7 @@ export function NoteDisc({ discX, discPx, fill, border, text, fret, noteName, lo
         <span style={{ fontSize: discPx * 0.18, fontWeight: 700, color: text, opacity: 0.85, lineHeight: 1, marginTop: discPx * 0.03 }}>
           {noteName}
         </span>
-      </div>
+      </div></div>
     </Html>
   )
 }

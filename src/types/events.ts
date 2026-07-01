@@ -8,4 +8,5 @@ export type Events = {
   hideTooltip: void
   playProgression: ChordProgression
   progressionDragStart: ChordProgression
+  chordDragStart: ChordProgression
 }

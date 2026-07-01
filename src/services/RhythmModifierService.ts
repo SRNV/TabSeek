@@ -17,6 +17,7 @@
  */
 import { useTablatureR3FStore } from '../stores/useTablatureR3FStore'
 import { rhythmPatterns } from '../data/rhythmPatterns'
+import { NotificationService } from './NotificationService'
 import type { RhythmPatternDef, TablatureNote, RhythmModifier, ChordGroup, ProgressionGroup } from '../types'
 import { BEATS_PER_MEAS } from '../utils/tabUtils'
 
@@ -105,11 +106,17 @@ export const RhythmModifierService = {
 
     if (targetType === 'note') {
       const isLegatoIntermediate = state.notes.some(n => n.intermediateNoteIds?.includes(targetId))
-      if (isLegatoIntermediate) return
+      if (isLegatoIntermediate) {
+        NotificationService.error('Refusé — les notes intermédiaires de legato ne peuvent pas recevoir de rythme')
+        return
+      }
     }
 
     const existing = state.rhythmModifiers.find(m => m.targetId === resolvedId && m.targetType === targetType)
-    if (existing) return
+    if (existing) {
+      NotificationService.warning('Ce pod a déjà un modificateur de rythme')
+      return
+    }
 
     ph()
 
@@ -127,6 +134,7 @@ export const RhythmModifierService = {
     if (activeTracks.length === 0) return
 
     addMod({ targetType, targetId: resolvedId, patternName: rhythm.name, activeTracks, mode: 'proportional', enabled: true, fillGaps: true })
+    NotificationService.success(`Rythme « ${rhythm.name} » appliqué`)
   },
 
   /**

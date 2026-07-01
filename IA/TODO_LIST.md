@@ -1,6 +1,6 @@
 # TabSeek — TODO List
 
-> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 13 — PDF finalisé, F5 en cours).
+> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 14 — F5 + F7 + F6 terminés).
 
 ---
 
@@ -21,13 +21,38 @@
 - Sérialisation/désérialisation complète ProjectData
 - Import/export fichier .json via FileReader
 
+### [F5] Édition corde depuis clavier (↑/↓) — DONE
+- ↑/↓ déplace la note sélectionnée d'une corde en conservant le MIDI (fret recalculé)
+- Blocage si pitch impossible sur la corde cible (fret hors 0-24) ou borne atteinte
+- 7 tests KB-01..KB-07 dans `TablatureKeyboard.test.ts`
+
+### [F6] Preview progression avant drop — DONE
+- `computeDropPreview(prog, si, beat, tuning, scalePc): PreviewNote[]` — pure function dans `TablatureDropService`
+- `PreviewNote` interface exportée (`si, fret, startBeat, duration, chordName`)
+- `previewNotes: PreviewNote[] | null` + `setPreviewNotes` ajoutés à `useMainStore`
+- `eventBus.emit('chordDragStart')` dans `ChordsList.tsx` (idem `progressionDragStart` existant)
+- `chordDragStart: ChordProgression` ajouté aux `Events` dans `src/types/events.ts`
+- `useTablatureFileDrop.ts` : écoute eventBus, cache payload ref, preview throttlée `${si}:${beat}`, clear on leave/drop
+- `GhostNotePods.tsx` : plans semi-transparents (#88ccff, opacity 0.35) aux coordonnées monde correctes
+- Intégré dans `TablatureR3F.tsx` avant le `PlaybackIndicator`
+- 5 tests F6-01..F6-05 dans `DropPreview.test.ts` — tous verts
+
+### [F7] Hover Mode Zone → scale degrees sur le manche — DONE
+- `ModeZoneService.getScaleHighlights(zone, tuning, userScale)` : tous les frets de chaque degré, colorés par DEGREE_COLORS
+- `DEGREE_COLORS` extrait dans `src/utils/musicColors.ts` (partagé Tab.tsx + ModeZoneService)
+- `ModePods.tsx` : `onPointerEnter` → `FretboardHighlightService.setHighlights`, `onPointerLeave` → `clearHighlights`
+- 6 tests F7-01..F7-06 dans `ModeZoneHighlight.test.ts`
+
+### [ERG-1] Ergonomie des voicings dans les progressions — DONE
+- `positionPenalty = fMax * fMax * 1.5` (quadratique) dans `scoreVoicing`
+- `voiceLeadCost` ×15 → ×20 pour continuité inter-accords
+- `prevDropVoicing` dans `TablatureDropService`, `prevTemplateVoicing` dans `PodModifierService`
+- 6 tests ERG (ERG-01..ERG-06) dans `guitarUtils.test.ts` — tous verts
+
 ---
 
 ## 🟡 EN COURS / PRIORITÉ
 
-### [F5] Édition corde depuis clavier (flèches haut/bas)
-- Note sélectionnée : ↑ monte d'une corde, ↓ descend d'une corde
-- Garder le même fret ou recalculer l'équivalent (à décider)
 
 ---
 
@@ -35,8 +60,6 @@
 
 ### [F1] Export MIDI
 ### [F4] Raccourcis clavier — aide/overlay (Ctrl+?) — spec à définir
-### [F6] Preview progression avant drop
-### [F7] Hover Mode Zone → scale degrees sur le manche
 
 ---
 
@@ -49,28 +72,28 @@
 ### Complétude des accords (`chords.ts`)
 
 - **B-3** — Ajouter ≥ 3 positions par type d'accord (actuellement 1-2 max pour les types altérés). Priorité : accords de couleur (maj7#5, maj7b5, 7#9#11, min13, etc.) · _Responsable : Jean + Alex (UX guitare)_
-- **Q-3** — Typer `CHORDS` en `Record<TonalChordType, ChordsCompleteDef>` strict pour vérification exhaustive à la compilation. Nécessite export du type union depuis `tonalChordsMapping.ts`. · _Responsable : Eva (compile-time safety)_
+- ✅ **Q-3** — DONE · `TonalChordType` exporté depuis `tonalChordsMapping.ts` (`as const` + `typeof TONAL_CHORD_TYPES[number]`). `CHORDS` typé en `Record<TonalChordType, ChordTypeDef>`. 5 call-sites castés `as TonalChordType` (`useGuitarChords` ×2, `ChordTab`, `PodModifierService` ×3). · _Eva_
 
 ### Rythmes — `rhythmPatterns.ts`
 
-- **C-1** — Flamenco : ajouter Alegrías (3/4, 12 temps), Tangos (4/4 à 2 tiempos), Farruca (4/4, 4×4) · _Valider avec Dr. Kouyaté_
-- **C-2** — Tâlas carnatic : Misra Chapu (7 temps = 3+4), Khanda Chapu (5 temps = 2+3), Rupakam (6 temps = 3+2+1) · _Valider intervalles avec sources IRCAM_
-- **C-3** — Usul turcs : Düyek (8/8 = 3+2+3), Sengin Semai (10/8 = 3+2+2+3) · _Complémentaire Karşılama déjà présent_
-- **C-4** — Polyrhythmie africaine : bell pattern Ewe (12/8 = cycle de 7 sur 12), Fanga malien (6/8, pattern Mandingue) · _Dr. Ndiaye recommande sources Nzewi (SOAS)_
+- ✅ **C-1** — DONE · Flamenco : Alegrías (12/8, compás 12 temps, accents 0-3-6-7-9-11), Tangos (4/4 syncopé 16 steps), Farruca (4/4 grave 2×8 steps)
+- ✅ **C-2** — DONE · Carnatic : Misra Chapu (7/8=3+4, euclid snare/hihat), Khanda Chapu (5/8=2+3), Rupakam (6/8=3+2+1)
+- ✅ **C-3** — DONE · Usul turcs : Düyek (8/8=3+2+3), Sengin Semai (10/8=3+2+2+3)
+- ✅ **C-4** — DONE · Polyrhythmie africaine : Bell Pattern Ewe (12/8, gankogui 7 hits/12), Fanga malien (6/8, dundun+djembe+sangban, pattern Mandingue)
 
 ### Grilles — `chord-charts.ts`
 
-- **C-5** — Jazz standards manquants : Round Midnight (Monk), Cherokee (Ray Noble), Wave (Jobim), Corcovado (Jobim), Have You Met Miss Jones (Rodgers) · _Jean prioritise Round Midnight (chromatisme Monk)_
+- ✅ **C-5** — DONE · 5 jazz standards ajoutés dans `chord-charts.ts` : 'Round Midnight (Monk), Cherokee (Noble, AABA 64 bars), Wave (Jobim), Corcovado (Jobim), Have You Met Miss Jones (Rodgers, pont bVI/bIV anticipant Coltrane)
 
 ### Progressions — `progressions.ts`
 
-- **C-6** — Renaissance/Baroque : passacaille (basse obstinée chromatique), chaconne (i-bVII-bVI-V), ground bass (i-iv-V7-i) · _Contexte historique pour pédagogie_
-- **C-7** — Balkan / aksak : progressions sur 7/8, 9/8, cycles asymétriques (ex. 2+2+3, 3+3+2+2) · _Complément rythmes Karşılama déjà présents_
+- ✅ **C-6** — DONE · Renaissance/Baroque : Lamento bass (i-VII-bVII-bVI-V), Chaconne enrichie (i-bVII-bVI-V), Basse obstinée (i-iv-V-i), Romanesca (bIII-bVII-i-V), Passacaille (i-iv-i-V-i-bVI-bIII-V). Doublons résolus (ancienne Romanesca → "Basse baroque en majeur", Chaconne baroque fusionnée, Čoček dédupliqué).
+- ✅ **C-7** — DONE · Balkan/aksak : Pajduško (5/8, i-V), Račenica (7/8=2+2+3, i-iv-V), Oro (7/8=3+2+2, i-bII-V), Čoček (9/8=2+2+2+3, i-bVII-bVI-V7), Leventiko (9/8=3+2+2+2, i-iv-i-V)
 
 ### Qualité — `progressions.ts` + `extraModes.ts`
 
-- **Q-1** — Standardiser séparateur de mesure `-` → `|` dans tous les champs `numerals` de `progressions.ts` (cohérence avec `chord-charts.ts`) · _Refactor non-breaking, rechercher/remplacer ciblé_
-- **Q-2** — Ajouter disclaimer 12-TET dans toutes les descriptions de maqams et ragas (`extraModes.ts`) : préciser que les intervalles sont des approximations tempérées d'intervalles microtonal · _Validation Dr. Kouyaté / Dr. Tanaka_
+- ⚠️ **Q-1** — ANNULÉ · **CRITIQUE** : le champ `numerals` dans `progressions.ts` **doit garder `-` comme séparateur de mesure** (pas `|`). L'app parse avec `split('-')` dans 5 endroits : `CompiledProgressionItem.tsx:30`, `ProgressionCompiler.tsx:94`, `PodModifierService.ts:356`, `TablatureDropService.ts:82/122/127`, `ProgressionsList.tsx:27`. La standardisation vers `|` a cassé l'app (session 13 — 153 champs corrigés via script de retour).
+- ✅ **Q-2** — DONE · 20 disclaimers 12-TET injectés dans `extraModes.ts` via script `add_12tet.js` : maqams arabes/persans/bayati/saba, byzantine, ragas indiens (yaman/todi/marwa/poorvi/bhairavi/hindu), gammes japonaises (ritusen/yo/hirajoshi/in sen/iwato/kumoi), chinoises (man gong/zhi/shang). · _Dr. Kouyaté / Dr. Tanaka_
 
 ### Tests data — `src/data/__tests__/`
 
