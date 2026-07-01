@@ -125,9 +125,11 @@ export const TablatureDropService = {
     chordEntries.forEach(({ chordName, startBeat }, ci) => {
       // Re-fetch fresh state for each chord entry to avoid using stale notes array
       const currentState = useTablatureR3FStore.getState()
-      const notesPc   = Chord.get(chordName).notes
+      const chordData = Chord.get(chordName)
+      if (chordData.empty || chordData.notes.length === 0) return // skip unrecognised chord names
+      const notesPc   = chordData.notes
       const addedIds: string[] = []
-      
+
       const voicing = findBestChordFrets(tuning, notesPc, si, ci === 0 ? forcedRoot : undefined)
       
       voicing.forEach(v => {

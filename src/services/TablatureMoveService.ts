@@ -6,9 +6,14 @@ import {
   BEAT_W, MIN_DUR,
   constrainMove, constrainRight, constrainLeft, constrainChordGroupMove
 } from '../utils/tabUtils'
+import type { DragNoteState, DragChordGroupState, DragProgGroupState } from '../types/tablatureDrag'
+
+type WxFn = (clientX: number) => number
+type WyFn = (clientY: number) => number
+type SiFromWorldY = (worldY: number) => number
 
 export const TablatureMoveService = {
-  handleNoteMove: (d: any, clientX: number, clientY: number, wx: Function, wy: Function, siFromWorldY: Function, tuningArr: string[], scaleNotes: string[]) => {
+  handleNoteMove: (d: DragNoteState, clientX: number, clientY: number, wx: WxFn, wy: WyFn, siFromWorldY: SiFromWorldY, tuningArr: string[], scaleNotes: string[]) => {
     const { updateNote } = useTablatureR3FStore.getState()
     const n = useTablatureR3FStore.getState().notes.find(note => note.id === d.noteId)
     if (!n) return
@@ -43,7 +48,7 @@ export const TablatureMoveService = {
     }
   },
 
-  handleChordGroupMove: (d: any, clientX: number, wx: Function, tuningArr: string[], scaleNotes: string[]) => {
+  handleChordGroupMove: (d: DragChordGroupState, clientX: number, wx: WxFn, tuningArr: string[], scaleNotes: string[]) => {
     const { updateNote, pushHistory } = useTablatureR3FStore.getState()
     const worldX = wx(clientX)
     const origW  = d.origGroupEnd - d.origGroupStart
@@ -55,7 +60,7 @@ export const TablatureMoveService = {
 
     if (d.type === 'move') {
       const rawDelta = snapBeat((worldX - d.startX) / BEAT_W)
-      const groupIds = new Set<string>(d.origNotes.map((n: any) => n.id as string))
+      const groupIds = new Set<string>(d.origNotes.map(n => n.id))
       const dBeat    = constrainChordGroupMove(d.origNotes, groupIds, rawDelta)
       for (const n of d.origNotes) {
         if (RhythmModifierService.isLegatoLocked(n.id)) continue
@@ -87,7 +92,7 @@ export const TablatureMoveService = {
     }
   },
 
-  handleProgGroupMove: (d: any, clientX: number, wx: Function, tuningArr: string[], scaleNotes: string[]) => {
+  handleProgGroupMove: (d: DragProgGroupState, clientX: number, wx: WxFn, tuningArr: string[], scaleNotes: string[]) => {
     const { updateNote, pushHistory } = useTablatureR3FStore.getState()
     const worldX = wx(clientX)
     const origW  = d.origProgEnd - d.origProgStart
@@ -99,7 +104,7 @@ export const TablatureMoveService = {
 
     if (d.type === 'move') {
       const rawDelta = snapBeat((worldX - d.startX) / BEAT_W)
-      const groupNoteIds = new Set<string>(d.origNotes.map((n: any) => n.id as string))
+      const groupNoteIds = new Set<string>(d.origNotes.map(n => n.id))
       const dBeat = constrainChordGroupMove(d.origNotes, groupNoteIds, rawDelta)
       for (const n of d.origNotes) {
         if (RhythmModifierService.isLegatoLocked(n.id)) continue

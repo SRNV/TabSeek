@@ -1,12 +1,33 @@
 # TabSeek — TODO List
 
-> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 4 — audit complet Bryan).
+> Mis à jour après chaque tour de table. Dernière mise à jour : 2026-07-01 (session 5 — traitement TODO + refactoring architecture).
+
+---
+
+## ✅ TRAITÉS EN SESSION 5
+
+| Item | Fix |
+|---|---|
+| C1 Progression hover fretboard | `TablatureR3F.tsx` ~1882 — `FretboardHighlightService.setHighlights()` ajouté sur la progression pod |
+| C2 Icônes PWA | `public/icon-192.png` + `public/icon-512.png` générés (cercle orange TabSeek) |
+| C3 PreferencesService | Catch vides → `console.warn` avec clé et erreur |
+| M1 Console.log prod | `main.tsx`, `SoundFontService.ts`, `useGuitarChords.ts`, `useNoteHelpers.ts` nettoyés |
+| M3/M4 Tuning doc | `useTablatureStore.ts` — JSDoc complet sur `tuning` + convention d'ordre documentée ; `useGuitarChords.ts` — `REFERENCE_TUNING` commenté |
+| M5 Validation Chord.get | `TablatureDropService.ts` — vérification `chordData.empty` avant voicing |
+| M7 Fret hors-bornes | `ModeZoneService.ts` — skip `f < 0 \|\| f > 24` dans `getVirtualFret` |
+| A1 Extraire legatoUtils | `src/utils/legatoUtils.ts` — `syncLegatoHelper` (169L), `detectChordName`, `isRhythmLegatoLocked`, `getNoteNameFromFret` extraits du store |
+| A2 Typer eventBus | `eventBus.ts` — `playProgression`/`progressionDragStart` : `any` → `ChordProgression` |
+| A3 Typer drag service | `src/types/tablatureDrag.ts` + `TablatureMoveService.ts` — `d: any` → union discriminée typée |
+
+**Résultat** : `useTablatureR3FStore.ts` 834 → **628 lignes** (-24%), 0 `any` dans les services critiques.
 
 ---
 
 ## 🔴 CRITIQUE (UX bloquant / régressif)
 
-### [C1] Progression pod hover ne highlight pas le manche
+### ~~[C1] Progression pod hover~~ ✅ résolu session 5
+
+### ~~[C1] (archive) Progression pod hover ne highlight pas le manche
 - **Fichier** : `TablatureR3F.tsx` ~ligne 1882
 - `onPointerEnter` du progression pod fait `setHoveredProgId()` mais **n'appelle pas** `FretboardHighlightService.setHighlights()`
 - **Attendu** : survoler une progression → toutes les notes de tous ses accords s'allument sur le SmartFretBoard

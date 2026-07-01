@@ -5,7 +5,8 @@ export const PreferencesService = {
     try {
       const raw = localStorage.getItem(PREFIX + key);
       return raw !== null ? (JSON.parse(raw) as T) : defaultValue;
-    } catch {
+    } catch (e) {
+      console.warn(`[Preferences] Failed to read "${key}":`, e);
       return defaultValue;
     }
   },
@@ -13,12 +14,16 @@ export const PreferencesService = {
   set<T>(key: string, value: T): void {
     try {
       localStorage.setItem(PREFIX + key, JSON.stringify(value));
-    } catch {}
+    } catch (e) {
+      console.warn(`[Preferences] Failed to write "${key}":`, e);
+    }
   },
 
   remove(key: string): void {
     try {
       localStorage.removeItem(PREFIX + key);
-    } catch {}
+    } catch (e) {
+      console.warn(`[Preferences] Failed to remove "${key}":`, e);
+    }
   },
 };

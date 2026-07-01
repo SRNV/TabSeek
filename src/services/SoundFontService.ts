@@ -295,7 +295,7 @@ class SoundFontServiceClass {
       this.presetZones = parsed.presetZones;
 
       this._buildSamplesForPreset(this.pendingPreset.bank, this.pendingPreset.preset);
-      console.log(`[SF2] Loaded — ${parsed.presetZones.size} presets parsed`);
+      // SF2 loaded successfully
     } catch (e) {
       console.warn('[SF2] Load failed, using oscillator fallback:', e);
       this.failed = true;
@@ -371,7 +371,7 @@ class SoundFontServiceClass {
 
     this.samples = newSamples;
     this._ready = true;
-    console.log(`[SF2] Preset ${key} → ${newSamples.size} notes, ${zones.length} zones`);
+    // Preset loaded: ${newSamples.size} notes, ${zones.length} zones
   }
 
   // Used when preset zones are empty (shouldn't normally happen)

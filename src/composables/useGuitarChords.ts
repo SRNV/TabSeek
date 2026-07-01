@@ -3,9 +3,10 @@ import { Note, Interval, ChordType, type NoteLiteral } from 'tonal';
 import { TONAL_CHORD_TYPES, CHORD_NAME_MAPPINGS, getTonalChordName } from './tonalChordsMapping';
 import { CHORDS } from './chords';
 
-// Définition des constantes pour la référence d'accordage
-export const REFERENCE_TUNING = ["E2", "A2", "D3", "G3", "B3", "E4"]; // Accordage standard
-export const REFERENCE_ROOT = "C"; // Note de référence pour les positions dans CHORDS
+// Default reference tuning used for chord chart lookups (CHORDS data).
+// Note: runtime tuning comes from useTablatureStore — this constant is only for static chord data.
+export const REFERENCE_TUNING = ["E2", "A2", "D3", "G3", "B3", "E4"]
+export const REFERENCE_ROOT = "C"
 
 /**
  * Calcule les positions des doigts sur les frettes en fonction du type d'accord et de la note fondamentale
@@ -40,7 +41,7 @@ export function getFretPositions(
   const referenceMidi = Note.midi(`${referenceRoot}4`);
   
   if (rootMidi === null || referenceMidi === null) {
-    console.error("Notes invalides pour le calcul de la transposition");
+    // Invalid notes for transposition — return sentinel values
     return tuning.map(() => -1);
   }
   

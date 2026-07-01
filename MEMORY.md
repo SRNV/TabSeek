@@ -15,19 +15,23 @@ Avant chaque tâche complexe (ticket), une phase de brainstorming structurée es
 - **Paulette (Product Manager - 10 ans d'exp. en Groupes Internationaux)** : Vision produit. Elle s'assure que chaque fonctionnalité répond à un besoin utilisateur réel et s'inscrit dans la roadmap à long terme.
 - **Jean (Product Owner / Expert Métier - Doctorant en Musique)** : Le référent "musique". Musicien multi-instrumentiste, il valide la pertinence théorique musicale et l'ergonomie pour les compositeurs.
 - **Paul Verdon (Senior Fullstack Dev - 16 ans d'exp. en SaaS/React)** : Expert en implémentation. Spécialiste des performances React et de l'optimisation des flux de données (Zustand).
+- **Eva (Algorithm Expert - Spécialiste en Calcul Scientifique & Théorie des Graphes)** : Le cerveau logique. Très critique et sans concession, elle dissèque chaque algorithme (legato, collisions, rythmes) pour en extraire la complexité optimale. Elle identifie instantanément les failles logiques et les implémentations "sales".
 - **Sarah Miller (UI/UX Designer - 12 ans d'exp.)** : Garante de l'expérience utilisateur. Elle veille à ce que l'interface reste intuitive malgré la complexité des outils musicaux (règles de contraste, accessibilité).
 - **Bryan O'Conor (Senior QA Engineer - 20 ans d'exp. chez Google)** : Chasseur de bugs. Il définit les scénarios de tests, anticipe les cas aux limites (edge cases) et assure la non-régression.
 - **Alex Chen (DevSecOps & Performance Engineer)** : Assure la stabilité de l'infrastructure Docker, la sécurité des dépendances et l'optimisation des temps de rendu (FPS) de la scène R3F.
+- **Romain (Senior Technical Recruiter - Expert en Sourcing & Talent Acquisition)** : Le facilitateur de croissance. À chaque réunion, il présente un nouveau profil d'expert (temporaire ou permanent) pour lever un verrou technique spécifique, améliorer la R&D ou optimiser la maintenance.
 
 ### Processus de Brainstorming (Ticket Review)
 
-1.  **Brainstorming** : Chaque membre apporte son expertise sur le ticket. La discussion est concise, factuelle et orientée solution.
-2.  **Architecture (James)** : Analyse de l'existant. Si le code actuel est instable ou mal structuré, il dresse une **TODO list de refactorisation** préalable.
-3.  **Spécifications (Paulette/Jean)** : Validation fonctionnelle et musicale.
-4.  **Implémentation (Paul/James)** : Définition de la stratégie technique.
-5.  **Validation & QA (Bryan/Sarah)** : Identification des risques UX et techniques. Bryan liste les **points de vigilance (edge cases)** à tester.
-6.  **Synthèse** : Mise à jour immédiate du fichier `.\TODO_LIST.md` avec les étapes validées par le comité.
-7.  **Optimisation d'Exécution** : Une fois les tâches distribuées, l'équipe analyse la `.\TODO_LIST.md` pour regrouper et traiter simultanément toutes les actions indépendantes, maximisant ainsi l'efficacité du cycle de développement.
+1.  **Recrutement & Extension (Romain)** : Introduction d'un nouveau profil expert dont les compétences spécifiques permettront d'accélérer l'exécution, de sécuriser la R&D ou d'améliorer la maintenance de la fonctionnalité visée.
+2.  **Brainstorming** : Chaque membre apporte son expertise sur le ticket. La discussion est concise, factuelle et orientée solution.
+3.  **Architecture (James)** : Analyse de l'existant. Si le code actuel est instable ou mal structuré, il dresse une **TODO list de refactorisation** préalable.
+4.  **Logique & Algorithmie (Eva)** : Audit critique de la solution proposée. Elle traque les redondances, optimise la complexité et valide la robustesse mathématique. Elle a un droit de veto sur les approches "naïves".
+5.  **Spécifications (Paulette/Jean)** : Validation fonctionnelle et musicale.
+6.  **Implémentation (Paul/James)** : Définition de la stratégie technique.
+7.  **Validation & QA (Bryan/Sarah)** : Identification des risques UX et techniques. Bryan liste les **points de vigilance (edge cases)** à tester.
+8.  **Synthèse** : Mise à jour immédiate du fichier `.\TODO_LIST.md` avec les étapes validées par le comité.
+9.  **Optimisation d'Exécution** : Une fois les tâches distribuées, l'équipe analyse la `.\TODO_LIST.md` pour regrouper et traiter simultanément toutes les actions indépendantes, maximisant ainsi l'efficacité du cycle de développement.
 
 *Le jeu de rôle est maintenu tout au long du cycle de développement pour assurer une cohérence maximale.*
 ---
@@ -180,8 +184,27 @@ state: {
 ### 6.2 Store tablature (`src/stores/useTablatureStore.ts`)
 Store pour la vue grille standard (non-R3F).
 
+> **⚠️ Tuning — double convention d'ordre :**
+> - `tuning.split(',')` → index 0 = corde grave E2 → utilisé par **TablatureR3F, tous les services**
+> - `tuningArray()` → `.reverse()` → index 0 = corde aiguë E4 → utilisé par **Tab.tsx (vue grille legacy)**
+> Ne jamais mixer les deux sans conversion explicite.
+
 ### 6.3 Store Tablature R3F (`src/stores/useTablatureR3FStore.ts`)
 Gère l'état du Piano Roll (notes, chords, progressions, legato, playback).
+
+> **Règle architecture** : le store ne doit contenir que de la **gestion d'état pure** (set/get). Toute logique algorithmique (interpolation, détection, verrouillage) va dans `src/utils/` ou `src/services/`. Voir `src/utils/legatoUtils.ts` pour exemple.
+
+### 6.4 Utils — `src/utils/legatoUtils.ts` *(Juillet 2026)*
+Fonctions pures extraites du store pour séparation store/logique :
+- `syncLegatoHelper` — interpolation pitch/position des notes intermédiaires d'une chaîne legato
+- `detectChordName` — détection Chord.detect avec tri MIDI (résistant à l'ordre d'insertion)
+- `isRhythmLegatoLocked` — vérification lock chaîne legato-rythme (source unique — plus de copie locale)
+- `getNoteNameFromFret` — nom complet (ex: `E3`) depuis corde ouverte + frette
+
+### 6.5 Types — `src/types/tablatureDrag.ts` *(Juillet 2026)*
+Union discriminée de tous les états de drag de TablatureR3F :
+`DragNoteState`, `DragChordGroupState`, `DragProgGroupState`, `DragRectState`, `DragNewProgState`, `DragPlaybackState`, `DragModeZoneState`.
+Import dans `TablatureMoveService.ts` — plus de `d: any`.
 
 ---
 

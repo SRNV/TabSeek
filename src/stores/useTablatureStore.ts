@@ -120,6 +120,16 @@ export const useTablatureStore = create<TablatureState>((set, get) => ({
   tempo: 120,
   metronomeEnabled: false,
   filterByScaleEnabled: true,
+  /**
+   * Tuning string — single source of truth for both the legacy grid view and the R3F piano roll.
+   * Format: comma-separated notes from lowest (si=0) to highest string (si=N-1).
+   * E.g. 'E2,A2,D3,G3,C4,E4' (custom 6-string with C4 instead of standard B3).
+   *
+   * ⚠️ CONVENTION WARNING — TWO DIFFERENT INDEX ORDERS exist in the app:
+   *   • useTablatureStore.tuning.split(',')  → index 0 = low E (E2) — used by TablatureR3F, all services
+   *   • useTablatureStore.tuningArray()      → .reverse() → index 0 = high e (E4) — used by legacy grid (Tab.tsx)
+   * Never mix the two without an explicit conversion.
+   */
   tuning: 'E2,A2,D3,G3,C4,E4',
   columns: 8 * 4,
   selectedColumns: [],

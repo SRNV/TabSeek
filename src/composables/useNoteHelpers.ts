@@ -142,7 +142,7 @@ export function getJoinedDegree(noteName: string, scale: string[], chord: string
       const interval = Interval.distance(root, noteName);
       return interval;
     } catch (error) {
-      console.error("Erreur lors du calcul de l'intervalle:", error);
+      // Interval calculation failed — return empty string
       return '';
     }
   }

@@ -7,7 +7,6 @@ import eventBus from './eventBus'
 import { useMainStore } from './stores/useMainStore'
 
 eventBus.on('noteSelected', (midi: number) => {
-  console.log(midi)
   useMainStore.getState().setSelectedMidi(midi)
 })
 

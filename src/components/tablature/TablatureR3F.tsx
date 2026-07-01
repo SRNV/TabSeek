@@ -1879,8 +1879,24 @@ function TablatureScene({ onStringYPcts }: SceneProps) {
             {/* Hit area */}
             <mesh position={[0, 0, 0.009]}
               onPointerDown={e => onProgPodDown(e, prog, headerW)}
-              onPointerEnter={() => { setHoveredProgId(prog.id); if (!drag.current) gl.domElement.style.cursor = 'grab' }}
-              onPointerLeave={() => { setHoveredProgId(null); if (!drag.current) gl.domElement.style.cursor = 'default' }}
+              onPointerEnter={() => {
+                setHoveredProgId(prog.id)
+                if (!drag.current) {
+                  gl.domElement.style.cursor = 'grab'
+                  const progNotes = prog.chordGroupIds.flatMap(cgId => {
+                    const cg = chordGroups.find(g => g.id === cgId)
+                    return cg ? notes.filter(n => cg.noteIds.includes(n.id)) : []
+                  })
+                  FretboardHighlightService.setHighlights(progNotes.map(n => ({ si: n.string, fret: n.fret })))
+                }
+              }}
+              onPointerLeave={() => {
+                setHoveredProgId(null)
+                if (!drag.current) {
+                  gl.domElement.style.cursor = 'default'
+                  FretboardHighlightService.clearHighlights()
+                }
+              }}
               onPointerMove={e => {
                 if (drag.current) return
                 const lx = e.point.x - podLeft

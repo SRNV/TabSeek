@@ -88,6 +88,7 @@ export const ModeZoneService = {
     let bestDiff = Infinity
     scalePcs.forEach(pc => {
       const f = findFretForPc(openNote, pc, note.fret)
+      if (f < 0 || f > 24) return // skip frets outside playable range
       const diff = Math.abs(f - note.fret)
       if (diff < bestDiff) { bestDiff = diff; bestFret = f }
     })
